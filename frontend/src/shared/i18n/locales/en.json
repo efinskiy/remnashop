@@ -4698,7 +4698,8 @@
     "TRANSLATION_VARIABLE_NOT_ALLOWED": "The text uses a variable or expression the original text doesn’t have.",
     "RECURRING_CONSENT_REQUIRED": "This payment method requires separate consent to auto-renewal.",
     "GATEWAY_FIELD_INVALID_CHOICE": "Select an available payment mode.",
-    "GATEWAY_FIELD_OUT_OF_RANGE": "The value is outside the allowed range."
+    "GATEWAY_FIELD_OUT_OF_RANGE": "The value is outside the allowed range.",
+    "RECURRING_PAYMENT_IN_PROGRESS": "An automatic renewal payment for this subscription is already in progress."
   },
   "loyalty": {
     "settings": {

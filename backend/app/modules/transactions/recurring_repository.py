@@ -264,16 +264,26 @@ class RecurringPaymentRepository:
             .values(submitted_at=None)
         )
 
-    async def has_manual_waiting(self, subscription_id: int) -> bool:
+    async def has_live_manual_order(self, subscription_id: int, now: datetime) -> bool:
+        """A manual payment for this subscription a customer may still complete, or one paid
+        and not yet delivered."""
         return (
             await self.session.scalar(
                 select(Transaction.id)
                 .where(
                     Transaction.target_subscription_id == subscription_id,
                     Transaction.is_recurring.is_(False),
-                    Transaction.status == TransactionStatus.PAID,
-                    Transaction.fulfilled_at.is_(None),
                     Transaction.is_test.is_(False),
+                    or_(
+                        and_(
+                            Transaction.status == TransactionStatus.PENDING,
+                            Transaction.expires_at > now,
+                        ),
+                        and_(
+                            Transaction.status == TransactionStatus.PAID,
+                            Transaction.fulfilled_at.is_(None),
+                        ),
+                    ),
                 )
                 .limit(1)
             )

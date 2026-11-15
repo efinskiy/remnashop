@@ -64,6 +64,7 @@ from tests.fakes.payment_texts import FixedPaymentTexts
 from tests.fakes.recurring import ShippedRecurringTermsTexts, fulfil, make_recurring_lifecycle
 from tests.fakes.remnawave import _user_payload
 from tests.modules.subscriptions.factories import make_eligibility
+from tests.modules.transactions.test_repository import _order_dto
 
 
 class _YooKassa:
@@ -1126,3 +1127,25 @@ async def test_account_merge_preserves_authorized_owner_and_immutable_consent(
     assert consent.owner_user_id == target.id
     assert consent.user_id == case.user.id
     assert consent.terms["user_id"] == case.user.id
+
+
+async def test_auto_charge_waits_for_pending_manual_order(
+    case, transaction_repository, uow
+) -> None:
+    async with uow:
+        await transaction_repository.create(
+            replace(
+                _order_dto(
+                    user_id=case.user.id,
+                    plan_id=case.source.plan_id,
+                    idempotency_key="manual-open",
+                ),
+                purchase_type=PurchaseType.RENEW,
+                target_subscription_id=case.subscription.id,
+            )
+        )
+    await case.worker.system()
+    assert not case.provider.posts
+    mandate = await case.repository.get(case.subscription.id)
+    assert mandate.pending_transaction_id is None
+    assert mandate.next_attempt_at > datetime_now()

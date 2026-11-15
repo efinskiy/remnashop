@@ -49,7 +49,7 @@ from app.modules.users import UserRepository
 from app.modules.users.dto import CreateUserDto, UpdateUserDto, UserDto
 from tests.fakes.dispatch import RecordingDispatch
 from tests.fakes.payment_texts import FixedPaymentTexts
-from tests.fakes.recurring import ShippedRecurringTermsTexts
+from tests.fakes.recurring import ShippedRecurringTermsTexts, make_recurring_lifecycle
 from tests.fakes.remnawave import FakeUserStore, _user_payload
 from tests.modules.subscriptions.factories import make_eligibility
 from tests.modules.transactions.test_usecases import (
@@ -136,6 +136,7 @@ def checkout_use_case(
         FixedPaymentTexts(),
         RecurringPaymentRepository(plan_repository.session),
         ShippedRecurringTermsTexts(),
+        make_recurring_lifecycle(plan_repository.session),
     )
 
 

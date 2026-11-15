@@ -426,6 +426,7 @@ btn-recurring =
 ntf-recurring =
     .consent-required = Consent to auto-renewal to pay with YooKassa, or choose another payment method.
     .terms-changed = Payment or renewal terms changed. Select a duration and confirm your consent again.
+    .payment-in-progress = An automatic renewal payment for this subscription is already in progress. Wait for its result instead of paying again.
     .enabled = Auto-renewal enabled.
     .disabled = Auto-renewal disabled. No new charges will be sent; a payment already submitted may still complete.
     .unavailable = Auto-renewal is unavailable. Pay for the subscription with YooKassa or contact support.

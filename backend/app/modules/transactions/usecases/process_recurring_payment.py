@@ -212,7 +212,7 @@ class ProcessRecurringPaymentUseCase(UseCase[ProcessRecurringPaymentDto, None]):
             if not mandate.enabled or not await self._enabled():
                 await self._defer(mandate.subscription_id, "gateway_disabled")
                 return
-            if await self._recurring.has_manual_waiting(mandate.subscription_id):
+            if await self._recurring.has_live_manual_order(mandate.subscription_id, datetime_now()):
                 await self._defer(mandate.subscription_id)
                 return
             source = (
@@ -410,7 +410,7 @@ class ProcessRecurringPaymentUseCase(UseCase[ProcessRecurringPaymentDto, None]):
                     not mandate.enabled
                     or not mandate.payment_method_id
                     or not await self._enabled()
-                    or await self._recurring.has_manual_waiting(subscription_id)
+                    or await self._recurring.has_live_manual_order(subscription_id, datetime_now())
                 ):
                     await self._lifecycle.cancel_unsent(subscription_id, order.id)
                     return None
@@ -449,7 +449,7 @@ class ProcessRecurringPaymentUseCase(UseCase[ProcessRecurringPaymentDto, None]):
         if not mandate.enabled or not mandate.payment_method_id or not await self._enabled():
             await self._lifecycle.cancel_unsent(subscription_id, order.id)
             return None
-        if await self._recurring.has_manual_waiting(subscription_id):
+        if await self._recurring.has_live_manual_order(subscription_id, datetime_now()):
             await self._defer(subscription_id)
             return None
         if not await self._has_consent(mandate, order, order.final_price):

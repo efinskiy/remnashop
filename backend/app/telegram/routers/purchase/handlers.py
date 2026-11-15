@@ -67,6 +67,7 @@ _ERROR_KEYS: Final[dict[ErrorCode, str]] = {
     ErrorCode.PURCHASE_DISCOUNT_USED: "ntf-purchase.discount-used",
     ErrorCode.PRICE_CHANGED: "ntf-recurring.terms-changed",
     ErrorCode.RECURRING_CONSENT_REQUIRED: "ntf-recurring.consent-required",
+    ErrorCode.RECURRING_PAYMENT_IN_PROGRESS: "ntf-recurring.payment-in-progress",
 }
 
 

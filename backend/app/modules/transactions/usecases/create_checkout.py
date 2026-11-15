@@ -56,6 +56,7 @@ from app.modules.transactions.gateways.factory import PaymentGatewayFactory
 from app.modules.transactions.gateways.registry import GATEWAY_REGISTRY, gateway_currency
 from app.modules.transactions.gateways.telegram_stars import with_bot_settings
 from app.modules.transactions.ports import PaymentTexts, RecurringTermsTexts
+from app.modules.transactions.recurring_lifecycle import RecurringLifecycle
 from app.modules.transactions.recurring_policy import recurring_policy
 from app.modules.transactions.recurring_repository import RecurringPaymentRepository
 from app.modules.transactions.recurring_terms import build_recurring_terms
@@ -90,7 +91,9 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
         payment_texts: PaymentTexts,
         recurring_repository: RecurringPaymentRepository,
         recurring_terms_texts: RecurringTermsTexts,
+        recurring_lifecycle: RecurringLifecycle,
     ) -> None:
+        self._recurring_lifecycle = recurring_lifecycle
         self._recurring_terms_texts = recurring_terms_texts
         self._recurring_repository = recurring_repository
         self._pricer = pricer
@@ -189,6 +192,7 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
         )
 
         async with self._uow:
+            await self._hold_recurring_attempt(actor.id, data)
             gateway_settings = await self._load_gateway_settings(actor.id, data)
             plan, user = await self._pricer.load_purchasable_plan(
                 actor.id,
@@ -324,6 +328,33 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
             )
 
         return CheckoutResultDto(order_id=order.id, confirmation_url=intent.confirmation_url)
+
+    async def _hold_recurring_attempt(self, user_id: int, data: CreateCheckoutDto) -> None:
+        """Keeps a manual renewal and an automatic charge from paying the same period: an
+        unsent automatic attempt gives way, a sent one refuses the checkout. The mandate stays
+        locked until this checkout's order commits, so the worker then sees it."""
+        subscription_id = data.target_subscription_id
+        if subscription_id is None or data.purchase_type is PurchaseType.NEW:
+            return
+        current = await self._recurring_repository.get(subscription_id)
+        facts = await self._recurring_repository.subscription_facts(subscription_id)
+        if current is None or facts is None or facts.user_id != user_id:
+            return
+        if current.pending_transaction_id is not None and current.submitted_at is None:
+            # order before mandate, the worker's lock order
+            await self._recurring_lifecycle.cancel_unsent(
+                subscription_id, current.pending_transaction_id
+            )
+        mandate = await self._recurring_repository.get(subscription_id, for_update=True)
+        if (
+            mandate is not None
+            and mandate.pending_transaction_id is not None
+            and mandate.submitted_at is not None
+        ):
+            raise ConflictError(
+                "An automatic renewal payment is already in progress",
+                code=ErrorCode.RECURRING_PAYMENT_IN_PROGRESS,
+            )
 
     async def _record_recurring_consent(
         self,

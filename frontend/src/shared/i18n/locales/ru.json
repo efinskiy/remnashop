@@ -4814,7 +4814,8 @@
     "TRANSLATION_VARIABLE_NOT_ALLOWED": "В тексте есть переменная или выражение, которых нет в исходном тексте.",
     "RECURRING_CONSENT_REQUIRED": "Для этого способа оплаты требуется отдельное согласие на автопродление.",
     "GATEWAY_FIELD_INVALID_CHOICE": "Выберите доступный режим оплаты.",
-    "GATEWAY_FIELD_OUT_OF_RANGE": "Значение вне допустимого диапазона."
+    "GATEWAY_FIELD_OUT_OF_RANGE": "Значение вне допустимого диапазона.",
+    "RECURRING_PAYMENT_IN_PROGRESS": "Автопродление этой подписки уже оплачивается."
   },
   "loyalty": {
     "settings": {
