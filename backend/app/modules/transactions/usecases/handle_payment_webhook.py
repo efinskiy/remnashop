@@ -203,6 +203,7 @@ class HandlePaymentWebhookUseCase(UseCase[HandleWebhookDto, WebhookAck]):
                 f"reported for order '{order.id}' by {gateway_type.value}; status kept"
             )
             async with self._uow:
+                await self._recurring_lifecycle.on_refunded(order)
                 await self._event_publisher.publish(
                     TransactionPartiallyRefundedEvent(
                         order_id=order.id,
@@ -254,6 +255,7 @@ class HandlePaymentWebhookUseCase(UseCase[HandleWebhookDto, WebhookAck]):
                     TransactionCanceledEvent(order_id=order.id, user_id=order.user_id)
                 )
             if changed and status is TransactionStatus.REFUNDED:
+                await self._recurring_lifecycle.on_refunded(order)
                 await self._event_publisher.publish(
                     TransactionRefundedEvent(
                         order_id=order.id,

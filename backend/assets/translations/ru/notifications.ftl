@@ -541,6 +541,7 @@ ntf-recurring-reason = { $reason ->
     [retries_exhausted] закончились повторные попытки оплаты
     [payment_method_not_saved] платёжный сервис не сохранил способ оплаты
     [renewal_window_expired] истёк согласованный срок повторных списаний
+    [refunded] платёж по подписке был возвращён
    *[other] возникла проблема с автоматической оплатой
     }
 ntf-recurring-payment-upcoming = Подписка #{ $subscription_id }: запланировано списание до { $amount } { $currency } в { $scheduled_at }.

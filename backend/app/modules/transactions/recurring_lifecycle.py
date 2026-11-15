@@ -189,6 +189,17 @@ class RecurringLifecycle:
         await self._repository.revoke_consent_id(mandate.consent_id, channel="plan_change")
         await self.disable(subscription_id, RecurringReason.SUBSCRIPTION_CHANGED)
 
+    async def on_refunded(self, order: TransactionDto) -> None:
+        # a refund means the customer disputes paying; no further automatic charge
+        subscription_id = order.fulfilled_subscription_id or order.target_subscription_id
+        if subscription_id is None:
+            return
+        mandate = await self._locked(subscription_id)
+        if mandate is None:
+            return
+        await self._repository.revoke_consent_id(mandate.consent_id, channel="refund")
+        await self.disable(subscription_id, RecurringReason.REFUNDED)
+
     async def close_overdue(self, now: datetime, *, limit: int) -> None:
         for subscription_id in await self._repository.overdue_ids(now, limit=limit):
             current = await self._repository.get(subscription_id)

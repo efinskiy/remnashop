@@ -529,6 +529,7 @@ ntf-recurring-reason = { $reason ->
     [retries_exhausted] payment retries were exhausted
     [payment_method_not_saved] the payment provider did not save the payment method
     [renewal_window_expired] the agreed renewal retry window expired
+    [refunded] a payment for the subscription was refunded
    *[other] there was an issue with automatic payment
     }
 ntf-recurring-payment-upcoming = Subscription #{ $subscription_id }: a charge of up to { $amount } { $currency } is scheduled for { $scheduled_at }.

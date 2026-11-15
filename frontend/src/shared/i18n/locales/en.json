@@ -3742,7 +3742,8 @@
         "retries_exhausted": "Payment retries were exhausted",
         "payment_method_not_saved": "The payment provider did not save the payment method",
         "renewal_window_expired": "The agreed renewal retry window expired",
-        "admin_closed": "Payment waiting was closed by an administrator"
+        "admin_closed": "Payment waiting was closed by an administrator",
+        "refunded": "A payment was refunded"
       },
       "search": "Search",
       "searchPlaceholder": "Customer or subscription ID",

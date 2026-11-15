@@ -181,6 +181,7 @@ def refund(
         events,
         uow,
         redis,
+        make_recurring_lifecycle(transaction_repository.session),
     )
 
 
@@ -685,6 +686,7 @@ async def race(
                     RecordingEventPublisher(),
                     UnitOfWork(refund_session),
                     redis,
+                    make_recurring_lifecycle(refund_session),
                 ),
                 purchase=PurchaseSubscriptionUseCase(
                     subscriptions,

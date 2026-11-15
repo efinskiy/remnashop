@@ -94,6 +94,7 @@ class RecurringReason(StrEnum):
     RETRIES_EXHAUSTED = "retries_exhausted"
     PAYMENT_METHOD_NOT_SAVED = "payment_method_not_saved"
     RENEWAL_WINDOW_EXPIRED = "renewal_window_expired"
+    REFUNDED = "refunded"
 
     @property
     def policy(self) -> ReasonPolicy:
@@ -141,6 +142,7 @@ _REASON_POLICIES: Final[dict[RecurringReason, ReasonPolicy]] = {
     RecurringReason.RETRIES_EXHAUSTED: _TERMINAL,
     RecurringReason.PAYMENT_METHOD_NOT_SAVED: _TERMINAL,
     RecurringReason.RENEWAL_WINDOW_EXPIRED: _TERMINAL,
+    RecurringReason.REFUNDED: ReasonPolicy(RetryKind.NONE, customer_notice=False, terminal=True),
 }
 
 
