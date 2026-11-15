@@ -46,11 +46,11 @@ from app.modules.transactions.dto import CreateTransactionDto, HandleWebhookDto,
 from app.modules.transactions.recurring_admin import ListRecurringPaymentsDto
 from app.modules.transactions.recurring_admin_repository import RecurringPaymentAdminRepository
 from app.modules.transactions.recurring_dto import SetRecurringPaymentDto
-from app.modules.transactions.recurring_policy import RecurringState, classify
+from app.modules.transactions.recurring_policy import RecurringState, classify, recurring_policy
 from app.modules.transactions.recurring_terms import build_recurring_terms
 from app.modules.transactions.usecases import HandlePaymentWebhookUseCase
 from tests.fakes.events import RecordingEventPublisher
-from tests.fakes.recurring import fulfil, make_recurring_lifecycle
+from tests.fakes.recurring import ShippedRecurringTermsTexts, fulfil, make_recurring_lifecycle
 from tests.fakes.remnawave import _user_payload
 from tests.modules.transactions import test_recurring_payments as cases
 
@@ -77,8 +77,9 @@ async def _order(
     async with uow:
         if consent:
             consent_id = await case.repository.record_consent(
-                build_recurring_terms(
-                    config=case.worker._config,
+                await build_recurring_terms(
+                    texts=ShippedRecurringTermsTexts(),
+                    policy=recurring_policy({}),
                     user_id=case.user.id,
                     plan_id=snapshot.plan_id,
                     target_subscription_id=case.subscription.id,
@@ -155,8 +156,9 @@ async def test_one_day_plan_does_not_charge_again_at_purchase(case, session, uow
                 durations=[SetPlanDurationDto(days=1, order_index=0, base_price=Decimal("500"))],
             )
         )
-        terms = build_recurring_terms(
-            config=case.worker._config,
+        terms = await build_recurring_terms(
+            texts=ShippedRecurringTermsTexts(),
+            policy=recurring_policy({}),
             user_id=case.user.id,
             plan_id=snapshot.plan_id,
             target_subscription_id=case.subscription.id,

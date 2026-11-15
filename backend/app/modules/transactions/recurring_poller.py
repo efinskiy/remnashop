@@ -1,5 +1,5 @@
 from datetime import timedelta
-from typing import Final, Optional
+from typing import Optional
 
 from loguru import logger
 
@@ -16,19 +16,21 @@ from app.modules.transactions.gateways.factory import PaymentGatewayFactory
 from app.modules.transactions.gateways.yookassa import YooKassaGateway
 from app.modules.transactions.recurring_dto import RecurringPaymentDto
 from app.modules.transactions.recurring_lifecycle import RecurringLifecycle
-from app.modules.transactions.recurring_policy import RecurringReason, recurring_reason
+from app.modules.transactions.recurring_policy import (
+    PENDING_TIMEOUT_HOURS,
+    RecurringReason,
+    recurring_reason,
+)
 from app.modules.transactions.recurring_repository import RecurringPaymentRepository
 from app.modules.transactions.recurring_terms import RecurringTerms
 from app.modules.transactions.repository import TransactionRepository
-
-DEFAULT_PENDING_TIMEOUT_HOURS: Final[int] = 24
 
 
 def pending_expired(
     mandate: RecurringPaymentDto, order: TransactionDto, terms: Optional[RecurringTerms]
 ) -> bool:
     started = mandate.pending_since or order.created_at
-    hours = terms.pending_timeout_hours if terms else DEFAULT_PENDING_TIMEOUT_HOURS
+    hours = terms.pending_timeout_hours if terms else PENDING_TIMEOUT_HOURS
     return started is not None and datetime_now() >= started + timedelta(hours=hours)
 
 

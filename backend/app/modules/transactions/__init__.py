@@ -10,6 +10,7 @@ from app.modules.transactions.dto import (
     PaymentTextDto,
     PriceQuote,
     QuoteCheckoutDto,
+    RecurringTermsTextDto,
     StarsPaymentDto,
     StarsPreCheckoutDto,
     TransactionDto,
@@ -25,6 +26,7 @@ from app.modules.transactions.ports import (
     PaymentsRestoredNotifier,
     PaymentTexts,
     PromocodeLiveness,
+    RecurringTermsTexts,
 )
 from app.modules.transactions.recurring_dto import RecurringPaymentState, SetRecurringPaymentDto
 from app.modules.transactions.recurring_events import (
@@ -78,6 +80,8 @@ __all__ = [
     "RecurringPaymentState",
     "RecurringPaymentUpcomingEvent",
     "RecurringReason",
+    "RecurringTermsTextDto",
+    "RecurringTermsTexts",
     "SetOwnRecurringPaymentUseCase",
     "SetRecurringPaymentDto",
     "StarsPaymentDto",

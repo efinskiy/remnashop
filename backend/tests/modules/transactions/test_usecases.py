@@ -93,6 +93,7 @@ from app.modules.users.dto import CreateUserDto, UpdateUserDto, UserDto
 from tests.fakes.dispatch import RecordingDispatch
 from tests.fakes.events import RecordingEventPublisher
 from tests.fakes.payment_texts import FixedPaymentTexts
+from tests.fakes.recurring import ShippedRecurringTermsTexts
 from tests.fakes.telegram_bot import FakeBotSession, use_fake_bot
 from tests.modules.settings.factories import SHOP_SETTINGS_FIELDS
 from tests.modules.subscriptions.factories import make_eligibility, make_plan_snapshot
@@ -191,6 +192,7 @@ def create_checkout_use_case(
         LegalAcceptanceRecorder(legal_repository, translation_repository),
         FixedPaymentTexts(),
         RecurringPaymentRepository(plan_repository.session),
+        ShippedRecurringTermsTexts(),
     )
 
 
@@ -460,6 +462,7 @@ async def test_concurrent_free_checkouts_stop_at_the_cap(
             LegalAcceptanceRecorder(LegalRepository(session), TranslationRepository(session)),
             FixedPaymentTexts(),
             RecurringPaymentRepository(session),
+            ShippedRecurringTermsTexts(),
         )
         try:
             await use_case(

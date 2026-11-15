@@ -220,10 +220,10 @@ async def test_customer_state_uses_the_actual_scheduled_retry(case, session, uow
 
 async def test_customer_state_keeps_the_accepted_lead_time_after_configuration_changes(case):
     before = await case.get_state(case.user, case.subscription.id)
-    case.worker._config.recurring.lead_minutes += 60
+    await test_recurring_payments.set_recurring_timings(case, lead_minutes=60)
     after = await case.get_state(case.user, case.subscription.id)
     assert after.next_payment_at == before.next_payment_at
-    assert after.accepted_terms.lead_minutes != case.worker._config.recurring.lead_minutes
+    assert after.accepted_terms.lead_minutes != 60
 
 
 @pytest.mark.parametrize(

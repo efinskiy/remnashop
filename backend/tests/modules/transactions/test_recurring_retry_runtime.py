@@ -298,9 +298,9 @@ async def test_runtime_timing_changes_do_not_replace_the_accepted_charge_policy(
     original = await case.repository.get(case.subscription.id)
     accepted = await case.repository.consent_terms(original.consent_id)
     assert accepted.lead_minutes == 1440
-    monkeypatch.setattr(case.worker._config.recurring, "lead_minutes", 60)
-    monkeypatch.setattr(case.worker._config.recurring, "retry_minutes", 1)
-    monkeypatch.setattr(case.worker._config.recurring, "max_overdue_hours", 1)
+    await recurring_cases.set_recurring_timings(
+        case, lead_minutes=60, retry_minutes=1, max_overdue_hours=1
+    )
     expiry = datetime_now() + timedelta(hours=12)
     async with uow:
         await session.execute(
@@ -325,7 +325,7 @@ async def test_runtime_window_increase_does_not_widen_the_accepted_limit(
 ):
     original = await case.repository.get(case.subscription.id)
     accepted = await case.repository.consent_terms(original.consent_id)
-    monkeypatch.setattr(case.worker._config.recurring, "max_overdue_hours", 168)
+    await recurring_cases.set_recurring_timings(case, max_overdue_hours=168)
     async with uow:
         await session.execute(
             update(Subscription)

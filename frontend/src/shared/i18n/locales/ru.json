@@ -1782,7 +1782,11 @@
         "verify_ip": "Проверять IP вебхука",
         "wallet_id": "ID кошелька",
         "webhook_secret": "Секрет вебхука",
-        "payment_mode": "Режим оплаты"
+        "payment_mode": "Режим оплаты",
+        "recurring_lead_minutes": "Автопродление: списание до окончания, мин",
+        "recurring_retry_minutes": "Автопродление: повтор после сбоя кассы, мин",
+        "recurring_max_overdue_hours": "Автопродление: окно повторов после окончания, ч",
+        "recurring_notice_lead_minutes": "Автопродление: уведомление до списания, мин"
       },
       "paymentModes": {
         "single": "Только разовые платежи",
@@ -4809,7 +4813,8 @@
     "BOT_PROXY_URL_INVALID": "Неверный адрес прокси: нужен socks5, socks5h или http с хостом и портом.",
     "TRANSLATION_VARIABLE_NOT_ALLOWED": "В тексте есть переменная или выражение, которых нет в исходном тексте.",
     "RECURRING_CONSENT_REQUIRED": "Для этого способа оплаты требуется отдельное согласие на автопродление.",
-    "GATEWAY_FIELD_INVALID_CHOICE": "Выберите доступный режим оплаты."
+    "GATEWAY_FIELD_INVALID_CHOICE": "Выберите доступный режим оплаты.",
+    "GATEWAY_FIELD_OUT_OF_RANGE": "Значение вне допустимого диапазона."
   },
   "loyalty": {
     "settings": {

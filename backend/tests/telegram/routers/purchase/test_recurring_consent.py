@@ -5,6 +5,7 @@ from aiogram_dialog.widgets.kbd import Button
 from aiogram_dialog.widgets.text import Format
 
 from app.core.enums import Currency, Locale, PurchaseType
+from app.modules.transactions.recurring_policy import recurring_policy
 from app.modules.transactions.recurring_terms import build_recurring_terms
 from app.telegram.routers.purchase.dialog import confirm, recurring_terms
 from app.telegram.routers.purchase.getters import confirm_getter, recurring_terms_getter
@@ -16,12 +17,14 @@ from app.telegram.routers.purchase.handlers import (
     checkout_data,
     on_recurring_choice,
 )
+from tests.fakes.recurring import ShippedRecurringTermsTexts
 from tests.telegram.routers.purchase.test_getters import _CATALOG, _PRICED, _i18n, _manager
 
 
-def _terms(config, *, amount="500"):
-    return build_recurring_terms(
-        config=config,
+async def _terms(config, *, amount="500"):
+    return await build_recurring_terms(
+        texts=ShippedRecurringTermsTexts(),
+        policy=recurring_policy({}),
         user_id=1,
         plan_id=10,
         target_subscription_id=None,
@@ -72,7 +75,7 @@ async def _choice(manager, enabled=True):
 
 async def test_confirmation_starts_unchecked_and_shows_terms_before_consent(config):
     manager = _checkout_manager()
-    terms = _terms(config)
+    terms = await _terms(config)
     before = await _render(manager, terms)
     assert before["recurring_on"] and not before["recurring_off"]
     assert before["recurring_terms"]
@@ -102,26 +105,26 @@ async def test_confirmation_starts_unchecked_and_shows_terms_before_consent(conf
 
 async def test_repeated_disable_clicks_do_not_restore_consent(config):
     manager = _checkout_manager()
-    await _render(manager, _terms(config))
+    await _render(manager, await _terms(config))
     await _choice(manager)
     await _choice(manager, False)
     await _choice(manager, False)
-    result = await _render(manager, _terms(config))
+    result = await _render(manager, await _terms(config))
     assert result["recurring_terms"] and not checkout_data(manager).recurring_consent
 
 
 async def test_changed_terms_clear_the_previous_checkbox(config):
     manager = _checkout_manager()
-    await _render(manager, _terms(config))
+    await _render(manager, await _terms(config))
     await _choice(manager)
-    result = await _render(manager, _terms(config, amount="600"))
+    result = await _render(manager, await _terms(config, amount="600"))
     assert result["recurring_terms"] and not checkout_data(manager).recurring_consent
     assert "600" in result["window_text"]
 
 
 async def test_method_selection_resets_consent_and_the_old_payment_link(config):
     manager = _checkout_manager()
-    await _render(manager, _terms(config))
+    await _render(manager, await _terms(config))
     await _choice(manager)
     manager.dialog_data[PAYMENT_URL_KEY] = "https://old-payment"
     _store_method(manager.dialog_data, {"gateway_type": "YOOKASSA", "currency": "RUB"})
@@ -132,7 +135,7 @@ async def test_method_selection_resets_consent_and_the_old_payment_link(config):
 
 async def test_terms_button_displays_the_same_text_without_clearing_consent(config):
     manager = _checkout_manager()
-    terms = _terms(config)
+    terms = await _terms(config)
     await _render(manager, terms)
     await _choice(manager)
     result = await recurring_terms_getter.__dishka_orig_func__(manager, i18n=_i18n())
@@ -142,7 +145,7 @@ async def test_terms_button_displays_the_same_text_without_clearing_consent(conf
 
 async def test_unavailable_recurring_payments_hide_both_buttons_and_clear_consent(config):
     manager = _checkout_manager()
-    await _render(manager, _terms(config))
+    await _render(manager, await _terms(config))
     await _choice(manager)
     result = await _render(manager, None)
     assert not any(result[key] for key in ("recurring_on", "recurring_off", "recurring_terms"))
@@ -150,7 +153,7 @@ async def test_unavailable_recurring_payments_hide_both_buttons_and_clear_consen
 
 
 async def test_full_terms_are_rendered_without_a_media_caption(config):
-    terms = _terms(config)
+    terms = await _terms(config)
     assert terms.text
     manager = _checkout_manager()
     await _render(manager, terms)
@@ -163,9 +166,9 @@ async def test_full_terms_are_rendered_without_a_media_caption(config):
 
 async def test_a_stale_checkbox_cannot_accept_replacement_terms(config):
     manager = _checkout_manager()
-    old = _terms(config)
+    old = await _terms(config)
     await _render(manager, old)
-    await _render(manager, _terms(config, amount="600"))
+    await _render(manager, await _terms(config, amount="600"))
     manager.item_id = old.terms_id[:16]
     await on_recurring_choice(
         AsyncMock(id="stale-click"), Button(Format("x"), id="recurring_on"), manager
@@ -177,7 +180,7 @@ async def test_a_stale_checkbox_cannot_accept_replacement_terms(config):
 async def test_recurring_only_hides_pay_until_the_customer_consents(config):
     manager = _checkout_manager()
     manager.dialog_data["recurring_required"] = True
-    before = await _render(manager, _terms(config))
+    before = await _render(manager, await _terms(config))
     assert before["recurring_terms"] and not before["can_pay"]
     manager.is_preview.return_value = False
     manager.current_context.return_value.stack_id = ""
@@ -187,7 +190,7 @@ async def test_recurring_only_hides_pay_until_the_customer_consents(config):
         button.text for row in keyboard.inline_keyboard for button in row
     ]
     await _choice(manager)
-    after = await _render(manager, _terms(config))
+    after = await _render(manager, await _terms(config))
     assert after["can_pay"]
     keyboard = await confirm.render_kbd(after, manager)
     assert after["pay_text"].text in [
@@ -197,7 +200,7 @@ async def test_recurring_only_hides_pay_until_the_customer_consents(config):
 
 async def test_terms_can_be_read_without_giving_consent(config):
     manager = _checkout_manager()
-    terms = _terms(config)
+    terms = await _terms(config)
     await _render(manager, terms)
     result = await recurring_terms_getter.__dishka_orig_func__(manager, i18n=_i18n())
     assert result["window_text"] == terms.text

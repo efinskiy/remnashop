@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import StrEnum, auto
-from typing import Final, Literal, get_args, get_origin
+from typing import Final, Literal, Optional, get_args, get_origin
 
 from pydantic import SecretStr
 from pydantic.fields import FieldInfo
@@ -10,6 +10,7 @@ from app.core.error_codes import ErrorCode
 from app.core.exceptions import ValidationError
 from app.modules.gateways.gateway_settings import (
     GATEWAY_SETTINGS,
+    RECURRING_TIMINGS,
     NumericStr,
     yookassa_payment_mode,
 )
@@ -118,7 +119,7 @@ def validate_gateway_field_values(gateway_type: PaymentGatewayType, values: dict
 
 
 def _validate_field_value(
-    gateway_type: PaymentGatewayType, field_spec: GatewayFieldSpec, raw_value: str | None
+    gateway_type: PaymentGatewayType, field_spec: GatewayFieldSpec, raw_value: Optional[str]
 ) -> None:
     if field_spec.kind is GatewayFieldKind.CHOICE:
         if raw_value is not None and raw_value not in field_spec.options:
@@ -137,10 +138,16 @@ def _validate_field_value(
     if field_spec.kind is not GatewayFieldKind.NUMBER or not raw_value or not raw_value.strip():
         return
     try:
-        int(raw_value)
+        number = int(raw_value)
     except ValueError:
         raise ValidationError(
             f"Field '{field_spec.key}' for {gateway_type.value} must be a number, "
             f"got '{raw_value}'",
             code=ErrorCode.GATEWAY_FIELD_NOT_NUMBER,
         ) from None
+    bounds = RECURRING_TIMINGS.get(field_spec.key)
+    if bounds is not None and not bounds[1] <= number <= bounds[2]:
+        raise ValidationError(
+            f"Field '{field_spec.key}' must be between {bounds[1]} and {bounds[2]}",
+            code=ErrorCode.GATEWAY_FIELD_OUT_OF_RANGE,
+        )

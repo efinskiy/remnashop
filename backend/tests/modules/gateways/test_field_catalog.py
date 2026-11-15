@@ -1,6 +1,7 @@
 import pytest
 
 from app.core.enums import PaymentGatewayType
+from app.core.error_codes import ErrorCode
 from app.core.exceptions import ValidationError
 from app.modules.gateways.field_catalog import (
     GATEWAY_FIELD_CATALOG,
@@ -163,3 +164,15 @@ def test_yookassa_payment_mode_has_explicit_catalog_options_and_safe_flags(mode,
 def test_yookassa_payment_mode_rejects_unknown_choice():
     with pytest.raises(ValidationError):
         validate_gateway_field_values(PaymentGatewayType.YOOKASSA, {"payment_mode": "automatic"})
+
+
+def test_recurring_timing_outside_its_bounds_is_rejected() -> None:
+    with pytest.raises(ValidationError) as error:
+        validate_gateway_field_values(
+            PaymentGatewayType.YOOKASSA, {"recurring_lead_minutes": "5000"}
+        )
+    assert error.value.code == ErrorCode.GATEWAY_FIELD_OUT_OF_RANGE
+
+
+def test_recurring_timing_within_its_bounds_is_accepted() -> None:
+    validate_gateway_field_values(PaymentGatewayType.YOOKASSA, {"recurring_lead_minutes": "60"})

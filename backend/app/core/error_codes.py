@@ -138,6 +138,7 @@ class ErrorCode(UpperStrEnum):
     GATEWAY_EMAIL_REQUIRED = auto()
     GATEWAY_FIELD_NOT_BOOLEAN = auto()
     GATEWAY_FIELD_NOT_NUMBER = auto()
+    GATEWAY_FIELD_OUT_OF_RANGE = auto()
     GATEWAY_FIELD_UNKNOWN = auto()
     GATEWAY_FIELD_INVALID_CHOICE = auto()
     GATEWAY_NOT_AVAILABLE = auto()

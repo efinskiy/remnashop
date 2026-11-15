@@ -3,12 +3,19 @@ from datetime import timedelta
 from loguru import logger
 
 from app.core.actor import Actor
-from app.core.config import AppConfig
 from app.core.db.uow import UnitOfWork
+from app.core.enums import PaymentGatewayType
 from app.core.usecase import UseCase
 from app.core.utils.time import datetime_now
+from app.modules.gateways import GatewayRepository
 from app.modules.transactions.dispatch import ProcessRecurringPaymentDispatch
 from app.modules.transactions.recurring_lifecycle import RecurringLifecycle
+from app.modules.transactions.recurring_policy import (
+    DEBIT_BATCH_SIZE,
+    POLL_BATCH_SIZE,
+    QUEUE_LEASE,
+    recurring_policy,
+)
 from app.modules.transactions.recurring_repository import RecurringPaymentRepository
 
 
@@ -21,32 +28,35 @@ class EnqueueRecurringPaymentsUseCase(UseCase[None, None]):
         recurring_lifecycle: RecurringLifecycle,
         dispatch: ProcessRecurringPaymentDispatch,
         uow: UnitOfWork,
-        config: AppConfig,
+        gateway_repository: GatewayRepository,
     ) -> None:
         self._recurring = recurring_repository
         self._lifecycle = recurring_lifecycle
         self._dispatch = dispatch
         self._uow = uow
-        self._config = config
+        self._gateways = gateway_repository
 
     async def _execute(self, actor: Actor, data: None) -> None:
         now = datetime_now()
-        policy = self._config.recurring
-        due_before = now + timedelta(minutes=max(1440, policy.notice_lead_minutes))
-        lease = now + timedelta(minutes=policy.queue_lease_minutes)
+        lease = now + QUEUE_LEASE
         async with self._uow:
-            await self._lifecycle.close_overdue(now, limit=policy.batch_size)
+            policy = recurring_policy(
+                await self._gateways.get_raw_settings(PaymentGatewayType.YOOKASSA)
+            )
+            # wide enough for the earliest charge and its advance notice
+            due_before = now + timedelta(minutes=max(1440, policy.notice_lead_minutes))
+            await self._lifecycle.close_overdue(now, limit=DEBIT_BATCH_SIZE)
             debits = await self._recurring.list_due(
                 now,
                 due_before=due_before,
-                limit=policy.batch_size,
+                limit=DEBIT_BATCH_SIZE,
                 pending=False,
                 claim_until=lease,
             )
             polls = await self._recurring.list_due(
                 now,
                 due_before=due_before,
-                limit=policy.poll_batch_size,
+                limit=POLL_BATCH_SIZE,
                 pending=True,
                 claim_until=lease,
             )

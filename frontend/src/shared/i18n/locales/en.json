@@ -1702,7 +1702,11 @@
         "verify_ip": "Verify webhook IP",
         "wallet_id": "Wallet ID",
         "webhook_secret": "Webhook secret",
-        "payment_mode": "Payment mode"
+        "payment_mode": "Payment mode",
+        "recurring_lead_minutes": "Auto-renewal: charge before expiry, min",
+        "recurring_retry_minutes": "Auto-renewal: retry after a provider error, min",
+        "recurring_max_overdue_hours": "Auto-renewal: stop retrying after expiry, h",
+        "recurring_notice_lead_minutes": "Auto-renewal: notice before charge, min"
       },
       "paymentModes": {
         "single": "Single payments only",
@@ -4693,7 +4697,8 @@
     "BOT_PROXY_URL_INVALID": "Invalid proxy address: use socks5, socks5h or http with a host and a port.",
     "TRANSLATION_VARIABLE_NOT_ALLOWED": "The text uses a variable or expression the original text doesn’t have.",
     "RECURRING_CONSENT_REQUIRED": "This payment method requires separate consent to auto-renewal.",
-    "GATEWAY_FIELD_INVALID_CHOICE": "Select an available payment mode."
+    "GATEWAY_FIELD_INVALID_CHOICE": "Select an available payment mode.",
+    "GATEWAY_FIELD_OUT_OF_RANGE": "The value is outside the allowed range."
   },
   "loyalty": {
     "settings": {

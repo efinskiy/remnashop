@@ -1,11 +1,48 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
-from typing import Callable, Final, Optional, Protocol, TypeVar
+from typing import Any, Callable, Final, Mapping, Optional, Protocol, TypeVar
+
+from app.modules.gateways import RECURRING_TIMINGS
 
 SAFE_REPOST_WINDOW: Final[timedelta] = timedelta(hours=23)
 RETRY_OFFSETS_HOURS: Final[tuple[int, ...]] = (1, 3, 6, 12, 24, 36, 48, 72)
 POLICY_RECHECK_DELAY: Final[timedelta] = timedelta(hours=1)
+# the scheduler's bounded batches and its queue claim
+DEBIT_BATCH_SIZE: Final[int] = 1000
+POLL_BATCH_SIZE: Final[int] = 1000
+QUEUE_LEASE: Final[timedelta] = timedelta(minutes=60)
+PENDING_TIMEOUT_HOURS: Final[int] = 24
+# how long a saved method outlives the customer's withdrawal; stated in the terms
+METHOD_RETENTION_DAYS: Final[int] = 30
+
+
+@dataclass(frozen=True, kw_only=True)
+class RecurringPolicy:
+    lead_minutes: int
+    retry_minutes: int
+    max_overdue_hours: int
+    notice_lead_minutes: int
+
+
+def recurring_policy(settings: Mapping[str, Any]) -> RecurringPolicy:
+    """The shop's current timings from YooKassa's settings; an accepted consent keeps its own."""
+
+    def value(key: str) -> int:
+        default, low, high = RECURRING_TIMINGS[key]
+        raw = settings.get(key)
+        try:
+            number = int(str(raw).strip()) if raw not in (None, "") else default
+        except ValueError:
+            number = default
+        return min(max(number, low), high)
+
+    return RecurringPolicy(
+        lead_minutes=value("recurring_lead_minutes"),
+        retry_minutes=value("recurring_retry_minutes"),
+        max_overdue_hours=value("recurring_max_overdue_hours"),
+        notice_lead_minutes=value("recurring_notice_lead_minutes"),
+    )
 
 
 class RetryKind(StrEnum):

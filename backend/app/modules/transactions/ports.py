@@ -1,7 +1,7 @@
-from typing import Protocol
+from typing import Protocol, Union
 
 from app.core.enums import Locale
-from app.modules.transactions.dto import PaymentTextDto, TransactionDto
+from app.modules.transactions.dto import PaymentTextDto, RecurringTermsTextDto, TransactionDto
 
 
 class PromocodeLiveness(Protocol):
@@ -16,3 +16,10 @@ class PaymentsRestoredNotifier(Protocol):
 class PaymentTexts(Protocol):
     # what the provider shows the customer for the order
     async def describe(self, order: TransactionDto, locale: Locale) -> PaymentTextDto: ...
+
+
+class RecurringTermsTexts(Protocol):
+    # the auto-renewal terms in the customer's language, from the shop's translations
+    async def render(
+        self, locale: Locale, args: dict[str, Union[str, int]]
+    ) -> RecurringTermsTextDto: ...

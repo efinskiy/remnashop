@@ -43,12 +43,25 @@ def yookassa_payment_mode(values: dict[str, Any]) -> YooKassaPaymentMode:
     return "single"
 
 
+# auto-renewal timings a shop may tune: default, minimum, maximum
+RECURRING_TIMINGS: Final[dict[str, tuple[int, int, int]]] = {
+    "recurring_lead_minutes": (1440, 0, 1440),
+    "recurring_retry_minutes": (5, 1, 60),
+    "recurring_max_overdue_hours": (96, 1, 168),
+    "recurring_notice_lead_minutes": (2880, 0, 10080),
+}
+
+
 class YooKassaSettings(GatewaySettings):
     shop_id: str
     api_key: SecretStr
     vat_code: Optional[NumericStr] = None
     verify_ip: bool = True
     payment_mode: YooKassaPaymentMode = "single"
+    recurring_lead_minutes: Optional[NumericStr] = None
+    recurring_retry_minutes: Optional[NumericStr] = None
+    recurring_max_overdue_hours: Optional[NumericStr] = None
+    recurring_notice_lead_minutes: Optional[NumericStr] = None
 
     @property
     def recurring_enabled(self) -> bool:

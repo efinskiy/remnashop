@@ -4,9 +4,14 @@ from typing import Final, Optional
 
 from pydantic import BaseModel
 
-from app.core.config import AppConfig
 from app.core.enums import Currency, Locale, PurchaseType
-from app.modules.transactions.recurring_policy import RETRY_OFFSETS_HOURS
+from app.modules.transactions.ports import RecurringTermsTexts
+from app.modules.transactions.recurring_policy import (
+    METHOD_RETENTION_DAYS,
+    PENDING_TIMEOUT_HOURS,
+    RETRY_OFFSETS_HOURS,
+    RecurringPolicy,
+)
 
 TERMS_VERSION: Final[str] = "1"
 
@@ -49,9 +54,10 @@ class RecurringTerms(BaseModel):
         )
 
 
-def build_recurring_terms(
+async def build_recurring_terms(
     *,
-    config: AppConfig,
+    texts: RecurringTermsTexts,
+    policy: RecurringPolicy,
     user_id: int,
     plan_id: int,
     target_subscription_id: Optional[int],
@@ -62,67 +68,25 @@ def build_recurring_terms(
     duration_days: int,
     locale: Locale,
 ) -> RecurringTerms:
-    policy = config.recurring
-    amount = format(amount_limit.normalize(), "f")
-    initial = format(initial_amount.normalize(), "f")
-    retry_hours = ", ".join(str(hour) for hour in RETRY_OFFSETS_HOURS)
+    amount = Decimal(format(amount_limit.normalize(), "f"))
+    initial = Decimal(format(initial_amount.normalize(), "f"))
+    # a one-day plan must not be charged again right after its purchase
     lead_minutes = min(policy.lead_minutes, duration_days * 24 * 60 // 2)
-    if locale.value == "ru":
-        summary = (
-            "По вашему согласию — сохранение способа оплаты в ЮKassa и автоматические "
-            f"списания до {amount} {currency.symbol} за каждые "
-            f"{duration_days} дней, начиная за {lead_minutes} мин. до окончания подписки. "
-            "Отключить будущие списания можно в настройках подписки в боте."
-        )
-        text = (
-            "Условия автоматического продления\n\n"
-            f"Текущая оплата: {initial} {currency.symbol}.\n"
-            f"Продление: не более {amount} {currency.symbol} за каждые {duration_days} дней. "
-            "Разовая скидка на будущие продления не распространяется. Если стоимость "
-            "превысит указанный предел или изменятся условия тарифа, автосписания остановятся.\n\n"
-            f"Попытка оплаты начинается за {lead_minutes} мин. до окончания "
-            "оплаченного периода. После отказа банка возможны повторные списания через "
-            f"{retry_hours} ч. от первого отказа, в пределах указанного окна. "
-            "При временном сбое запрос может повторяться с интервалом "
-            f"{policy.retry_minutes} мин., но новые попытки не начинаются позднее "
-            f"{policy.max_overdue_hours} ч. после окончания подписки. "
-            "Уже отправленный платёж может завершиться позже.\n\n"
-            "Давая согласие, вы разрешаете сохранить способ оплаты через ЮKassa и "
-            "использовать его для автоматической оплаты этой подписки без отдельного "
-            "подтверждения каждого списания.\n\n"
-            "Отозвать согласие и запретить дальнейшие списания можно кнопкой "
-            "«Отключить автопродление» в настройках подписки в боте. "
-            "Отказ прекращает новые попытки списания; уже отправленный платёж может "
-            "завершиться. Оплаченный срок сохраняется. Повторное подключение требует "
-            "нового явного согласия."
-        )
-    else:
-        summary = (
-            "With your consent, auto-renewal saves your payment method with YooKassa "
-            "and authorizes "
-            f"automatic charges up to {amount} {currency.value} every {duration_days} days, "
-            f"starting {lead_minutes} min. before expiry. Stop future charges "
-            "in your subscription settings in the bot."
-        )
-        text = (
-            "Automatic renewal terms\n\n"
-            f"Current payment: {initial} {currency.value}.\n"
-            f"Renewals: up to {amount} {currency.value} every {duration_days} days. "
-            "One-time discounts do not apply to renewals. Charges stop if the price exceeds "
-            "this limit or the plan terms change.\n\n"
-            f"Payment starts {lead_minutes} min. before the paid period expires. "
-            f"A bank decline may be retried at {retry_hours} hours from the first failure, "
-            "within the agreed window. "
-            f"A temporary failure may be retried every {policy.retry_minutes} min.; "
-            f"new attempts stop {policy.max_overdue_hours} hours after expiry. "
-            "A payment already submitted may complete later.\n\n"
-            "By consenting, you authorize saving your payment method through YooKassa "
-            "and using it to renew this subscription without confirming each charge.\n\n"
-            "Withdraw consent and stop future charges with Disable auto-renewal in your "
-            "subscription settings in the bot. Withdrawal stops new "
-            "attempts; a payment already submitted may complete. Your paid period remains "
-            "available. Reconnection requires fresh explicit consent."
-        )
+    rendered = await texts.render(
+        locale,
+        {
+            "initial": str(initial),
+            "amount": str(amount),
+            "currency": currency.value,
+            "currency_symbol": currency.symbol,
+            "days": duration_days,
+            "lead_minutes": lead_minutes,
+            "retry_hours": ", ".join(str(hour) for hour in RETRY_OFFSETS_HOURS),
+            "retry_minutes": policy.retry_minutes,
+            "overdue_hours": policy.max_overdue_hours,
+            "retention_days": METHOD_RETENTION_DAYS,
+        },
+    )
     terms = RecurringTerms(
         version=TERMS_VERSION,
         terms_id="",
@@ -130,20 +94,20 @@ def build_recurring_terms(
         plan_id=plan_id,
         target_subscription_id=target_subscription_id,
         purchase_type=purchase_type,
-        initial_amount=Decimal(format(initial_amount.normalize(), "f")),
-        amount_limit=Decimal(format(amount_limit.normalize(), "f")),
+        initial_amount=initial,
+        amount_limit=amount,
         currency=currency,
         duration_days=duration_days,
         lead_minutes=lead_minutes,
         retry_minutes=policy.retry_minutes,
         max_overdue_hours=policy.max_overdue_hours,
         retry_offsets_hours=RETRY_OFFSETS_HOURS,
-        pending_timeout_hours=policy.pending_timeout_hours,
+        pending_timeout_hours=PENDING_TIMEOUT_HOURS,
         locale=locale,
-        summary=summary,
-        text=text,
+        summary=rendered.summary,
+        text=rendered.text,
     )
-    # The fingerprint binds the displayed terms to this customer, selection and policy.
+    # the fingerprint binds the displayed text to this customer, selection and policy
     return terms.model_copy(
         update={"terms_id": sha256(terms.model_dump_json().encode()).hexdigest()}
     )

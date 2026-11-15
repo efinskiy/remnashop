@@ -9,7 +9,6 @@ import httpx
 import pytest
 from sqlalchemy import func, select, text, update
 
-from app.core.config import AppConfig
 from app.core.db.models import RecurringConsent, RecurringPayment, Subscription, Transaction
 from app.core.enums import (
     Currency,
@@ -47,6 +46,7 @@ from app.modules.transactions.gateways.base import PaymentHttpClient
 from app.modules.transactions.gateways.factory import PaymentGatewayFactory
 from app.modules.transactions.recurring_dto import SetRecurringPaymentDto
 from app.modules.transactions.recurring_lifecycle import RecurringLifecycle
+from app.modules.transactions.recurring_policy import recurring_policy
 from app.modules.transactions.recurring_poller import RecurringPoller
 from app.modules.transactions.recurring_repository import RecurringPaymentRepository
 from app.modules.transactions.recurring_terms import build_recurring_terms
@@ -61,7 +61,7 @@ from app.modules.users.dto import CreateUserDto
 from tests.fakes.dispatch import RecordingDispatch
 from tests.fakes.events import RecordingEventPublisher
 from tests.fakes.payment_texts import FixedPaymentTexts
-from tests.fakes.recurring import fulfil, make_recurring_lifecycle
+from tests.fakes.recurring import ShippedRecurringTermsTexts, fulfil, make_recurring_lifecycle
 from tests.fakes.remnawave import _user_payload
 from tests.modules.subscriptions.factories import make_eligibility
 
@@ -117,6 +117,15 @@ class _YooKassa:
         return [request for request in self.requests if request.method == "POST"]
 
 
+async def set_recurring_timings(case: "_Case", **values: int) -> None:
+    """Changes the shop's YooKassa auto-renewal timings, as the dashboard does."""
+    async with case.uow:
+        await case.gateways.update_settings(
+            PaymentGatewayType.YOOKASSA,
+            {f"recurring_{key}": str(value) for key, value in values.items()},
+        )
+
+
 async def _after_hook(hook: Callable[[str], Awaitable[None]], payment_id: str) -> httpx.Response:
     await hook(payment_id)
     return httpx.Response(200, json={"id": payment_id})
@@ -131,23 +140,25 @@ class _Worker:
         lifecycle: RecurringLifecycle,
         repository: RecurringPaymentRepository,
         uow: Any,
-        config: AppConfig,
+        gateways: Any,
     ) -> None:
         self.use_case = use_case
         self._lifecycle = lifecycle
         self._repository = repository
         self._uow = uow
-        self._config = config
+        self._gateways = gateways
 
     async def system(self, subscription_id: Optional[int] = None) -> None:
         if subscription_id is None:
             now = datetime_now()
             async with self._uow:
+                policy = recurring_policy(
+                    await self._gateways.get_raw_settings(PaymentGatewayType.YOOKASSA)
+                )
                 await self._lifecycle.close_overdue(now, limit=1000)
                 ids = await self._repository.list_due(
                     now,
-                    due_before=now
-                    + timedelta(minutes=max(1440, self._config.recurring.notice_lead_minutes)),
+                    due_before=now + timedelta(minutes=max(1440, policy.notice_lead_minutes)),
                     limit=1000,
                 )
         else:
@@ -164,6 +175,8 @@ class _Case:
     worker: _Worker
     repository: RecurringPaymentRepository
     lifecycle: RecurringLifecycle
+    uow: Any
+    gateways: Any
     get_state: GetOwnRecurringPaymentUseCase
     set_state: SetOwnRecurringPaymentUseCase
     user: Any
@@ -235,8 +248,9 @@ async def case(
         )
         await gateway_repository.set_active(PaymentGatewayType.YOOKASSA, True)
         consent_id = await RecurringPaymentRepository(session).record_consent(
-            build_recurring_terms(
-                config=config,
+            await build_recurring_terms(
+                texts=ShippedRecurringTermsTexts(),
+                policy=recurring_policy({}),
                 user_id=user.id,
                 plan_id=plan.id,
                 target_subscription_id=None,
@@ -290,7 +304,12 @@ async def case(
     provider = _YooKassa()
     dispatch = RecordingDispatch()
     get_state = GetOwnRecurringPaymentUseCase(
-        repository, transaction_repository, subscription_repository, gateway_repository, uow, config
+        repository,
+        transaction_repository,
+        subscription_repository,
+        gateway_repository,
+        uow,
+        ShippedRecurringTermsTexts(),
     )
     async with httpx.AsyncClient(transport=httpx.MockTransport(provider)) as http:
         poller = RecurringPoller(
@@ -322,13 +341,14 @@ async def case(
                 settings_repository,
             ),
             uow,
-            config,
             FixedPaymentTexts(),
         )
         yield _Case(
-            _Worker(use_case, lifecycle, repository, uow, config),
+            _Worker(use_case, lifecycle, repository, uow, gateway_repository),
             repository,
             lifecycle,
+            uow,
+            gateway_repository,
             get_state,
             SetOwnRecurringPaymentUseCase(
                 repository, lifecycle, subscription_repository, get_state, uow
@@ -772,8 +792,9 @@ async def _manual_renewal(case, transaction_repository, session, uow, *, consent
         values["recurring_consent"] = consent
         values["recurring_consent_id"] = (
             await case.repository.record_consent(
-                build_recurring_terms(
-                    config=case.worker._config,
+                await build_recurring_terms(
+                    texts=ShippedRecurringTermsTexts(),
+                    policy=recurring_policy({}),
                     user_id=case.user.id,
                     plan_id=case.source.plan_id,
                     target_subscription_id=case.subscription.id,
@@ -1057,8 +1078,8 @@ async def test_a_manual_payment_without_consent_does_not_restore_withdrawn_autho
     assert (await case.repository.get(case.subscription.id)).consent_id is None
 
 
-async def test_a_new_policy_preserves_existing_consent(case, monkeypatch):
-    monkeypatch.setattr(case.worker._config.recurring, "lead_minutes", 60)
+async def test_a_new_policy_preserves_existing_consent(case):
+    await set_recurring_timings(case, lead_minutes=60)
     await case.worker.system()
     state = await case.get_state(case.user, case.subscription.id)
     assert state.enabled and state.last_error is None
@@ -1078,7 +1099,7 @@ async def test_an_ambiguous_request_is_not_retried_beyond_the_agreed_overdue_win
             .where(Subscription.id == case.subscription.id)
             .values(
                 expire_at=datetime_now()
-                - timedelta(hours=case.worker._config.recurring.max_overdue_hours + 1)
+                - timedelta(hours=recurring_policy({}).max_overdue_hours + 1)
             )
         )
     await _tick_again(case, uow)

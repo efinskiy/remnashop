@@ -7,7 +7,6 @@ import httpx
 from loguru import logger
 
 from app.core.actor import Actor
-from app.core.config import AppConfig
 from app.core.db.uow import UnitOfWork
 from app.core.enums import (
     Currency,
@@ -40,7 +39,9 @@ from app.modules.transactions.recurring_lifecycle import RecurringLifecycle
 from app.modules.transactions.recurring_policy import (
     POLICY_RECHECK_DELAY,
     SAFE_REPOST_WINDOW,
+    RecurringPolicy,
     RecurringReason,
+    recurring_policy,
     recurring_reason,
 )
 from app.modules.transactions.recurring_poller import RecurringPoller, pending_expired
@@ -66,7 +67,6 @@ class ProcessRecurringPaymentUseCase(UseCase[ProcessRecurringPaymentDto, None]):
         settings_repository: SettingsRepository,
         pricer: CheckoutPricer,
         uow: UnitOfWork,
-        config: AppConfig,
         payment_texts: PaymentTexts,
     ) -> None:
         self._recurring = recurring_repository
@@ -79,7 +79,6 @@ class ProcessRecurringPaymentUseCase(UseCase[ProcessRecurringPaymentDto, None]):
         self._settings = settings_repository
         self._pricer = pricer
         self._uow = uow
-        self._config = config
         self._payment_texts = payment_texts
 
     async def _execute(self, actor: Actor, data: ProcessRecurringPaymentDto) -> None:
@@ -123,7 +122,7 @@ class ProcessRecurringPaymentUseCase(UseCase[ProcessRecurringPaymentDto, None]):
     async def _defer(self, subscription_id: int, error: Optional[str] = None) -> None:
         mandate = await self._recurring.get(subscription_id)
         terms = await self._recurring.consent_terms(mandate.consent_id) if mandate else None
-        minutes = terms.retry_minutes if terms else self._config.recurring.retry_minutes
+        minutes = terms.retry_minutes if terms else (await self._policy()).retry_minutes
         reason = recurring_reason(error or (mandate.last_error if mandate else None))
         delay = (
             POLICY_RECHECK_DELAY
@@ -131,6 +130,9 @@ class ProcessRecurringPaymentUseCase(UseCase[ProcessRecurringPaymentDto, None]):
             else timedelta(minutes=minutes)
         )
         await self._lifecycle.defer(subscription_id, datetime_now() + delay, error)
+
+    async def _policy(self) -> RecurringPolicy:
+        return recurring_policy(await self._gateways.get_raw_settings(PaymentGatewayType.YOOKASSA))
 
     async def _enabled(self) -> bool:
         gateway = await self._gateways.get_by_type(PaymentGatewayType.YOOKASSA)
@@ -357,7 +359,8 @@ class ProcessRecurringPaymentUseCase(UseCase[ProcessRecurringPaymentDto, None]):
         now = datetime_now()
         scheduled = expire_at - timedelta(minutes=terms.lead_minutes)
         if now < scheduled:
-            if now >= expire_at - timedelta(minutes=self._config.recurring.notice_lead_minutes):
+            notice_lead = (await self._policy()).notice_lead_minutes
+            if now >= expire_at - timedelta(minutes=notice_lead):
                 await self._lifecycle.notify_upcoming(
                     mandate.subscription_id, expire_at, terms, scheduled
                 )

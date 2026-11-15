@@ -7,6 +7,7 @@ from app.modules.gateways.field_catalog import (
     is_gateway_configured,
 )
 from app.modules.gateways.gateway_settings import (
+    RECURRING_TIMINGS,
     AntilopaySettings,
     AuraPaySettings,
     CloudPaymentsSettings,
@@ -36,6 +37,7 @@ from app.modules.gateways.repository import GatewayRepository
 
 __all__ = [
     "GATEWAY_FIELD_CATALOG",
+    "RECURRING_TIMINGS",
     "REQUIRE_PAID_PURCHASE_FIELD_KEY",
     "VERIFY_IP_FIELD_KEY",
     "AntilopaySettings",

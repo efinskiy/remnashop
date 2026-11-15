@@ -398,3 +398,9 @@ class ProcessRecurringPaymentDto:
 class CheckRecurringPaymentDto:
     subscription_id: int
     transaction_id: int
+
+
+@dataclass(frozen=True, kw_only=True)
+class RecurringTermsTextDto:
+    summary: str
+    text: str

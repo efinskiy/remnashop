@@ -4,9 +4,11 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from sqlalchemy import update
 
+import app.modules.transactions.usecases.enqueue_recurring_payments as enqueue_module
 from app.core.db.models import RecurringPayment
 from app.core.utils.time import datetime_now
 from app.modules.transactions.dto import ProcessRecurringPaymentDto
+from app.modules.transactions.recurring_policy import QUEUE_LEASE
 from app.modules.transactions.tasks import (
     process_one_recurring_payment_task,
     process_recurring_payments_task,
@@ -38,11 +40,13 @@ async def test_scheduler_commits_claim_before_dispatch_and_does_not_enqueue_twic
     case,
     session,
     uow,
-    config,
+    gateway_repository,
 ):
     before = await case.repository.get(case.subscription.id)
     queue = _Queue(session)
-    scheduler = EnqueueRecurringPaymentsUseCase(case.repository, case.lifecycle, queue, uow, config)
+    scheduler = EnqueueRecurringPaymentsUseCase(
+        case.repository, case.lifecycle, queue, uow, gateway_repository
+    )
     await scheduler.system()
     await scheduler.system()
     assert queue.messages == [case.subscription.id]
@@ -57,12 +61,14 @@ async def test_scheduler_can_recover_a_broker_failure_after_its_lease_expires(
     case,
     session,
     uow,
-    config,
+    gateway_repository,
     capfd,
 ):
     before = await case.repository.get(case.subscription.id)
     queue = _Queue(session, fail=True)
-    scheduler = EnqueueRecurringPaymentsUseCase(case.repository, case.lifecycle, queue, uow, config)
+    scheduler = EnqueueRecurringPaymentsUseCase(
+        case.repository, case.lifecycle, queue, uow, gateway_repository
+    )
     await scheduler.system()
     await scheduler.system()
     assert queue.messages == [case.subscription.id]
@@ -82,7 +88,9 @@ async def test_scheduler_can_recover_a_broker_failure_after_its_lease_expires(
     assert queue.transactions == [False, False]
 
 
-async def test_scheduler_uses_a_separate_quota_for_real_pending_polls(case, uow, config):
+async def test_scheduler_uses_a_separate_quota_for_real_pending_polls(
+    case, uow, gateway_repository
+):
     case.provider.status = "pending"
     await case.worker.system(case.subscription.id)
     mandate = await case.repository.get(case.subscription.id)
@@ -91,7 +99,7 @@ async def test_scheduler_uses_a_separate_quota_for_real_pending_polls(case, uow,
         await case.lifecycle.defer(case.subscription.id, datetime_now() - timedelta(seconds=1))
     queue = RecordingDispatch()
     await EnqueueRecurringPaymentsUseCase(
-        case.repository, case.lifecycle, queue, uow, config
+        case.repository, case.lifecycle, queue, uow, gateway_repository
     ).system()
     assert queue.messages == [{"subscription_id": case.subscription.id}]
     assert len(case.provider.posts) == 1
@@ -99,35 +107,35 @@ async def test_scheduler_uses_a_separate_quota_for_real_pending_polls(case, uow,
 
 async def test_new_charges_are_enqueued_before_polls_with_independent_batch_limits(
     uow,
-    config,
     monkeypatch,
 ):
-    monkeypatch.setattr(config.recurring, "batch_size", 2)
-    monkeypatch.setattr(config.recurring, "poll_batch_size", 3)
-    monkeypatch.setattr(config.recurring, "notice_lead_minutes", 0)
+    monkeypatch.setattr(enqueue_module, "DEBIT_BATCH_SIZE", 2)
+    monkeypatch.setattr(enqueue_module, "POLL_BATCH_SIZE", 3)
+    gateway_repository = MagicMock(
+        get_raw_settings=AsyncMock(return_value={"recurring_notice_lead_minutes": "0"})
+    )
     repository = MagicMock(list_due=AsyncMock(side_effect=[[11, 12], [21, 22, 23]]))
     queue = RecordingDispatch()
     await EnqueueRecurringPaymentsUseCase(
-        repository, MagicMock(close_overdue=AsyncMock()), queue, uow, config
+        repository, MagicMock(close_overdue=AsyncMock()), queue, uow, gateway_repository
     ).system()
     assert queue.messages == [{"subscription_id": value} for value in (11, 12, 21, 22, 23)]
     debit, poll = repository.list_due.await_args_list
     assert debit.kwargs["pending"] is False and debit.kwargs["limit"] == 2
     assert poll.kwargs["pending"] is True and poll.kwargs["limit"] == 3
     assert debit.kwargs["due_before"] - debit.args[0] == timedelta(minutes=1440)
-    assert debit.kwargs["claim_until"] - debit.args[0] == timedelta(
-        minutes=config.recurring.queue_lease_minutes
-    )
+    assert debit.kwargs["claim_until"] - debit.args[0] == QUEUE_LEASE
 
 
-async def test_no_jobs_are_published_when_the_claim_transaction_fails(uow, config, monkeypatch):
+async def test_no_jobs_are_published_when_the_claim_transaction_fails(uow):
+    gateway_repository = MagicMock(get_raw_settings=AsyncMock(return_value={}))
     repository = MagicMock(
         list_due=AsyncMock(side_effect=[[11], RuntimeError("database unavailable")])
     )
     queue = RecordingDispatch()
     with pytest.raises(RuntimeError, match="database unavailable"):
         await EnqueueRecurringPaymentsUseCase(
-            repository, MagicMock(close_overdue=AsyncMock()), queue, uow, config
+            repository, MagicMock(close_overdue=AsyncMock()), queue, uow, gateway_repository
         ).system()
     assert not queue.messages
 

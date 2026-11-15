@@ -55,7 +55,8 @@ from app.modules.transactions.fulfillment import dispatch_fulfillment
 from app.modules.transactions.gateways.factory import PaymentGatewayFactory
 from app.modules.transactions.gateways.registry import GATEWAY_REGISTRY, gateway_currency
 from app.modules.transactions.gateways.telegram_stars import with_bot_settings
-from app.modules.transactions.ports import PaymentTexts
+from app.modules.transactions.ports import PaymentTexts, RecurringTermsTexts
+from app.modules.transactions.recurring_policy import recurring_policy
 from app.modules.transactions.recurring_repository import RecurringPaymentRepository
 from app.modules.transactions.recurring_terms import build_recurring_terms
 from app.modules.transactions.repository import TransactionRepository
@@ -88,7 +89,9 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
         legal_recorder: LegalAcceptanceRecorder,
         payment_texts: PaymentTexts,
         recurring_repository: RecurringPaymentRepository,
+        recurring_terms_texts: RecurringTermsTexts,
     ) -> None:
+        self._recurring_terms_texts = recurring_terms_texts
         self._recurring_repository = recurring_repository
         self._pricer = pricer
         self._user_repository = user_repository
@@ -346,8 +349,9 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
         )
         consent_id = None
         if data.recurring_consent:
-            terms = build_recurring_terms(
-                config=self._config,
+            terms = await build_recurring_terms(
+                texts=self._recurring_terms_texts,
+                policy=recurring_policy(gateway_settings),
                 user_id=actor.id,
                 plan_id=plan.id,
                 target_subscription_id=data.target_subscription_id,

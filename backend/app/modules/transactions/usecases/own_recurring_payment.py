@@ -3,7 +3,6 @@ from decimal import Decimal
 
 from loguru import logger
 
-from app.core.config import AppConfig
 from app.core.db.uow import UnitOfWork
 from app.core.enums import PaymentGatewayType, PurchaseType, SubscriptionStatus, TransactionStatus
 from app.core.error_codes import ErrorCode
@@ -12,12 +11,14 @@ from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.modules.gateways import GatewayRepository
 from app.modules.subscriptions import SubscriptionRepository, get_owned_target
+from app.modules.transactions.ports import RecurringTermsTexts
 from app.modules.transactions.recurring_dto import RecurringPaymentState, SetRecurringPaymentDto
 from app.modules.transactions.recurring_lifecycle import RecurringLifecycle
 from app.modules.transactions.recurring_policy import (
     RecurringState,
     RetryKind,
     classify,
+    recurring_policy,
     recurring_reason,
 )
 from app.modules.transactions.recurring_repository import RecurringPaymentRepository
@@ -36,14 +37,14 @@ class GetOwnRecurringPaymentUseCase(UseCase[int, RecurringPaymentState, UserDto]
         subscription_repository: SubscriptionRepository,
         gateway_repository: GatewayRepository,
         uow: UnitOfWork,
-        config: AppConfig,
+        recurring_terms_texts: RecurringTermsTexts,
     ) -> None:
         self._recurring = recurring_repository
         self._transactions = transaction_repository
         self._subscriptions = subscription_repository
         self._gateways = gateway_repository
         self._uow = uow
-        self._config = config
+        self._recurring_terms_texts = recurring_terms_texts
 
     async def _execute(self, actor: UserDto, data: int) -> RecurringPaymentState:
         async with self._uow:
@@ -108,8 +109,9 @@ class GetOwnRecurringPaymentUseCase(UseCase[int, RecurringPaymentState, UserDto]
         if enabled and available and authorized and next_payment_at is None and not payment_pending:
             next_payment_at = subscription.expire_at - timedelta(minutes=authorized.lead_minutes)
         terms = (
-            build_recurring_terms(
-                config=self._config,
+            await build_recurring_terms(
+                texts=self._recurring_terms_texts,
+                policy=recurring_policy(settings),
                 user_id=actor.id,
                 plan_id=source.plan_snapshot.plan_id,
                 target_subscription_id=data,

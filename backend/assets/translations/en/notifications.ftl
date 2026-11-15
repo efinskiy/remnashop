@@ -570,3 +570,16 @@ payment-period = { $unit ->
        *[other] { $value } days
     }
 }
+# auto-renewal terms the customer accepts; the accepted text is stored with the consent
+recurring-terms-summary = With your consent, auto-renewal saves your payment method with YooKassa and authorizes automatic charges up to { $amount } { $currency } every { $days } days, starting { $lead_minutes } min. before expiry. Stop future charges in your subscription settings in the bot or the web account.
+recurring-terms-text =
+    Automatic renewal terms
+
+    Current payment: { $initial } { $currency }.
+    Renewals: up to { $amount } { $currency } every { $days } days. One-time discounts do not apply to renewals. Charges stop if the price exceeds this limit or the plan terms change.
+
+    Payment starts { $lead_minutes } min. before the paid period expires. A bank decline may be retried at { $retry_hours } hours from the first failure, within the agreed window. A temporary failure may be retried every { $retry_minutes } min.; new attempts stop { $overdue_hours } hours after expiry. A payment already submitted may complete later.
+
+    By consenting, you authorize saving your payment method through YooKassa and using it to renew this subscription without confirming each charge.
+
+    Withdraw consent and stop future charges with Disable auto-renewal in your subscription settings in the bot or the web account. Withdrawal stops new attempts; a payment already submitted may complete. Your paid period remains available. The saved payment method is deleted { $retention_days } days after withdrawal. Reconnection requires fresh explicit consent.
