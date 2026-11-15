@@ -172,6 +172,8 @@ msg-subscription-card =
     }
     • <b>Действует до</b>: { $expire_at }
     </blockquote>
+
+    { $auto_renew }
 msg-referrals =
     <b>👥 Пригласить друзей</b>
 
@@ -412,6 +414,8 @@ msg-purchase-confirm =
     { $plan_changed_notice }
 
     { $terms_notice }
+
+    { $recurring_notice }
 frg-purchase-change-unlimited-notice = { $kind ->
         [credit] <i>⚠️ Текущая подписка будет <u>заменена</u> выбранным тарифом. Оплаченное за текущую бессрочную подписку уже вычтено из цены.</i>
        *[other] <i>⚠️ Текущая подписка будет <u>заменена</u> выбранным тарифом. Неиспользованная часть оплаты <u>не переносится</u>.</i>
@@ -660,6 +664,7 @@ frg-purchase-recurring-required = Этот способ оплаты досту�
 
 frg-subscription-recurring-retrying = <b>Автопродление включено, ожидается повторная оплата</b>: до { $amount } { $currency } за каждые { $days } дней.
 frg-subscription-recurring-pending = <b>Автоплатёж обрабатывается</b>. Ожидается подтверждение от ЮKassa. Отключение остановит новые списания; отправленный платёж может завершиться.
+frg-subscription-recurring-in-flight = <b>Автоплатёж отправлен в ЮKassa</b>. Отключение остановит следующие списания; этот платёж может завершиться.
 frg-subscription-recurring-reason = Причина: { $reason }.
 frg-subscription-recurring-next-retry = Следующая попытка оплаты: { $when } UTC.
 frg-subscription-recurring-next-check = Следующая проверка платежа: { $when } UTC.

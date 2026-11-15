@@ -79,20 +79,21 @@ async def test_confirmation_starts_unchecked_and_shows_terms_before_consent(conf
     before = await _render(manager, terms)
     assert before["recurring_on"] and not before["recurring_off"]
     assert before["recurring_terms"]
-    assert terms.summary in before["window_text"]
+    assert "recurring_notice" in before["window_text"]
+    assert terms.summary.split(" ")[0] in before["window_text"]
     assert not checkout_data(manager).recurring_consent
     manager.is_preview.return_value = False
     manager.current_context.return_value.stack_id = ""
     manager.current_context.return_value.id = "test"
     keyboard = await confirm.render_kbd(before, manager)
     labels = [button.text for row in keyboard.inline_keyboard for button in row]
-    assert "btn-recurring.terms" in labels
+    assert "btn-recurring.terms-icon btn-recurring.terms" in labels
     await _choice(manager)
     after = await _render(manager, terms)
     assert not after["recurring_on"] and after["recurring_off"] and after["recurring_terms"]
     keyboard = await confirm.render_kbd(after, manager)
     labels = [button.text for row in keyboard.inline_keyboard for button in row]
-    assert "btn-recurring.terms" in labels
+    assert "btn-recurring.terms-icon btn-recurring.terms" in labels
     assert all(
         len(button.callback_data.encode()) <= 64
         for row in keyboard.inline_keyboard

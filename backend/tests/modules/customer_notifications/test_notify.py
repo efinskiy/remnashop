@@ -10,11 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import AppConfig
 from app.core.constants import REDIS_KEY_PREFIX
-from app.core.db.models import CustomerNotification
+from app.core.db.models import CustomerNotification, RecurringPayment
 from app.core.db.uow import UnitOfWork
 from app.core.enums import (
     Locale,
     PaymentOutcome,
+    PlanType,
     PurchaseChannel,
     SessionAudience,
     SubscriptionStatus,
@@ -33,16 +34,19 @@ from app.modules.customer_notifications.usecases import NotifyCustomerUseCase
 from app.modules.notifications.dto import PushMessage
 from app.modules.notifications.render import NotificationRenderer
 from app.modules.notifications.repository import NotificationRepository
+from app.modules.plans.dto import CreatePlanDto
+from app.modules.plans.repository import PlanRepository
 from app.modules.settings import SettingsRepository
 from app.modules.settings.dto import UpdateShopSettingsDto
 from app.modules.subscriptions import SubscriptionRepository
 from app.modules.subscriptions.dto import CreateSubscriptionDto
-from app.modules.transactions import TransactionRepository
+from app.modules.transactions import RecurringPaymentRepository, TransactionRepository
 from app.modules.users.dto import CreateUserDto, UserDto
 from app.modules.users.repository import UserRepository
 from tests.fakes.dispatch import RecordingDispatch
 from tests.modules.customer_notifications.factories import FakeBotSignals, create_order
 from tests.modules.subscriptions.factories import make_plan_snapshot
+from tests.modules.transactions.test_usecases import _seed_subscription
 
 _FTL = """\
 ntf-customer-open-cabinet = Open cabinet
@@ -140,6 +144,7 @@ class _Fixture:
             redis,
             config,
             uow,
+            RecurringPaymentRepository(orders.session),
         )
 
     async def create(self, **fields: Any) -> UserDto:
@@ -815,3 +820,47 @@ async def test_a_new_sign_in_offers_to_end_every_session(fx: _Fixture) -> None:
         {"text": "📩 Support", "url": "https://help.test"},
         {"text": "Close", "callback_data": "cn:close"},
     ]
+
+
+async def _subscription_with_mandate(fx: _Fixture, user: UserDto, *, enabled: bool) -> int:
+    async with fx.uow:
+        plan = await PlanRepository(fx.orders.session).create(
+            CreatePlanDto(
+                public_code=f"remind-{user.id}",
+                name="Reminder plan",
+                type=PlanType.BOTH,
+                traffic_limit=100,
+                device_limit=1,
+            )
+        )
+    subscription_id = await _seed_subscription(
+        SubscriptionRepository(fx.orders.session),
+        user_id=user.id,
+        remnawave_user_id=840_000 + user.id,
+        plan_id=plan.id,
+    )
+    async with fx.uow:
+        fx.orders.session.add(
+            RecurringPayment(
+                subscription_id=subscription_id, enabled=enabled, next_attempt_at=datetime_now()
+            )
+        )
+    return subscription_id
+
+
+async def test_expiring_reminder_skipped_with_auto_renewal(fx: _Fixture) -> None:
+    user = await fx.create(name="auto", telegram_id=8301, email="auto@example.com")
+    subscription_id = await _subscription_with_mandate(fx, user, enabled=True)
+
+    await fx.notify(user, "SubscriptionExpiringEvent", subscription_id=subscription_id)
+
+    assert fx.telegram.messages == [] and fx.email.messages == []
+
+
+async def test_expiring_reminder_sent_after_mandate_disabled(fx: _Fixture) -> None:
+    user = await fx.create(name="manual", telegram_id=8302)
+    subscription_id = await _subscription_with_mandate(fx, user, enabled=False)
+
+    await fx.notify(user, "SubscriptionExpiringEvent", subscription_id=subscription_id)
+
+    assert len(fx.telegram.messages) == 1

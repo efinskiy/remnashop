@@ -52,12 +52,18 @@ subscription_card = Window(
     Format("{window_text}"),
     Button(
         Format("{auto_renew_text}"),
+        style=LabelIcon("auto_renew_text"),
         id="auto_renew_off",
         on_click=on_auto_renew,
         when="auto_renew_off",
     ),
     ListGroup(
-        Button(Format("{auto_renew_text}"), id="auto_renew_on", on_click=on_auto_renew),
+        Button(
+            Format("{auto_renew_text}"),
+            style=LabelIcon("auto_renew_text"),
+            id="auto_renew_on",
+            on_click=on_auto_renew,
+        ),
         id="renew_consent",
         item_id_getter=lambda item: item["id"],
         items="auto_renew_choices",
@@ -65,6 +71,7 @@ subscription_card = Window(
     ),
     SwitchTo(
         Format("{auto_renew_terms_text}"),
+        style=LabelIcon("auto_renew_terms_text"),
         id="auto_renew_terms",
         state=Subscriptions.RECURRING_TERMS,
         when="auto_renew_terms",

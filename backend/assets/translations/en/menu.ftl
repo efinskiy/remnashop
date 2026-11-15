@@ -172,6 +172,8 @@ msg-subscription-card =
     }
     • <b>Valid until</b>: { $expire_at }
     </blockquote>
+
+    { $auto_renew }
 msg-referrals =
     <b>👥 Invite friends</b>
 
@@ -408,6 +410,8 @@ msg-purchase-confirm =
     { $plan_changed_notice }
 
     { $terms_notice }
+
+    { $recurring_notice }
 frg-purchase-change-unlimited-notice = { $kind ->
         [credit] <i>⚠️ Your current subscription will be <u>replaced</u> with the chosen plan. What you paid for your current unlimited subscription is already taken off the price.</i>
        *[other] <i>⚠️ Your current subscription will be <u>replaced</u> with the chosen plan. The unused part of your payment <u>is not carried over</u>.</i>
@@ -650,6 +654,7 @@ frg-purchase-recurring-required = This payment method is available with auto-ren
 
 frg-subscription-recurring-retrying = <b>Auto-renewal enabled, awaiting another payment attempt</b>: up to { $amount } { $currency } every { $days } days.
 frg-subscription-recurring-pending = <b>Automatic payment is being processed</b>. Awaiting YooKassa confirmation. Disabling stops new charges; a submitted payment may still complete.
+frg-subscription-recurring-in-flight = <b>The automatic payment was sent to YooKassa</b>. Disabling stops future charges; this payment may still complete.
 frg-subscription-recurring-reason = Reason: { $reason }.
 frg-subscription-recurring-next-retry = Next payment attempt: { $when } UTC.
 frg-subscription-recurring-next-check = Next payment check: { $when } UTC.

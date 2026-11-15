@@ -363,9 +363,9 @@ async def confirm_getter(
         data["prices"][data["currency"]] = str(terms.initial_amount)
         data.setdefault("base_prices", {})[data["currency"]] = str(terms.amount_limit)
     accepted = bool(terms and data.get(RECURRING_ACCEPTED_KEY) == terms.terms_id)
-    recurring_notice = html.escape(terms.summary) if terms else ""
+    notices = [html.escape(terms.summary)] if terms else []
     if data.get("recurring_required") and Decimal(data["prices"][data["currency"]]) > 0:
-        recurring_notice += "\n" + html.escape(runner.get("frg-purchase-recurring-required"))
+        notices.append(render_window_text(runner, "frg-purchase-recurring-required"))
     if (
         renewed is not None
         and purchase_type in {PurchaseType.RENEW, PurchaseType.CHANGE}
@@ -379,7 +379,7 @@ async def confirm_getter(
                 if purchase_type is PurchaseType.CHANGE
                 else "frg-purchase-recurring-preserved"
             )
-            recurring_notice += "\n" + html.escape(runner.get(key))
+            notices.append(render_window_text(runner, key))
     return {
         "window_text": render_window_text(
             runner,
@@ -398,8 +398,8 @@ async def confirm_getter(
             type_notice=_type_notice(runner, purchase_type, data),
             plan_changed_notice=_plan_changed_notice(runner, plan, renewed) if plan else "",
             terms_notice=terms_notice,
-        )
-        + (f"\n\n{recurring_notice}" if recurring_notice else ""),
+            recurring_notice=TrustedHtml("\n".join(notices)),
+        ),
         "recurring_choices": [{"id": consent_callback_id(terms.terms_id)}] if terms else [],
         "recurring_on": terms is not None and not accepted,
         "recurring_off": accepted,
@@ -407,9 +407,9 @@ async def confirm_getter(
         "can_pay": not data.get("recurring_required", False)
         or accepted
         or Decimal(data["prices"][data["currency"]]) == 0,
-        "recurring_on_text": runner.get("btn-recurring.consent-off"),
-        "recurring_off_text": runner.get("btn-recurring.consent-on"),
-        "recurring_terms_text": runner.get("btn-recurring.terms"),
+        "recurring_on_text": label_with_icon(runner, "btn-recurring.consent-off"),
+        "recurring_off_text": label_with_icon(runner, "btn-recurring.consent-on"),
+        "recurring_terms_text": label_with_icon(runner, "btn-recurring.terms"),
         "pay_text": label_with_icon(runner, "btn-purchase.pay"),
         "back_text": label_with_icon(
             runner,

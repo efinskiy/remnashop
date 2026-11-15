@@ -51,6 +51,9 @@ class GetOwnRecurringPaymentUseCase(UseCase[int, RecurringPaymentState, UserDto]
             subscription = await get_owned_target(self._subscriptions, data, actor.id)
             mandate = await self._recurring.get(data)
             gateway = await self._gateways.get_by_type(PaymentGatewayType.YOOKASSA)
+            if mandate is None and not gateway.flags.get("recurring_enabled", False):
+                # opened on every subscription card: a shop without auto-renewal stops here
+                return RecurringPaymentState(subscription_id=data, enabled=False, available=False)
             settings = await self._gateways.get_raw_settings(PaymentGatewayType.YOOKASSA)
             source = (
                 await self._transactions.get_by_id(mandate.source_transaction_id)

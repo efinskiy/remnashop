@@ -154,12 +154,14 @@ confirm = Window(
     ListGroup(
         Button(
             Format("{recurring_on_text}"),
+            style=LabelIcon("recurring_on_text"),
             id="recurring_on",
             on_click=on_recurring_choice,
             when="recurring_on",
         ),
         Button(
             Format("{recurring_off_text}"),
+            style=LabelIcon("recurring_off_text"),
             id="recurring_off",
             on_click=on_recurring_choice,
             when="recurring_off",
@@ -170,6 +172,7 @@ confirm = Window(
     ),
     SwitchTo(
         Format("{recurring_terms_text}"),
+        style=LabelIcon("recurring_terms_text"),
         id="recurring_terms",
         state=Purchase.RECURRING_TERMS,
         when="recurring_terms",

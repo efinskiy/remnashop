@@ -20,7 +20,7 @@ from app.telegram.dialogs.context import (
 )
 from app.telegram.i18n import build_translator_hub
 from app.telegram.routers.subscriptions.getters import (
-    _recurring_card_notice,
+    _auto_renew_block,
     device_confirm_delete_getter,
     subscription_recurring_terms_getter,
 )
@@ -252,7 +252,7 @@ def test_retry_notice_shows_the_reason_and_actual_next_attempt():
         duration_days=30,
         last_error="insufficient_funds",
     )
-    text = _recurring_card_notice(state, hub.get_translator_by_locale(Locale.RU.value))
+    text = _auto_renew_block(state, hub.get_translator_by_locale(Locale.RU.value))
     assert "повторная оплата" in text
     assert "недостаточно средств" in text
     assert "15.11.2026 13:00 UTC" in text
@@ -293,6 +293,6 @@ async def test_paused_subscription_keeps_the_withdrawal_button(monkeypatch):
         get_own_recurring_payment=AsyncMock(return_value=state),
     )
     assert result["auto_renew_off"] is True and result["auto_renew_on"] is False
-    assert result["auto_renew_text"] == hub.get_translator_by_locale(Locale.EN.value).get(
+    assert result["auto_renew_text"].text == hub.get_translator_by_locale(Locale.EN.value).get(
         "btn-recurring.disable"
     )
