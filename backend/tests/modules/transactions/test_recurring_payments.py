@@ -56,6 +56,7 @@ from app.modules.transactions.usecases import (
 from app.modules.users.dto import CreateUserDto
 from tests.fakes.dispatch import RecordingDispatch
 from tests.fakes.events import RecordingEventPublisher
+from tests.fakes.payment_texts import FixedPaymentTexts
 from tests.fakes.remnawave import _user_payload
 from tests.modules.subscriptions.factories import make_eligibility
 
@@ -253,11 +254,14 @@ async def case(
                 pricing_repository,
                 uow,
                 promocode_repository,
+                subscription_repository,
+                settings_repository,
             ),
             PaymentGatewayFactory(config, PaymentHttpClient(http)),
             dispatch,
             uow,
             config,
+            FixedPaymentTexts(),
         )
         yield _Case(
             worker,

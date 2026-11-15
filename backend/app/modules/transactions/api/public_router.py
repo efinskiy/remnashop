@@ -168,10 +168,13 @@ async def quote_checkout(
             currency=payload.currency,
             plan_code=payload.plan_code,
             renew_subscription_id=payload.renew_subscription_id,
+            change_subscription_id=payload.change_subscription_id,
         ),
     )
     return CheckoutQuoteResponse(
         base_price=quote.base_price,
+        change_credit=quote.change_credit,
+        change_credit_days=quote.change_credit_days,
         plan_discount_percent=quote.plan_discount_percent,
         discount_percent=quote.discount_percent,
         discount_source=quote.discount_source,
@@ -210,7 +213,7 @@ async def list_own_transactions(
 ) -> OwnTransactionListResponse:
     orders, total = await use_case(actor, ListOwnTransactionsDto(page=page, page_size=page_size))
     return OwnTransactionListResponse(
-        items=[OwnTransactionResponse.from_dto(o) for o in orders],
+        items=[OwnTransactionResponse.from_dto(o, actor.language) for o in orders],
         total=total,
         page=page,
         page_size=page_size,
@@ -228,4 +231,4 @@ async def get_own_transaction(
     use_case: FromDishka[GetOwnTransactionUseCase],
     actor: UserDto = Depends(get_current_user),
 ) -> OwnTransactionResponse:
-    return OwnTransactionResponse.from_dto(await use_case(actor, transaction_id))
+    return OwnTransactionResponse.from_dto(await use_case(actor, transaction_id), actor.language)

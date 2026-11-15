@@ -10,12 +10,14 @@ from app.core.constants import PANEL_TAG_MAX_LENGTH, PANEL_TAG_PATTERN
 from app.core.enums import (
     AddOnType,
     Currency,
+    Locale,
     PanelSyncDirection,
     PlanBadge,
     PlanType,
     SubscriptionStatus,
 )
 from app.core.security.connect_signature import sign_subscription_url
+from app.core.utils.telegram_text import PREMIUM_EMOJI_RE
 from app.modules.subscriptions.dto import PlanSnapshot, SubscriptionDto
 from app.modules.subscriptions.plan_snapshot_response import PlanSnapshotResponse
 
@@ -43,6 +45,7 @@ class SubscriptionResponse(BaseModel):
     internal_squads: list[UUID]
     external_squad: Optional[UUID] = None
     expire_at: datetime
+    is_unlimited: bool
     created_at: Optional[datetime] = None
     first_connected_at: Optional[datetime] = None
     url: str
@@ -109,12 +112,14 @@ class UpdateSubscriptionSquadsRequest(BaseModel):
 class GrantSubscriptionRequest(BaseModel):
     user_id: int
     plan_id: int
-    duration_days: int = Field(ge=1, le=36500)
+    # 0 is unlimited
+    duration_days: int = Field(ge=0, le=36500)
 
 
 class ChangeSubscriptionPlanRequest(BaseModel):
     plan_id: int
-    duration_days: Optional[int] = Field(default=None, ge=1, le=36500)
+    # 0 is unlimited, none keeps the current expiry
+    duration_days: Optional[int] = Field(default=None, ge=0, le=36500)
 
 
 class DeviceResponse(BaseModel):
@@ -139,7 +144,8 @@ class PublicPlanPriceResponse(BaseModel):
 
 
 class PublicPlanDurationResponse(BaseModel):
-    days: int = Field(gt=0)
+    # 0 is unlimited
+    days: int = Field(ge=0)
     order_index: int = 0
     prices: list[PublicPlanPriceResponse]
 
@@ -159,6 +165,12 @@ class PublicPlanResponse(BaseModel):
     discount_percent: int = 0
     discount_ends_at: Optional[datetime] = None
 
+    # the cabinet can't draw a Telegram premium emoji: its glyph stands in
+    @field_validator("description", mode="before")
+    @classmethod
+    def _premium_emoji_as_glyph(cls, value: Any) -> Any:
+        return PREMIUM_EMOJI_RE.sub(r"\1", value) if isinstance(value, str) else value
+
 
 class PublicPlanListResponse(BaseModel):
     items: list[PublicPlanResponse]
@@ -171,6 +183,7 @@ class OwnSubscriptionResponse(BaseModel):
     status: SubscriptionStatus
     is_trial: bool
     expire_at: datetime
+    is_unlimited: bool
     url: str
     effective_traffic_limit: int
     effective_device_limit: int
@@ -190,12 +203,18 @@ class OwnSubscriptionResponse(BaseModel):
 
     @classmethod
     def from_dto(
-        cls, subscription: SubscriptionDto, *, secret: str, used_traffic: Optional[int] = None
+        cls,
+        subscription: SubscriptionDto,
+        *,
+        secret: str,
+        locale: Locale,
+        used_traffic: Optional[int] = None,
     ) -> "OwnSubscriptionResponse":
         return cls.model_validate(
             {
                 **subscription.model_dump(),
-                "plan_name": subscription.plan_snapshot.name,
+                "is_unlimited": subscription.is_unlimited,
+                "plan_name": subscription.plan_snapshot.display_name(locale),
                 "plan_id": subscription.plan_snapshot.plan_id,
                 "plan_traffic_limit": subscription.plan_snapshot.traffic_limit,
                 "plan_device_limit": subscription.plan_snapshot.device_limit,

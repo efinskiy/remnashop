@@ -7,7 +7,7 @@ import orjson
 from app.core.enums import Currency, TransactionStatus
 from app.core.exceptions import PaymentGatewayError
 from app.modules.gateways import YooKassaSettings
-from app.modules.transactions.dto import TransactionDto, WebhookRequest
+from app.modules.transactions.dto import PaymentTextDto, TransactionDto, WebhookRequest
 from app.modules.transactions.gateways.base import (
     NOT_PAID,
     PaymentGateway,
@@ -15,7 +15,11 @@ from app.modules.transactions.gateways.base import (
     ProviderPayment,
     WebhookSignal,
 )
-from app.modules.transactions.gateways.common import PROVIDER_API_TIMEOUT_S, parse_json, to_decimal
+from app.modules.transactions.gateways.common import (
+    PROVIDER_API_TIMEOUT_S,
+    parse_json,
+    to_decimal,
+)
 
 _API_BASE: Final[str] = "https://api.yookassa.ru/v3"
 _PAID_STATUS: Final[str] = "succeeded"
@@ -31,13 +35,13 @@ _PAYMENT_MODE: Final[str] = "full_payment"
 
 
 def _build_receipt(
-    order: TransactionDto, settings: YooKassaSettings
+    order: TransactionDto, text: PaymentTextDto, settings: YooKassaSettings
 ) -> Optional[dict[str, object]]:
     vat_code = order.yookassa_receipt_vat_code if order.is_recurring else settings.vat_code
     if not order.customer_email or vat_code is None:
         return None
     item: dict[str, object] = {
-        "description": f"Subscription plan #{order.plan_id}, {order.duration_days}d",
+        "description": text.description,
         "quantity": "1.00",
         "amount": {"value": f"{order.final_price:.2f}", "currency": order.currency.value},
         "vat_code": int(vat_code),
@@ -84,20 +88,20 @@ class YooKassaGateway(PaymentGateway[YooKassaSettings]):
             and PaymentGateway.payment_matches(order, payment)
         )
 
-    def _payment_body(self, order: TransactionDto) -> dict[str, object]:
+    def _payment_body(self, order: TransactionDto, text: PaymentTextDto) -> dict[str, object]:
         body: dict[str, object] = {
             "amount": {"value": f"{order.final_price:.2f}", "currency": order.currency.value},
             "capture": True,
-            "description": f"Order #{order.id}",
+            "description": text.description,
             "metadata": {"order_ref": order.idempotency_key},
         }
-        receipt = _build_receipt(order, self.settings)
+        receipt = _build_receipt(order, text, self.settings)
         if receipt is not None:
             body["receipt"] = receipt
         return body
 
-    async def create_payment(self, order: TransactionDto) -> PaymentIntent:
-        body = self._payment_body(order)
+    async def create_payment(self, order: TransactionDto, text: PaymentTextDto) -> PaymentIntent:
+        body = self._payment_body(order, text)
         body["confirmation"] = {"type": "redirect", "return_url": self._return_url}
         # Explicit false also suppresses YooKassa's conditional-save checkbox.
         body["save_payment_method"] = (
@@ -111,11 +115,11 @@ class YooKassaGateway(PaymentGateway[YooKassaSettings]):
         )
 
     async def create_recurring_payment(
-        self, order: TransactionDto, payment_method_id: str
+        self, order: TransactionDto, text: PaymentTextDto, payment_method_id: str
     ) -> PaymentIntent:
         if not self.settings.recurring_enabled or not order.is_recurring or not payment_method_id:
             raise PaymentGatewayError("Recurring payments are not enabled for this order")
-        body = self._payment_body(order)
+        body = self._payment_body(order, text)
         body["payment_method_id"] = payment_method_id
         data = await self._post_payment(order, body)
         return PaymentIntent(confirmation_url=None, provider_payment_id=str(data["id"]))

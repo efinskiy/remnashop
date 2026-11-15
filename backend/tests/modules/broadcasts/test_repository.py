@@ -32,7 +32,7 @@ from app.modules.broadcasts.dto import (
 from app.modules.broadcasts.repository import BroadcastRepository
 from app.modules.users.dto import CreateUserDto
 from app.modules.users.repository import UserRepository
-from tests.modules.broadcasts.factories import add_subscription, make_customer
+from tests.modules.broadcasts.factories import add_subscription, make_customer, set_broadcast
 
 _LEASE: Final[timedelta] = timedelta(minutes=5)
 
@@ -61,8 +61,11 @@ async def test_create_roundtrips_json(broadcast_repository: BroadcastRepository)
 
 async def test_replace_resets_to_draft(broadcast_repository: BroadcastRepository) -> None:
     created = await broadcast_repository.create(save_dto(), created_by=None)
-    await broadcast_repository.update_fields(
-        created.id, status=BroadcastStatus.SCHEDULED, scheduled_at=datetime_now()
+    await set_broadcast(
+        broadcast_repository.session,
+        created.id,
+        status=BroadcastStatus.SCHEDULED,
+        scheduled_at=datetime_now(),
     )
     replaced = await broadcast_repository.replace(
         created.id, save_dto(contents={Locale.EN: BroadcastContentDto(text="New")})
@@ -276,15 +279,43 @@ async def test_recipient_context_uses_live_subscription(
     assert context.plan_name == "Pro" and context.bonus_days == 4 and context.expire_at is not None
 
 
+async def test_recipient_context_names_the_plan_in_the_recipients_language(
+    session: AsyncSession,
+    user_repository: UserRepository,
+    broadcast_repository: BroadcastRepository,
+) -> None:
+    ru = await make_customer(user_repository, session, telegram_id=8302, language=Locale.RU)
+    de = await make_customer(user_repository, session, telegram_id=8303, language=Locale.DE)
+    for user_id in (ru, de):
+        await add_subscription(
+            session,
+            user_id,
+            plan_name="Pro",
+            plan_names={Locale.RU: "Про"},
+            expire_at=datetime_now() + timedelta(days=10),
+        )
+
+    contexts = await broadcast_repository.recipient_contexts([ru, de])
+
+    # no German name: the plan's own
+    assert (contexts[ru].plan_name, contexts[de].plan_name) == ("Про", "Pro")
+
+
 async def test_scheduling_queries(broadcast_repository: BroadcastRepository) -> None:
     now = datetime_now()
     due = await broadcast_repository.create(save_dto(), created_by=None)
     later = await broadcast_repository.create(save_dto(), created_by=None)
-    await broadcast_repository.update_fields(
-        due.id, status=BroadcastStatus.SCHEDULED, scheduled_at=now - timedelta(minutes=1)
+    await set_broadcast(
+        broadcast_repository.session,
+        due.id,
+        status=BroadcastStatus.SCHEDULED,
+        scheduled_at=now - timedelta(minutes=1),
     )
-    await broadcast_repository.update_fields(
-        later.id, status=BroadcastStatus.SCHEDULED, scheduled_at=now + timedelta(hours=1)
+    await set_broadcast(
+        broadcast_repository.session,
+        later.id,
+        status=BroadcastStatus.SCHEDULED,
+        scheduled_at=now + timedelta(hours=1),
     )
     assert await broadcast_repository.next_due(now) == due.id
     assert not await broadcast_repository.has_sending()
@@ -475,8 +506,8 @@ async def test_list_filters_by_several_statuses(broadcast_repository: BroadcastR
     draft = await broadcast_repository.create(save_dto(), created_by=None)
     failed = await broadcast_repository.create(save_dto(), created_by=None)
     done = await broadcast_repository.create(save_dto(), created_by=None)
-    await broadcast_repository.update_fields(failed.id, status=BroadcastStatus.FAILED)
-    await broadcast_repository.update_fields(done.id, status=BroadcastStatus.COMPLETED)
+    await set_broadcast(broadcast_repository.session, failed.id, status=BroadcastStatus.FAILED)
+    await set_broadcast(broadcast_repository.session, done.id, status=BroadcastStatus.COMPLETED)
     found, total = await broadcast_repository.list(
         ListBroadcastsDto(statuses=[BroadcastStatus.DRAFT, BroadcastStatus.FAILED])
     )
@@ -565,14 +596,23 @@ async def test_summary_counts_window_and_audience(
     recent = await broadcast_repository.create(save_dto(), created_by=None)
     old = await broadcast_repository.create(save_dto(), created_by=None)
     scheduled = await broadcast_repository.create(save_dto(), created_by=None)
-    await broadcast_repository.update_fields(
-        recent.id, status=BroadcastStatus.COMPLETED, started_at=now - timedelta(days=2)
+    await set_broadcast(
+        broadcast_repository.session,
+        recent.id,
+        status=BroadcastStatus.COMPLETED,
+        started_at=now - timedelta(days=2),
     )
-    await broadcast_repository.update_fields(
-        old.id, status=BroadcastStatus.COMPLETED, started_at=now - timedelta(days=40)
+    await set_broadcast(
+        broadcast_repository.session,
+        old.id,
+        status=BroadcastStatus.COMPLETED,
+        started_at=now - timedelta(days=40),
     )
-    await broadcast_repository.update_fields(
-        scheduled.id, status=BroadcastStatus.SCHEDULED, scheduled_at=now + timedelta(days=1)
+    await set_broadcast(
+        broadcast_repository.session,
+        scheduled.id,
+        status=BroadcastStatus.SCHEDULED,
+        scheduled_at=now + timedelta(days=1),
     )
     session.add_all(
         [

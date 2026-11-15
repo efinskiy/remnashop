@@ -9,6 +9,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import {
   ArrowDownUp,
+  CircleCheck,
   Columns2,
   GripVertical,
   Infinity as InfinityIcon,
@@ -30,6 +31,7 @@ import {
   type PlanIconValue,
   type PlanSquads,
   type PlanBadge,
+  type PlanTranslation,
   type PlanType,
   setPlanDurations,
   type TrafficLimitStrategy,
@@ -37,9 +39,11 @@ import {
   updatePlanAccess,
   updatePlanSquads,
 } from "@entities/plans/api";
+import { listActiveLocales } from "@entities/translations/api";
 import { usePermissions } from "@entities/user/use-current-user";
 import { PlanAccessFields } from "@features/plan-access/PlanAccessDialog";
 import { planAccessPayload, planAccessValue } from "@features/plan-access/access-value";
+import { PlanDescriptionField } from "@features/plan-edit/PlanDescriptionField";
 import { PlanIconPicker } from "@features/plan-edit/PlanIconPicker";
 import { PlanShareLinks } from "@features/plan-edit/PlanShareLinks";
 import { PlanSquadsField } from "@features/plan-edit/PlanSquadsField";
@@ -48,6 +52,7 @@ import { currencySymbol } from "@shared/lib/format";
 import { blockNonDecimalKeys, blockNonIntegerKeys, parseRequiredInt } from "@shared/lib/number-input";
 import { randomId } from "@shared/lib/random-string";
 import { toast } from "@shared/lib/toast";
+import { useAsyncResource } from "@shared/lib/use-async-resource";
 import { Modal } from "@shared/ui/Modal";
 import { useModalClose } from "@shared/ui/modal-hooks";
 import { SelectDropdown } from "@shared/ui/SelectDropdown";
@@ -55,10 +60,11 @@ import { Button } from "@shared/ui/Button";
 import { GLASS_DIALOG_BODY_CLASS, GLASS_DIALOG_CARD_CLASS, GLASS_DIALOG_FOOTER_CLASS } from "@shared/ui/classes";
 import { DialogHeader } from "@shared/ui/glass/DialogHeader";
 import { Field } from "@shared/ui/glass/Field";
-import { CopyInput, Input, TextArea } from "@shared/ui/glass/Input";
+import { CopyInput, Input } from "@shared/ui/glass/Input";
 import { Switch } from "@shared/ui/glass/Switch";
 import { IconButton } from "@shared/ui/IconButton";
 import { ChoiceChip } from "@shared/ui/ChoiceChip";
+import { PillTabs } from "@shared/ui/PillTabs";
 import { Pressable } from "@shared/ui/Pressable";
 
 const PLAN_BADGES: PlanBadge[] = ["POPULAR", "BEST_VALUE"];
@@ -70,7 +76,15 @@ const PLAN_TYPE_ICON: Record<PlanType, ComponentType<{ className?: string }>> = 
   UNLIMITED: InfinityIcon,
 };
 const STRATEGIES: TrafficLimitStrategy[] = ["NO_RESET", "DAY", "WEEK", "MONTH", "MONTH_ROLLING"];
-const DURATION_PRESETS = [7, 30, 60, 90, 180, 365];
+const DURATION_PRESETS = [7, 30, 60, 90, 365];
+
+// the tab that edits the plan's own name, shown in any language without a translation
+const BASE_LOCALE = "";
+
+interface TranslationDraft {
+  name: string;
+  description: string;
+}
 
 interface DurationRow {
   id: string;
@@ -91,6 +105,13 @@ function durationsKey(rows: DurationRow[]): string {
 }
 
 const hintClassName = "text-xs text-muted-foreground";
+
+// a translation without a name is dropped: that language shows the plan's own name
+function translationsPayload(drafts: Record<string, TranslationDraft>): PlanTranslation[] {
+  return Object.entries(drafts)
+    .filter(([, draft]) => draft.name.trim())
+    .map(([locale, draft]) => ({ locale, name: draft.name.trim(), description: draft.description.trim() || null }));
+}
 
 export function PlanEditDialog({ plan, anchorCurrency, onClose, onSaved }: PlanEditDialogProps) {
   return (
@@ -124,6 +145,28 @@ function PlanEditDialogBody({
       : DEFAULT_PLAN_ICON,
   );
   const [description, setDescription] = useState(plan?.description ?? "");
+  const [translations, setTranslations] = useState<Record<string, TranslationDraft>>(() =>
+    Object.fromEntries(
+      (plan?.translations ?? []).map((item) => [item.locale, { name: item.name, description: item.description ?? "" }]),
+    ),
+  );
+  const [locale, setLocale] = useState(BASE_LOCALE);
+  // the shop's default and other languages; without LOCALES_VIEW the default is unknown, the others ru and en
+  const [localesState] = useAsyncResource((signal) =>
+    listActiveLocales(signal).then(
+      (result) => ({ base: result.default, others: result.active.filter((item) => item !== result.default) }),
+      () => ({ base: null, others: ["ru", "en"] }),
+    ),
+  );
+  const baseLocaleCode = localesState.kind === "ready" ? localesState.data.base : null;
+  const otherLocales = [
+    ...new Set([...(localesState.kind === "ready" ? localesState.data.others : []), ...Object.keys(translations)]),
+  ];
+  const isTranslated = (code: string) =>
+    Boolean(translations[code]?.name.trim() || translations[code]?.description.trim());
+  const translation = translations[locale] ?? { name: "", description: "" };
+  const setTranslation = (patch: Partial<TranslationDraft>) =>
+    setTranslations((prev) => ({ ...prev, [locale]: { ...translation, ...patch } }));
   const [tag, setTag] = useState(plan?.tag ?? "");
   const [badge, setBadge] = useState<PlanBadge | "">(plan?.badge ?? "");
   const [type, setType] = useState<PlanType>(plan?.type ?? "BOTH");
@@ -149,7 +192,7 @@ function PlanEditDialogBody({
   const squadsChanged = JSON.stringify(squads) !== JSON.stringify(initialSquads);
   const fieldsKey = JSON.stringify([
     name, icon, description, tag, badge, type, strategy, trafficLimit, deviceLimit, isTrial, allowBonusDays,
-    allowPromocodes,
+    allowPromocodes, translationsPayload(translations),
   ]);
   const [initialFieldsKey] = useState(fieldsKey);
   // set here only while creating; an existing plan has its own access dialog
@@ -201,7 +244,8 @@ function PlanEditDialogBody({
     const parsedDeviceLimit = hasDevices ? parseRequiredInt(deviceLimit, 1) : 0;
     const parsedDurations = durations.map((row) => ({
       ...row,
-      parsedDays: parseRequiredInt(row.days, 1),
+      // 0 is unlimited
+      parsedDays: parseRequiredInt(row.days, 0),
     }));
     if (
       parsedTrafficLimit === undefined ||
@@ -234,6 +278,7 @@ function PlanEditDialogBody({
           is_trial: isTrial,
           allow_bonus_days: allowBonusDays,
           allow_promocodes: allowPromocodes,
+          translations: translationsPayload(translations),
         };
         let created = await createPlan(payload);
         const steps: [() => Promise<Plan>, ParseKeys][] = [];
@@ -274,6 +319,7 @@ function PlanEditDialogBody({
             is_trial: isTrial,
             allow_bonus_days: allowBonusDays,
             allow_promocodes: allowPromocodes,
+            translations: translationsPayload(translations),
           });
         }
         if (durationsKey(durations) !== durationsKey(initialDurations)) {
@@ -319,37 +365,90 @@ function PlanEditDialogBody({
         <div className={`${GLASS_DIALOG_BODY_CLASS} flex flex-col gap-3`}>
           {plan && (
             <div className={GLASS_DIALOG_CARD_CLASS}>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field label={t("plans.edit.publicCodeLabel")} hint={t("plans.edit.publicCodeHint")}>
-                  <CopyInput value={plan.public_code} />
-                </Field>
-                {canShare && <PlanShareLinks planId={plan.id} />}
-              </div>
+              <Field label={t("plans.edit.publicCodeLabel")} hint={t("plans.edit.publicCodeHint")}>
+                <div className="flex items-center gap-2">
+                  <CopyInput value={plan.public_code} className="flex-1" />
+                  {canShare && <PlanShareLinks planId={plan.id} />}
+                </div>
+              </Field>
             </div>
           )}
 
-          <fieldset disabled={!canEditFields} className="contents">
           <div className={GLASS_DIALOG_CARD_CLASS}>
-            <Field label={t("plans.edit.nameLabel")} htmlFor="plan-name" required>
-              <Input
-                id="plan-name"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                maxLength={32}
-                end={<PlanIconPicker value={icon} onChange={setIcon} />}
+            {otherLocales.length > 0 && (
+              <PillTabs
+                items={[
+                  {
+                    key: BASE_LOCALE,
+                    label: baseLocaleCode ? (
+                      <span className="flex items-center justify-center gap-1.5">
+                        {baseLocaleCode.toUpperCase()}
+                        <span className="text-xs opacity-80">{t("plans.edit.baseLocaleMark")}</span>
+                      </span>
+                    ) : (
+                      t("plans.edit.baseLocale")
+                    ),
+                  },
+                  ...otherLocales.map((item) => ({
+                    key: item,
+                    label: (
+                      <span className="flex items-center justify-center gap-1.5">
+                        {item.toUpperCase()}
+                        {isTranslated(item) && <CircleCheck className="size-3.5" />}
+                      </span>
+                    ),
+                  })),
+                ]}
+                activeKey={locale}
+                onSelect={setLocale}
               />
-            </Field>
-            <Field label={t("plans.edit.descriptionLabel")} htmlFor="plan-description">
-              <TextArea
-                id="plan-description"
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                maxLength={1024}
-                rows={2}
-              />
-            </Field>
+            )}
+            {/* the tabs stay switchable for a reader without PLANS_UPDATE */}
+            <fieldset disabled={!canEditFields} className="contents">
+            {locale === BASE_LOCALE ? (
+              <>
+                <Field label={t("plans.edit.nameLabel")} htmlFor="plan-name" required>
+                  <Input
+                    id="plan-name"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    maxLength={32}
+                    end={<PlanIconPicker value={icon} onChange={setIcon} />}
+                  />
+                </Field>
+                <Field label={t("plans.edit.descriptionLabel")}>
+                  <PlanDescriptionField value={description} onChange={setDescription} disabled={!canEditFields} />
+                </Field>
+              </>
+            ) : (
+              <>
+                <Field
+                  label={t("plans.edit.nameLabel")}
+                  htmlFor="plan-name-translation"
+                  hint={t("plans.edit.translationHint")}
+                >
+                  <Input
+                    id="plan-name-translation"
+                    value={translation.name}
+                    placeholder={name}
+                    onChange={(event) => setTranslation({ name: event.target.value })}
+                    maxLength={32}
+                  />
+                </Field>
+                <Field label={t("plans.edit.descriptionLabel")}>
+                  <PlanDescriptionField
+                    value={translation.description}
+                    placeholder={description}
+                    onChange={(value) => setTranslation({ description: value })}
+                    disabled={!canEditFields}
+                  />
+                </Field>
+              </>
+            )}
+            </fieldset>
           </div>
 
+          <fieldset disabled={!canEditFields} className="contents">
           <div className={GLASS_DIALOG_CARD_CLASS}>
             <Field label={t("plans.edit.typeLabel")}>
               <div className="grid auto-rows-fr grid-cols-2 gap-2 sm:grid-cols-4">
@@ -456,14 +555,21 @@ function PlanEditDialogBody({
                   </div>
                 )}
                 {canAddDuration && (
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="mr-0.5 text-xs text-muted-foreground">{t("plans.edit.addPresetLabel")}</span>
+                  <Button variant="glass" size="md" className={`w-full ${durations.length > 0 ? "mt-0.5" : ""}`} onClick={() => addDuration("")}>
+                    <Plus className="size-4" />
+                    {t("plans.edit.addDuration")}
+                  </Button>
+                )}
+                {canAddDuration && (
+                  <div className="flex items-center gap-1.5">
                     {presets.map((days) => (
                       <PresetButton key={days} onClick={() => addDuration(String(days))}>
                         {days}
                       </PresetButton>
                     ))}
-                    <PresetButton onClick={() => addDuration("")}>{t("plans.edit.customDuration")}</PresetButton>
+                    {!isTrial && !usedDays.has(0) && (
+                      <PresetButton onClick={() => addDuration("0")}>∞</PresetButton>
+                    )}
                   </div>
                 )}
               </>
@@ -605,16 +711,20 @@ function DurationRowItem({
       >
         <GripVertical className="size-3.5" />
       </button>
-      <Input
-        type="number"
-        onKeyDown={blockNonIntegerKeys}
-        min={1}
-        step="1"
-        value={row.days}
-        disabled={disabled}
-        onChange={(event) => onChange({ days: event.target.value })}
-        suffix={t("plans.edit.daysSuffix")}
-      />
+      {row.days === "0" ? (
+        <Input value="∞" readOnly disabled={disabled} />
+      ) : (
+        <Input
+          type="number"
+          onKeyDown={blockNonIntegerKeys}
+          min={1}
+          step="1"
+          value={row.days}
+          disabled={disabled}
+          onChange={(event) => onChange({ days: event.target.value })}
+          suffix={t("plans.edit.daysSuffix")}
+        />
+      )}
       <Input
         type="number"
         onKeyDown={blockNonDecimalKeys}
@@ -634,7 +744,7 @@ function DurationRowItem({
 
 function PresetButton({ onClick, children }: { onClick: () => void; children: ReactNode }) {
   return (
-    <Button variant="glass" size="sm" onClick={onClick}>
+    <Button variant="glass" size="sm" className="flex-1" onClick={onClick}>
       <Plus className="size-3" />
       {children}
     </Button>
@@ -658,7 +768,7 @@ function ToggleRow({
     <div className="flex items-center gap-3">
       <span className="min-w-0 flex-1">
         <span className="block text-sm font-medium text-foreground">{label}</span>
-        <span className={hintClassName}>{hint}</span>
+        <span className={`block ${hintClassName}`}>{hint}</span>
       </span>
       <Switch checked={checked} onChange={onChange} disabled={disabled} />
     </div>

@@ -190,6 +190,7 @@ btn-subscriptions =
     .purchase-icon = 💸
     .item = { $status ->
         [ACTIVE] 🟢 { $plan_name } · до { $expire_at }
+        [UNLIMITED] 🟢 { $plan_name } · бессрочно
         [LIMITED] 🟡 { $plan_name } · трафик исчерпан
         [EXPIRED] 🔴 { $plan_name } · истекла { $expire_at }
         [DISABLED] ⚫ { $plan_name } · отключена
@@ -336,7 +337,6 @@ ntf-common =
 ntf-purchase =
     .stars-rejected = Этот заказ уже нельзя оплатить. Начните покупку заново.
     .plan-unavailable = ❌ Этот тариф больше недоступен — выберите другой.
-    .renew-plan-unavailable = ❌ Текущий план устарел и недоступен для продления.
     .limit-reached = ❌ Достигнут лимит подписок.
     .method-unavailable = ❌ Этот способ оплаты сейчас недоступен.
     .discount-used = ⚠️ Скидка уже использована — проверьте новую цену.
@@ -412,6 +412,11 @@ msg-purchase-confirm =
     { $plan_changed_notice }
 
     { $terms_notice }
+frg-purchase-change-unlimited-notice = { $kind ->
+        [credit] <i>⚠️ Текущая подписка будет <u>заменена</u> выбранным тарифом. Оплаченное за текущую бессрочную подписку уже вычтено из цены.</i>
+       *[other] <i>⚠️ Текущая подписка будет <u>заменена</u> выбранным тарифом. Неиспользованная часть оплаты <u>не переносится</u>.</i>
+    }
+frg-purchase-change-credit-days-notice = <i>⚠️ Текущая подписка будет <u>заменена</u> выбранным тарифом. За неиспользованную часть оплаты к новому сроку добавится <b>{ $days }</b>.</i>
 frg-purchase-terms-notice = <i>Оплачивая, вы принимаете условия — /terms</i>
 frg-subscription-recurring = <b>Автопродление включено</b>: до { $amount } { $currency } за каждые { $days } дней. Отключите его кнопкой ниже, чтобы прекратить будущие списания.
 frg-subscription-recurring-off = <b>Автопродление отключено</b>. Включение разрешит автоматические списания до { $amount } { $currency } за каждые { $days } дней перед окончанием подписки.
@@ -539,11 +544,14 @@ msg-promocode-confirm =
             [few] устройства
            *[other] устройств
         }</b> к лимиту устройств.
-        [SUBSCRIPTION] подписку <b>{ $promo_plan_name }</b> на <b>{ $promo_reward } { $promo_reward ->
-            [one] день
-            [few] дня
-           *[other] дней
-        }</b>.
+        [SUBSCRIPTION] подписку <b>{ $promo_plan_name }</b> { $promo_reward ->
+            [0] <b>навсегда</b>
+           *[other] на <b>{ $promo_reward } { $promo_reward ->
+                [one] день
+                [few] дня
+               *[other] дней
+            }</b>
+        }.
         [PERSONAL_DISCOUNT] постоянную <b>скидку { $promo_reward }%</b> на все покупки.
         [PURCHASE_DISCOUNT] <b>скидку { $promo_reward }%</b> на следующую покупку.
        *[other] награду на ваш аккаунт.
@@ -630,6 +638,8 @@ time-unit =
     }
     .hour = { $value } ч
     .minute = { $value } мин
+    .unlimited = Навсегда
+    .no-expiry = бессрочно
 
 inline-invite =
     .title = Пригласить друга
@@ -640,6 +650,8 @@ inline-invite =
         { $bot_name } — поможет тебе с этим!
 
         ↘️ ЖМИ КНОПКУ И ПОПРОБУЙ БЕСПЛАТНО!
+
+btn-inline-invite =
     .start = Присоединиться
     .start-icon = 🚀
 

@@ -1,4 +1,3 @@
-from datetime import timedelta
 from io import BytesIO
 from pathlib import Path
 from typing import Optional
@@ -21,7 +20,6 @@ from app.core.exceptions import (
 )
 from app.core.ports import EventPublisher
 from app.core.security.permissions import Permission
-from app.core.utils.time import datetime_now
 from app.modules.oauth.dto import CreateOAuthIdentityDto
 from app.modules.oauth.repository import OAuthIdentityRepository
 from app.modules.settings import command_translations
@@ -247,17 +245,6 @@ async def test_bot_status_is_not_running_while_telegram_reports_an_error(
     assert status.is_configured is True
     assert status.is_running is False
     assert status.error == "Connection refused"
-
-
-def test_bot_status_ignores_an_error_telegram_kept_after_recovering() -> None:
-    status = BotStatusDto(
-        is_configured=True,
-        webhook_url="https://bot.example.com/webhook",
-        error="Wrong response from the webhook: 502 Bad Gateway",
-        last_error_at=datetime_now() - timedelta(hours=2),
-    )
-
-    assert status.is_running is True
 
 
 async def test_regular_user_cannot_view_bot_settings(
@@ -1013,14 +1000,16 @@ async def test_owner_can_update_appearance_settings(
             target=AppearanceTarget.DASHBOARD,
             brand_name="Acme VPN",
             primary_color="#22d3ee",
-            shader_palette=["#111111", "#222222", "#333333", "#444444"],
+            shader_base="#111111",
+            shader_tones=["#222222", None, "#444444"],
             shader_enabled=False,
         ),
     )
 
     assert settings.brand_name == "Acme VPN"
     assert settings.primary_color == "#22d3ee"
-    assert settings.shader_palette == ["#111111", "#222222", "#333333", "#444444"]
+    assert settings.shader_base == "#111111"
+    assert settings.shader_tones == ["#222222", None, "#444444"]
     assert settings.shader_enabled is False
 
 
@@ -1071,7 +1060,8 @@ async def test_owner_can_reset_appearance_settings(
             target=AppearanceTarget.DASHBOARD,
             brand_name="Acme VPN",
             primary_color="#22d3ee",
-            shader_palette=["#111111", "#222222", "#333333", "#444444"],
+            shader_base="#111111",
+            shader_tones=["#222222", None, "#444444"],
             shader_enabled=False,
         ),
     )
@@ -1079,7 +1069,8 @@ async def test_owner_can_reset_appearance_settings(
 
     assert settings.brand_name is None
     assert settings.primary_color is None
-    assert settings.shader_palette is None
+    assert settings.shader_base is None
+    assert settings.shader_tones is None
     assert settings.shader_enabled is True
 
 

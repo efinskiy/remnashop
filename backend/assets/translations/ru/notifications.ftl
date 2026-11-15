@@ -27,7 +27,10 @@ ntf-subscription-purchased = { $user } купил подписку ({ $purchase_
            *[other] Покупка подписки!
         }
     }
-ntf-subscription-renewed = { $user } продлил подписку на { $duration_days } дн.
+ntf-subscription-renewed = { $duration_days ->
+        [0] { $user } продлил подписку бессрочно
+       *[other] { $user } продлил подписку на { $duration_days } дн.
+    }
     .title = Продление подписки!
 ntf-transaction-refunded = Заказ #{ $order_id }: возврат { $amount } { $currency } через { $gateway_type }
     .title = Платёж возвращён!
@@ -48,12 +51,19 @@ ntf-broadcast-failed = Рассылка #{ $broadcast_id } остановлен�
 ntf-suppressed = Не отправлено похожих уведомлений с прошлого раза: { $count }.
 ntf-sources-merged = Уведомления из нескольких источников объединены; показан последний источник.
 ntf-customer-open-cabinet = Открыть кабинет
-ntf-customer-button-renew = 🔄 Продлить подписку
-ntf-customer-button-buy = 💳 Купить подписку
-ntf-customer-button-close = ❌ Закрыть
-ntf-customer-button-connect = 🚀 Подключиться
-ntf-customer-button-support = 📩 Перейти в поддержку
-ntf-customer-button-revoke-sessions = 🔒 Завершить все сессии
+btn-customer-notification =
+    .renew = Продлить подписку
+    .renew-icon = 🔄
+    .buy = Купить подписку
+    .buy-icon = 💳
+    .close = Закрыть
+    .close-icon = ❌
+    .connect = Подключиться
+    .connect-icon = 🚀
+    .support = Перейти в поддержку
+    .support-icon = 📩
+    .revoke-sessions = Завершить все сессии
+    .revoke-sessions-icon = 🔒
 ntf-customer-sessions-revoked = ✅ Мы завершили все сеансы в личном кабинете. Если это были не вы, напишите в поддержку — разберёмся вместе.
 ntf-customer-subscription-purchased = Чтобы начать пользоваться сервисом, подключите устройство и следуйте инструкциям — это займёт пару минут.
     .title = { $is_trial ->
@@ -67,11 +77,14 @@ ntf-customer-subscription-purchased = Чтобы начать пользоват
         [yes] 🎁
        *[no] ✅
     }
-ntf-customer-subscription-renewed = Ваша подписка продлена на { $duration_days ->
-        [one] { $duration_days } день
-        [few] { $duration_days } дня
-       *[other] { $duration_days } дней
-    }.
+ntf-customer-subscription-renewed = { $duration_days ->
+        [0] Ваша подписка теперь бессрочная.
+       *[other] Ваша подписка продлена на { $duration_days ->
+            [one] { $duration_days } день
+            [few] { $duration_days } дня
+           *[other] { $duration_days } дней
+        }.
+    }
     .title = { $paid ->
         [yes] Оплата прошла успешно!
        *[no] Подписка продлена
@@ -93,12 +106,18 @@ ntf-customer-subscription-add-on-granted = { $addon_type ->
     }
     .title = Дополнение активировано
     .emoji = 🎁
-ntf-customer-subscription-granted = Доступ открыт на { $duration_days ->
-        [one] { $duration_days } день
-        [few] { $duration_days } дня
-       *[other] { $duration_days } дней
-    }. Подключите устройство, чтобы начать пользоваться.
-    .title = Подписка выдана
+ntf-customer-subscription-granted = { $has_plan_name ->
+        [yes] Подписка «{ $plan_name }»
+       *[other] Подписка
+    } { $duration_days ->
+        [0] навсегда.
+       *[other] на { $duration_days ->
+            [one] { $duration_days } день
+            [few] { $duration_days } дня
+           *[other] { $duration_days } дней
+        }.
+    } Подключите устройство, чтобы начать пользоваться.
+    .title = Вам выдана подписка
     .emoji = 🎁
 ntf-customer-transaction-refunded = { $money } вернутся тем же способом, которым вы платили.
     .title = Платёж возвращён
@@ -464,6 +483,7 @@ ntf-telegram-promocode-type = { $value ->
         [PURCHASE_DISCOUNT] Скидка на покупку
        *[other] { $value }
     }
+ntf-telegram-unlimited = бессрочно
 ntf-telegram-days = { $count ->
         [one] { $count } день
         [few] { $count } дня
@@ -545,3 +565,23 @@ ntf-customer-recurring-payment-paused = Автоматическое продл�
     .title = Проверьте автопродление
 ntf-customer-recurring-payment-exhausted = Автоматическое продление остановлено: { $reason_text }. Чтобы сохранить доступ, оплатите продление вручную.
     .title = Требуется продлить подписку
+# the payment page and the fiscal receipt name the order with this
+payment-description = Подписка «{ $plan }», { $period }
+payment-period = { $unit ->
+    [unlimited] навсегда
+    [year] { $value ->
+        [one] { $value } год
+        [few] { $value } года
+       *[other] { $value } лет
+    }
+    [month] { $value ->
+        [one] { $value } месяц
+        [few] { $value } месяца
+       *[other] { $value } месяцев
+    }
+   *[day] { $value ->
+        [one] { $value } день
+        [few] { $value } дня
+       *[other] { $value } дней
+    }
+}

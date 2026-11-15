@@ -27,7 +27,10 @@ ntf-subscription-purchased = { $user } bought a subscription ({ $purchase_type }
            *[other] Subscription purchased!
         }
     }
-ntf-subscription-renewed = { $user } renewed for { $duration_days } days
+ntf-subscription-renewed = { $duration_days ->
+        [0] { $user } renewed with no end date
+       *[other] { $user } renewed for { $duration_days } days
+    }
     .title = Subscription renewed!
 ntf-transaction-refunded = Order #{ $order_id }: { $amount } { $currency } refunded via { $gateway_type }
     .title = Payment refunded!
@@ -48,12 +51,19 @@ ntf-broadcast-failed = Broadcast #{ $broadcast_id } stopped: { $error }
 ntf-suppressed = { $count } similar alerts since the previous one were not sent.
 ntf-sources-merged = Alerts from several sources were merged; the source shown is the last one.
 ntf-customer-open-cabinet = Open cabinet
-ntf-customer-button-renew = 🔄 Renew subscription
-ntf-customer-button-buy = 💳 Buy subscription
-ntf-customer-button-close = ❌ Close
-ntf-customer-button-connect = 🚀 Connect
-ntf-customer-button-support = 📩 Contact support
-ntf-customer-button-revoke-sessions = 🔒 End all sessions
+btn-customer-notification =
+    .renew = Renew subscription
+    .renew-icon = 🔄
+    .buy = Buy subscription
+    .buy-icon = 💳
+    .close = Close
+    .close-icon = ❌
+    .connect = Connect
+    .connect-icon = 🚀
+    .support = Contact support
+    .support-icon = 📩
+    .revoke-sessions = End all sessions
+    .revoke-sessions-icon = 🔒
 ntf-customer-sessions-revoked = ✅ We've signed you out of every session in your account. If that sign-in wasn't you, contact support and we'll look into it.
 ntf-customer-subscription-purchased = To start using the service, connect a device and follow the instructions — it takes a couple of minutes.
     .title = { $is_trial ->
@@ -67,10 +77,13 @@ ntf-customer-subscription-purchased = To start using the service, connect a devi
         [yes] 🎁
        *[no] ✅
     }
-ntf-customer-subscription-renewed = Your subscription was extended by { $duration_days ->
-        [one] { $duration_days } day
-       *[other] { $duration_days } days
-    }.
+ntf-customer-subscription-renewed = { $duration_days ->
+        [0] Your subscription no longer expires.
+       *[other] Your subscription was extended by { $duration_days ->
+            [one] { $duration_days } day
+           *[other] { $duration_days } days
+        }.
+    }
     .title = { $paid ->
         [yes] Payment successful!
        *[no] Subscription renewed
@@ -91,10 +104,16 @@ ntf-customer-subscription-add-on-granted = { $addon_type ->
     }
     .title = Add-on activated
     .emoji = 🎁
-ntf-customer-subscription-granted = Your access is open for { $duration_days ->
-        [one] { $duration_days } day
-       *[other] { $duration_days } days
-    }. Connect a device to start using it.
+ntf-customer-subscription-granted = { $has_plan_name ->
+        [yes] “{ $plan_name }” subscription
+       *[other] Subscription
+    } { $duration_days ->
+        [0] forever.
+       *[other] for { $duration_days ->
+            [one] { $duration_days } day
+           *[other] { $duration_days } days
+        }.
+    } Connect a device to start using it.
     .title = Subscription granted
     .emoji = 🎁
 ntf-customer-transaction-refunded = { $money } will go back the way you paid.
@@ -453,6 +472,7 @@ ntf-telegram-promocode-type = { $value ->
         [PURCHASE_DISCOUNT] Purchase discount
        *[other] { $value }
     }
+ntf-telegram-unlimited = no end date
 ntf-telegram-days = { $count ->
         [one] { $count } day
        *[other] { $count } days
@@ -533,3 +553,20 @@ ntf-customer-recurring-payment-paused = Automatic renewal is paused because { $r
     .title = Check your auto-renewal settings
 ntf-customer-recurring-payment-exhausted = We could not automatically renew your subscription because { $reason_text }. Automatic renewal has stopped. Renew manually to keep your access.
     .title = Your subscription needs renewal
+# the payment page and the fiscal receipt name the order with this
+payment-description = Subscription “{ $plan }”, { $period }
+payment-period = { $unit ->
+    [unlimited] forever
+    [year] { $value ->
+        [one] { $value } year
+       *[other] { $value } years
+    }
+    [month] { $value ->
+        [one] { $value } month
+       *[other] { $value } months
+    }
+   *[day] { $value ->
+        [one] { $value } day
+       *[other] { $value } days
+    }
+}

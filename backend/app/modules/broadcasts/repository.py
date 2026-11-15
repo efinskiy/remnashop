@@ -49,6 +49,7 @@ from app.modules.broadcasts.dto import (
     AudiencePreviewDto,
     BroadcastAudienceDto,
     BroadcastDto,
+    BroadcastMediaDto,
     BroadcastRecipientDto,
     BroadcastSummaryDto,
     EmailImageDto,
@@ -249,13 +250,87 @@ class BroadcastRepository:
             delete(BroadcastEmailImage).where(in_ids(BroadcastEmailImage.id, ids))
         )
 
-    async def update_fields(self, broadcast_id: int, **values: object) -> None:
+    async def _write(self, broadcast_id: int, values: dict[str, Any]) -> None:
         await self.session.execute(
             update(Broadcast)
             .where(Broadcast.id == broadcast_id)
             .values(**values, updated_at=datetime_now())
             .execution_options(synchronize_session="fetch")
         )
+
+    async def touch(self, broadcast_id: int) -> None:
+        # the stall watchdog reads updated_at
+        await self._write(broadcast_id, {})
+
+    async def schedule(self, broadcast_id: int, scheduled_at: datetime) -> None:
+        await self._write(
+            broadcast_id,
+            {
+                "status": BroadcastStatus.SCHEDULED,
+                "scheduled_at": scheduled_at,
+                "completed_at": None,
+            },
+        )
+
+    async def mark_sending(self, broadcast_id: int, total_count: int, started_at: datetime) -> None:
+        await self._write(
+            broadcast_id,
+            {
+                "status": BroadcastStatus.SENDING,
+                "total_count": total_count,
+                "started_at": started_at,
+            },
+        )
+
+    async def finish(
+        self, broadcast_id: int, status: BroadcastStatus, completed_at: datetime
+    ) -> None:
+        await self._write(broadcast_id, {"status": status, "completed_at": completed_at})
+
+    async def cancel_scheduled(self, broadcast_id: int, completed_at: datetime) -> None:
+        await self._write(
+            broadcast_id,
+            {
+                "status": BroadcastStatus.CANCELED,
+                "scheduled_at": None,
+                "completed_at": completed_at,
+            },
+        )
+
+    async def set_media(self, broadcast_id: int, media: Optional[BroadcastMediaDto]) -> None:
+        # any media change sends the broadcast back to draft; None removes the media
+        values: dict[str, Any] = {
+            "media_type": media.media_type if media else None,
+            "media_content_type": media.content_type if media else None,
+            "media_extension": media.extension if media else None,
+            "media_size_bytes": media.size_bytes if media else None,
+            "media_file_id": None,
+            "status": BroadcastStatus.DRAFT,
+            "scheduled_at": None,
+        }
+        if media is not None:
+            values["media_version"] = media.version
+        await self._write(broadcast_id, values)
+
+    async def set_media_file_id(self, broadcast_id: int, file_id: str) -> None:
+        await self._write(broadcast_id, {"media_file_id": file_id})
+
+    async def set_channel_post(
+        self, broadcast_id: int, chat_id: int, message_id: Optional[int], file_id: Optional[str]
+    ) -> None:
+        values: dict[str, Any] = {"channel_chat_id": chat_id, "channel_message_id": message_id}
+        if file_id:
+            values["media_file_id"] = file_id
+        await self._write(broadcast_id, values)
+
+    async def clear_channel_message(self, broadcast_id: int) -> None:
+        await self._write(broadcast_id, {"channel_message_id": None})
+
+    async def clear_promocode(self, broadcast_id: int) -> None:
+        await self._write(broadcast_id, {"promocode_id": None})
+
+    async def request_recall(self, broadcast_id: int, requested_at: datetime) -> None:
+        await self._write(broadcast_id, {"recall_requested_at": requested_at})
 
     async def count_audience(
         self,
@@ -715,6 +790,7 @@ class BroadcastRepository:
             select(
                 Subscription.user_id,
                 Subscription.plan_snapshot["name"].as_string().label("plan_name"),
+                Subscription.plan_snapshot["names"].label("plan_names"),
                 Subscription.expire_at,
             )
             .where(
@@ -726,7 +802,7 @@ class BroadcastRepository:
             .subquery()
         )
         rows = await self.session.execute(
-            select(User, live.c.plan_name, live.c.expire_at)
+            select(User, live.c.plan_name, live.c.plan_names, live.c.expire_at)
             .outerjoin(live, live.c.user_id == User.id)
             .where(in_ids(User.id, user_ids))
         )
@@ -738,10 +814,11 @@ class BroadcastRepository:
                 language=user.language,
                 bonus_days=user.bonus_days,
                 points=int(user.points),
-                plan_name=plan_name,
+                # names: the plan's translations, absent on a snapshot taken before them
+                plan_name=(plan_names or {}).get(user.language.value, plan_name),
                 expire_at=expire_at,
             )
-            for user, plan_name, expire_at in rows.tuples()
+            for user, plan_name, plan_names, expire_at in rows.tuples()
         }
 
     async def is_recipient(self, broadcast_id: int, user_id: int) -> bool:

@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Final, Optional
 
 from aiogram.enums import ButtonStyle, ParseMode
 from aiogram_dialog import Dialog, DialogManager, StartMode, Window
@@ -11,6 +11,7 @@ from magic_filter import F
 
 from app.core.enums import PlanBadge
 from app.telegram.banners import with_window_banner
+from app.telegram.dialogs.rendering import LabelIcon
 from app.telegram.routers.purchase.catalog import register_purchase_catalog
 from app.telegram.routers.purchase.getters import (
     confirm_getter,
@@ -52,7 +53,7 @@ class _ItemIcon(BaseStyle):
 
 
 # the purchase steps carry the banner of the subscriptions window they start from
-_BANNER_WINDOW = "subscriptions.list"
+_BANNER_WINDOW: Final[str] = "subscriptions.list"
 
 plan = Window(
     DynamicMedia("banner", when="banner"),
@@ -73,7 +74,7 @@ plan = Window(
         item_id_getter=lambda item: item["id"],
         items="plans",
     ),
-    Cancel(Format("{back_text}")),
+    Cancel(Format("{back_text}"), style=LabelIcon("back_text")),
     parse_mode=ParseMode.HTML,
     state=Purchase.PLAN,
     getter=with_window_banner(_BANNER_WINDOW, plan_getter),
@@ -83,12 +84,19 @@ duration = Window(
     DynamicMedia("banner", when="banner"),
     Format("{window_text}"),
     ListGroup(
-        Button(text=Format("{item[label]}"), id="duration", on_click=on_duration_selected),
+        Button(
+            text=Format("{item[label]}"),
+            id="duration",
+            on_click=on_duration_selected,
+            style=LabelIcon("item", "label"),
+        ),
         id="durations",
         item_id_getter=lambda item: item["days"],
         items="durations",
     ),
-    Button(Format("{back_text}"), id="back", on_click=on_duration_back),
+    Button(
+        Format("{back_text}"), style=LabelIcon("back_text"), id="back", on_click=on_duration_back
+    ),
     parse_mode=ParseMode.HTML,
     state=Purchase.DURATION,
     getter=with_window_banner(_BANNER_WINDOW, duration_getter),
@@ -98,12 +106,19 @@ method = Window(
     DynamicMedia("banner", when="banner"),
     Format("{window_text}"),
     ListGroup(
-        Button(text=Format("{item[label]}"), id="method", on_click=on_method_selected),
+        Button(
+            text=Format("{item[label]}"),
+            id="method",
+            on_click=on_method_selected,
+            style=LabelIcon("item", "label"),
+        ),
         id="methods",
         item_id_getter=lambda item: item["id"],
         items="methods",
     ),
-    SwitchTo(Format("{back_text}"), id="back", state=Purchase.DURATION),
+    SwitchTo(
+        Format("{back_text}"), style=LabelIcon("back_text"), id="back", state=Purchase.DURATION
+    ),
     parse_mode=ParseMode.HTML,
     state=Purchase.METHOD,
     getter=with_window_banner(_BANNER_WINDOW, method_getter),
@@ -113,7 +128,9 @@ email = Window(
     DynamicMedia("banner", when="banner"),
     Format("{window_text}"),
     MessageInput(on_email_input),
-    Button(Format("{back_text}"), id="back", on_click=on_confirm_back),
+    Button(
+        Format("{back_text}"), style=LabelIcon("back_text"), id="back", on_click=on_confirm_back
+    ),
     parse_mode=ParseMode.HTML,
     state=Purchase.EMAIL,
     getter=with_window_banner(_BANNER_WINDOW, email_getter),
@@ -123,8 +140,16 @@ confirm = Window(
     DynamicMedia("banner", when="banner"),
     Format("{window_text}"),
     Row(
-        Button(Format("{pay_text}"), id="pay", on_click=on_confirm, when="can_pay"),
-        Button(Format("{back_text}"), id="back", on_click=on_confirm_back),
+        Button(
+            Format("{pay_text}"),
+            style=LabelIcon("pay_text"),
+            id="pay",
+            on_click=on_confirm,
+            when="can_pay",
+        ),
+        Button(
+            Format("{back_text}"), style=LabelIcon("back_text"), id="back", on_click=on_confirm_back
+        ),
     ),
     ListGroup(
         Button(
@@ -166,8 +191,14 @@ recurring_terms = Window(
 pay = Window(
     DynamicMedia("banner", when="banner"),
     Format("{window_text}"),
-    Url(Format("{pay_text}"), Format("{payment_url}")),
-    Start(Format("{menu_text}"), id="menu", state=MainMenu.MAIN, mode=StartMode.RESET_STACK),
+    Url(Format("{pay_text}"), Format("{payment_url}"), style=LabelIcon("pay_text")),
+    Start(
+        Format("{menu_text}"),
+        style=LabelIcon("menu_text"),
+        id="menu",
+        state=MainMenu.MAIN,
+        mode=StartMode.RESET_STACK,
+    ),
     parse_mode=ParseMode.HTML,
     state=Purchase.PAY,
     getter=with_window_banner(_BANNER_WINDOW, pay_getter),
@@ -177,13 +208,30 @@ link_choice = Window(
     DynamicMedia("banner", when="banner"),
     Format("{window_text}"),
     ListGroup(
-        Button(text=Format("{item[label]}"), id="renew", on_click=on_link_renew),
+        Button(
+            text=Format("{item[label]}"),
+            id="renew",
+            on_click=on_link_renew,
+            style=LabelIcon("item", "label"),
+        ),
         id="owned",
         item_id_getter=lambda item: item["id"],
         items="subscriptions",
     ),
-    Button(Format("{new_text}"), id="new", on_click=on_link_new, when="has_plan"),
-    Start(Format("{menu_text}"), id="menu", state=MainMenu.MAIN, mode=StartMode.RESET_STACK),
+    Button(
+        Format("{new_text}"),
+        style=LabelIcon("new_text"),
+        id="new",
+        on_click=on_link_new,
+        when="has_plan",
+    ),
+    Start(
+        Format("{menu_text}"),
+        style=LabelIcon("menu_text"),
+        id="menu",
+        state=MainMenu.MAIN,
+        mode=StartMode.RESET_STACK,
+    ),
     parse_mode=ParseMode.HTML,
     state=Purchase.LINK_CHOICE,
     getter=with_window_banner(_BANNER_WINDOW, link_choice_getter),

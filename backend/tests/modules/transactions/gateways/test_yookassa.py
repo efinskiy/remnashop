@@ -10,6 +10,7 @@ from app.modules.transactions.gateways.yookassa import YooKassaGateway
 from tests.modules.transactions.gateways.support import (
     NO_HTTP,
     ORDER_REF,
+    PAYMENT_TEXT,
     RETURN_URL,
     WEBHOOK_URL,
     HttpRecorder,
@@ -44,7 +45,7 @@ async def test_create_payment_sends_idempotence_key_and_order_ref() -> None:
         json_response({"id": "yk-1", "confirmation": {"confirmation_url": "https://pay/1"}}),
     )
 
-    intent = await _gateway(http=http.client).create_payment(make_order())
+    intent = await _gateway(http=http.client).create_payment(make_order(), PAYMENT_TEXT)
 
     assert intent.provider_payment_id == "yk-1"
     assert intent.confirmation_url == "https://pay/1"
@@ -63,9 +64,11 @@ async def test_create_payment_receipt_item_carries_subject_and_mode() -> None:
         http=http.client,
     )
 
-    await gateway.create_payment(make_order(customer_email="a@b.ru"))
+    await gateway.create_payment(make_order(customer_email="a@b.ru"), PAYMENT_TEXT)
 
-    item = http.last_json()["receipt"]["items"][0]
+    body = http.last_json()
+    item = body["receipt"]["items"][0]
+    assert body["description"] == item["description"] == PAYMENT_TEXT.description
     assert item["payment_subject"] == "service"
     assert item["payment_mode"] == "full_payment"
 
@@ -270,7 +273,9 @@ async def test_saving_a_method_requires_the_shop_flag_and_a_real_recurring_order
         return_url=RETURN_URL,
         http=http.client,
     )
-    await gateway.create_payment(make_order(recurring_consent=consent, is_test=is_test))
+    await gateway.create_payment(
+        make_order(recurring_consent=consent, is_test=is_test), PAYMENT_TEXT
+    )
     assert http.last_json()["save_payment_method"] is saved
 
 
@@ -285,8 +290,8 @@ async def test_recurring_charge_uses_saved_id_without_redirect_and_keeps_receipt
     order = make_order(
         is_recurring=True, customer_email="buyer@example.com", yookassa_receipt_vat_code=1
     )
-    first = await gateway.create_recurring_payment(order, "saved-method")
-    await gateway.create_recurring_payment(order, "saved-method")
+    first = await gateway.create_recurring_payment(order, PAYMENT_TEXT, "saved-method")
+    await gateway.create_recurring_payment(order, PAYMENT_TEXT, "saved-method")
     body = http.last_json()
     assert first.confirmation_url is None
     assert first.provider_payment_id == "yk-recurring"

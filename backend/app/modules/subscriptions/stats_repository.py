@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Final, Optional
 
@@ -11,6 +11,7 @@ from app.core.db.models.subscription import Subscription
 from app.core.enums import Currency, SubscriptionStatus
 from app.modules.subscriptions.domain import OWNED_STATUSES
 from app.modules.subscriptions.dto import LiveSubscriptionDto, SubscriptionOverviewCountsDto
+from app.modules.subscriptions.unlimited import UNLIMITED_EXPIRE_YEAR
 
 _DEFAULT_TRIAL_DAYS: Final[int] = 7
 _PAYING_STATUSES: Final[tuple[SubscriptionStatus, ...]] = (
@@ -122,7 +123,13 @@ class SubscriptionStatsRepository:
         duration_col = Subscription.plan_snapshot["duration_days"].astext.cast(Numeric)
         stmt = (
             select(currency_col, func.sum(price_col / duration_col * 30))
-            .where(Subscription.status.in_(_PAYING_STATUSES), Subscription.is_trial.is_(False))
+            .where(
+                Subscription.status.in_(_PAYING_STATUSES),
+                Subscription.is_trial.is_(False),
+                duration_col > 0,
+                # renewed into unlimited, the snapshot still holds the finite term
+                Subscription.expire_at < datetime(UNLIMITED_EXPIRE_YEAR, 1, 1, tzinfo=timezone.utc),
+            )
             .group_by(currency_col)
         )
         rows = (await self.session.execute(stmt)).tuples()

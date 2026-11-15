@@ -134,6 +134,7 @@ async def test_new_purchase_creates_subscription_with_real_remnawave_identity(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
 
@@ -188,6 +189,7 @@ async def test_new_purchase_with_a_squad_gone_from_the_panel_never_touches_it(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
 
@@ -235,6 +237,7 @@ async def test_new_purchase_forbidden_for_a_different_users_actor(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
 
@@ -282,6 +285,7 @@ async def test_owner_can_purchase_on_behalf_of_another_user(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
 
@@ -325,6 +329,7 @@ async def test_new_purchase_rejects_target_subscription_id(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
 
@@ -368,6 +373,7 @@ async def test_new_purchase_blocked_at_concurrent_subscription_cap(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
     dto = PurchaseSubscriptionDto(
@@ -412,6 +418,7 @@ async def test_new_purchase_at_the_cap_never_touches_the_panel(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
     dto = PurchaseSubscriptionDto(
@@ -457,6 +464,7 @@ async def test_renew_extends_expire_at_and_calls_remnawave_extend(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
     original = await use_case(
@@ -514,6 +522,7 @@ async def test_a_paid_renew_takes_the_plans_tag_and_a_bonus_one_keeps_it(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
     snapshot = snapshot_from_plan(
@@ -569,6 +578,7 @@ async def test_a_paid_renew_of_an_edited_plan_moves_to_its_terms_and_keeps_add_o
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
     snapshot = replace(
@@ -635,6 +645,7 @@ async def test_a_renew_from_unlimited_to_a_finite_plan_keeps_add_ons(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
     snapshot = replace(
@@ -701,6 +712,7 @@ async def test_a_bonus_renew_of_an_edited_plan_keeps_the_old_terms(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
     snapshot = replace(
@@ -756,6 +768,7 @@ async def test_a_paid_renew_lands_even_when_the_panel_refuses_the_tag(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
     snapshot = snapshot_from_plan(
@@ -819,6 +832,7 @@ async def test_renew_requires_target_subscription_id(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
 
@@ -862,6 +876,7 @@ async def test_renew_rejects_target_belonging_to_another_user(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
     other_subscription = await use_case(
@@ -919,6 +934,7 @@ async def test_renew_rejects_target_on_a_different_plan(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
     original = await use_case(
@@ -975,6 +991,7 @@ async def test_renew_rejects_a_deleted_target(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
     original = await use_case(
@@ -1033,6 +1050,7 @@ async def test_change_applies_proration_credit_as_extra_days(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
     old_subscription = await use_case(
@@ -1124,6 +1142,7 @@ async def test_change_converts_proration_credit_across_currencies(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
     old_subscription = await use_case(
@@ -1190,6 +1209,7 @@ async def test_change_credit_converts_at_list_price_not_the_discounted_price(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
     old_subscription = await use_case(
@@ -1269,6 +1289,7 @@ async def test_change_requires_target_subscription_id(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
 
@@ -1331,6 +1352,7 @@ async def test_change_from_trial_gives_no_credit(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
     trial_subscription = await use_case(
@@ -1409,6 +1431,7 @@ async def test_concurrent_new_purchases_never_exceed_the_cap(
             PurchaseIdempotencyRepository(session),
             UserRepository(repo.session),
             AppConfig.get(),
+            SettingsRepository(session),
             recurring_closer=RecurringPaymentRepository(repo.session),
         )
         try:
@@ -1535,6 +1558,7 @@ async def test_purchase_with_same_idempotency_key_returns_existing_subscription(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
     dto = PurchaseSubscriptionDto(
@@ -1580,6 +1604,7 @@ async def test_purchase_failure_after_panel_call_disables_the_panel_user(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
 
@@ -1638,6 +1663,7 @@ async def test_cancelled_purchase_releases_its_idempotency_key(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
 
@@ -1691,6 +1717,7 @@ async def test_renew_reactivates_an_expired_subscription(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
     purchased = await use_case(
@@ -1752,6 +1779,7 @@ async def test_renew_with_same_idempotency_key_returns_existing_subscription(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
     purchased = await use_case(
@@ -1811,6 +1839,7 @@ async def test_purchase_with_idempotency_key_can_retry_after_a_failed_attempt(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
     dto = PurchaseSubscriptionDto(
@@ -1868,6 +1897,7 @@ async def test_idempotency_key_is_released_after_a_panel_call_failure(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
     dto = PurchaseSubscriptionDto(
@@ -1926,6 +1956,7 @@ async def test_change_does_not_reparent_addon_entitlement_to_the_new_row(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
     old_subscription = await use_case(
@@ -2013,6 +2044,7 @@ async def test_trial_upgrade_does_not_reparent_addon_entitlement_to_the_new_row(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
     trial = await use_case(
@@ -2098,6 +2130,7 @@ async def test_new_purchase_upgrades_an_active_trial_in_place(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
 
@@ -2171,6 +2204,7 @@ async def test_new_purchase_without_a_trial_still_mints_a_fresh_panel_user(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
 
@@ -2222,6 +2256,7 @@ async def test_new_purchase_provisions_the_plans_traffic_limit_strategy_on_the_p
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
 
@@ -2281,6 +2316,7 @@ async def _renew_fixture(
         PurchaseIdempotencyRepository(subscription_repository.session),
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
     snapshot = snapshot_from_plan(
@@ -2423,6 +2459,7 @@ async def test_a_system_grant_does_not_consume_the_purchase_discount(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
     async with uow:
@@ -2473,6 +2510,7 @@ async def test_only_a_paid_purchase_event_carries_the_payment_key(
         PurchaseIdempotencyRepository(subscription_repository.session),
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
     snapshot = snapshot_from_plan(
@@ -2527,6 +2565,7 @@ async def test_change_that_loses_the_race_gives_the_panel_back_to_the_winner(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
     old_subscription = await use_case(
@@ -2695,6 +2734,7 @@ def _purchase_use_case(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
 
@@ -2819,6 +2859,7 @@ async def test_change_deducts_spent_traffic_from_the_credit(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
     old_subscription = await use_case(
@@ -3622,6 +3663,7 @@ def _purchase_use_case(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
 

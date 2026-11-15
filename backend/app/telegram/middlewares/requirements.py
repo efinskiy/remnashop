@@ -5,7 +5,6 @@ from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramAPIError, TelegramNetworkError
 from aiogram.types import (
     CallbackQuery,
-    InlineKeyboardButton,
     InlineKeyboardMarkup,
     Message,
     TelegramObject,
@@ -15,7 +14,12 @@ from fluentogram import TranslatorHub, TranslatorRunner
 from loguru import logger
 from redis.asyncio import Redis
 
-from app.core.constants import CONTAINER_KEY, REDIS_KEY_PREFIX, USER_KEY
+from app.core.constants import (
+    CONTAINER_KEY,
+    CUSTOMER_NOTIFICATION_CLOSE_CALLBACK,
+    REDIS_KEY_PREFIX,
+    USER_KEY,
+)
 from app.core.enums import MiddlewareEventType, PurchaseChannel
 from app.modules.legal import GetPendingLegalDocumentsUseCase
 from app.modules.settings import (
@@ -45,7 +49,13 @@ _SUBSCRIBED_TTL_S: Final[int] = 5 * 60
 _LEFT_STATUSES: Final[frozenset[str]] = frozenset({"left", "kicked"})
 # opting out of marketing must work even before the requirements are met
 _REQUIREMENT_CALLBACKS: Final[frozenset[str]] = frozenset(
-    {CHANNEL_CHECK_CALLBACK, UNSUBSCRIBE_CALLBACK, RESUBSCRIBE_CALLBACK}
+    {
+        CHANNEL_CHECK_CALLBACK,
+        UNSUBSCRIBE_CALLBACK,
+        RESUBSCRIBE_CALLBACK,
+        # closing a document opened from the gate
+        CUSTOMER_NOTIFICATION_CLOSE_CALLBACK,
+    }
 )
 
 
@@ -178,15 +188,13 @@ def channel_keyboard(
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(
-                    text=label_with_icon(runner, "btn-requirements.subscribe"),
-                    url=requirements.channel_url,
+                label_with_icon(runner, "btn-requirements.subscribe").inline_button(
+                    url=requirements.channel_url
                 )
             ],
             [
-                InlineKeyboardButton(
-                    text=label_with_icon(runner, "btn-requirements.check"),
-                    callback_data=CHANNEL_CHECK_CALLBACK,
+                label_with_icon(runner, "btn-requirements.check").inline_button(
+                    callback_data=CHANNEL_CHECK_CALLBACK
                 )
             ],
         ]

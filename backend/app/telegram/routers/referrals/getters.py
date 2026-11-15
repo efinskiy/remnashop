@@ -16,7 +16,7 @@ from app.modules.referrals import (
     ListBonusDaysTargetsUseCase,
     ReferralSettingsDto,
 )
-from app.modules.settings import GetShopSettingsUseCase
+from app.modules.settings import GetCabinetAuthSettingsUseCase, GetShopSettingsUseCase
 from app.modules.subscriptions import (
     GetAvailableTrialUseCase,
     ListOwnActiveSubscriptionsUseCase,
@@ -34,7 +34,7 @@ from app.telegram.dialogs.rendering import (
     render_window_text,
     resolve_variable_kwargs,
 )
-from app.telegram.i18n import format_date, get_translator
+from app.telegram.i18n import format_expiry, get_translator
 from app.telegram.middlewares._codes import REFERRAL_PREFIX
 
 
@@ -50,6 +50,7 @@ async def referrals_getter(
     list_own_active_subscriptions: FromDishka[ListOwnActiveSubscriptionsUseCase],
     list_own_subscriptions: FromDishka[ListOwnSubscriptionsUseCase],
     get_available_trial: FromDishka[GetAvailableTrialUseCase],
+    get_cabinet_auth_settings: FromDishka[GetCabinetAuthSettingsUseCase],
     get_shop_settings: FromDishka[GetShopSettingsUseCase],
     get_referral_settings: FromDishka[GetReferralSettingsUseCase],
     get_own_referral_stats: FromDishka[GetOwnReferralStatsUseCase],
@@ -70,6 +71,7 @@ async def referrals_getter(
         user,
         active,
         get_available_trial,
+        get_cabinet_auth_settings,
         cabinet_url=config.cabinet.url,
         can_purchase=can_purchase,
         referral_enabled=referral_enabled,
@@ -136,7 +138,13 @@ async def redeem_target_getter(
     runner = get_translator(i18n, user)
     return {
         "subscriptions": [
-            {"id": s.id, "label": f"{s.plan_snapshot.name} — {format_date(s.expire_at)}"}
+            {
+                "id": s.id,
+                "label": (
+                    f"{s.plan_snapshot.display_name(user.language)} — "
+                    f"{format_expiry(runner, s.expire_at)}"
+                ),
+            }
             for s in await list_bonus_days_targets(user)
         ],
         "window_text": render_window_text(

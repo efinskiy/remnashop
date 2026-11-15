@@ -697,7 +697,8 @@ async def race(
                     PurchaseIdempotencyRepository(purchase_session),
                     UserRepository(subscriptions.session),
                     AppConfig.get(),
-                    recurring_closer=RecurringPaymentRepository(subscriptions.session),
+                    SettingsRepository(purchase_session),
+                    recurring_closer=RecurringPaymentRepository(purchase_session),
                 ),
                 purchase_session=purchase_session,
             )

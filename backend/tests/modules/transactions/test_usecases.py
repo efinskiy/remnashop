@@ -1,7 +1,7 @@
 import asyncio
 import contextlib
 import dataclasses
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Final, Optional
 from uuid import uuid4
@@ -79,7 +79,7 @@ from app.modules.subscriptions.idempotency_repository import PurchaseIdempotency
 from app.modules.subscriptions.usecases.purchase_subscription import STALE_CLAIM_AFTER
 from app.modules.transactions.api.schemas import CreateCheckoutRequest
 from app.modules.transactions.checkout_pricing import CheckoutPricer
-from app.modules.transactions.dto import CreateCheckoutDto, TransactionDto
+from app.modules.transactions.dto import CreateCheckoutDto, PaymentTextDto, TransactionDto
 from app.modules.transactions.gateways.base import PaymentIntent
 from app.modules.transactions.gateways.factory import PaymentGatewayFactory
 from app.modules.transactions.gateways.registry import GATEWAY_REGISTRY
@@ -91,6 +91,7 @@ from app.modules.users import UserRepository
 from app.modules.users.dto import CreateUserDto, UpdateUserDto, UserDto
 from tests.fakes.dispatch import RecordingDispatch
 from tests.fakes.events import RecordingEventPublisher
+from tests.fakes.payment_texts import FixedPaymentTexts
 from tests.fakes.telegram_bot import FakeBotSession, use_fake_bot
 from tests.modules.settings.factories import SHOP_SETTINGS_FIELDS
 from tests.modules.subscriptions.factories import make_eligibility, make_plan_snapshot
@@ -103,7 +104,7 @@ class _FakeGateway:
         self.confirmation_url = confirmation_url
         self.create_payment_calls: list[TransactionDto] = []
 
-    async def create_payment(self, order: TransactionDto) -> PaymentIntent:
+    async def create_payment(self, order: TransactionDto, text: PaymentTextDto) -> PaymentIntent:
         self.create_payment_calls.append(order)
         # a later payment gets its own id, as the provider's would
         calls = len(self.create_payment_calls)
@@ -170,6 +171,8 @@ def create_checkout_use_case(
             pricing_repository,
             uow,
             promocode_repository,
+            subscription_repository,
+            SettingsRepository(plan_repository.session),
         ),
         user_repository,
         gateway_repository,
@@ -185,6 +188,7 @@ def create_checkout_use_case(
         config,
         event_publisher,
         LegalAcceptanceRecorder(legal_repository, translation_repository),
+        FixedPaymentTexts(),
     )
 
 
@@ -435,6 +439,8 @@ async def test_concurrent_free_checkouts_stop_at_the_cap(
                 PricingRepository(session),
                 uow,
                 PromocodeRepository(session),
+                SubscriptionRepository(session),
+                SettingsRepository(session),
             ),
             UserRepository(session),
             GatewayRepository(session),
@@ -450,6 +456,7 @@ async def test_concurrent_free_checkouts_stop_at_the_cap(
             config,
             RecordingEventPublisher(),
             LegalAcceptanceRecorder(LegalRepository(session), TranslationRepository(session)),
+            FixedPaymentTexts(),
         )
         try:
             await use_case(
@@ -1093,6 +1100,7 @@ async def test_test_payment_persists_a_pending_test_order_hidden_from_the_order_
         uow,
         _FakeFactory(fake_gateway),
         RecordingEventPublisher(),
+        FixedPaymentTexts(),
     )
 
     result = await use_case(owner, PaymentGatewayType.YOOKASSA)
@@ -1130,6 +1138,7 @@ async def test_test_payment_stands_in_an_email_when_the_gateway_needs_a_receipt(
         uow,
         _FakeFactory(fake_gateway),
         RecordingEventPublisher(),
+        FixedPaymentTexts(),
     )
 
     await use_case(owner, PaymentGatewayType.YOOKASSA)
@@ -1155,6 +1164,7 @@ async def test_test_payment_rejects_an_unconfigured_gateway(
         uow,
         _FakeFactory(fake_gateway),
         RecordingEventPublisher(),
+        FixedPaymentTexts(),
     )
 
     with pytest.raises(ValidationError):
@@ -1320,12 +1330,12 @@ async def test_a_personal_promocode_discount_is_not_flagged_as_a_purchase_promoc
 
 
 class _FailingGateway(_FakeGateway):
-    async def create_payment(self, order: TransactionDto) -> PaymentIntent:
+    async def create_payment(self, order: TransactionDto, text: PaymentTextDto) -> PaymentIntent:
         raise RuntimeError("provider down")
 
 
 class _ChattyGateway(_FakeGateway):
-    async def create_payment(self, order: TransactionDto) -> PaymentIntent:
+    async def create_payment(self, order: TransactionDto, text: PaymentTextDto) -> PaymentIntent:
         raise PaymentGatewayError('API error: {"merchant_id": 4242, "msg": "bad sign"}')
 
 
@@ -1417,6 +1427,40 @@ async def test_create_checkout_renew_refuses_a_disabled_subscription(
         )
 
     assert error.value.code is ErrorCode.SUBSCRIPTION_DISABLED
+
+
+async def test_create_checkout_refuses_to_renew_an_unlimited_subscription(
+    create_checkout_use_case: CreateCheckoutUseCase,
+    _active_yookassa: None,
+    actor: UserDto,
+    plan: PlanDto,
+    subscription_repository: SubscriptionRepository,
+    transaction_repository: TransactionRepository,
+) -> None:
+    subscription_id = await _seed_subscription(
+        subscription_repository, user_id=actor.id, remnawave_user_id=820_102, plan_id=plan.id
+    )
+    await subscription_repository.session.execute(
+        update(Subscription)
+        .where(Subscription.id == subscription_id)
+        .values(expire_at=datetime(2099, 1, 1, tzinfo=timezone.utc))
+    )
+
+    with pytest.raises(NotFoundError):
+        await create_checkout_use_case(
+            actor,
+            CreateCheckoutDto(
+                channel=PurchaseChannel.CABINET,
+                plan_id=plan.id,
+                duration_days=30,
+                currency=Currency.RUB,
+                purchase_type=PurchaseType.RENEW,
+                target_subscription_id=subscription_id,
+                gateway_type=PaymentGatewayType.YOOKASSA,
+            ),
+        )
+
+    assert await transaction_repository.count_open_new_orders(actor.id, datetime_now()) == 0
 
 
 @pytest.mark.parametrize("purchase_type", [PurchaseType.RENEW, PurchaseType.CHANGE])
@@ -1827,3 +1871,114 @@ async def test_a_checkout_leaves_an_order_it_does_not_own_alone(
     assert (await transaction_repository.get_by_id(theirs.order_id)).status is (
         TransactionStatus.PENDING
     )
+
+
+async def _unlimited_plan(plan_repository: PlanRepository, code: str, price: str) -> PlanDto:
+    created = await plan_repository.create(
+        CreatePlanDto(
+            public_code=code, name=code, type=PlanType.BOTH, traffic_limit=100, device_limit=3
+        )
+    )
+    await plan_repository.set_durations(
+        SetPlanDurationsDto(
+            plan_id=created.id,
+            durations=[SetPlanDurationDto(days=0, order_index=0, base_price=Decimal(price))],
+        )
+    )
+    await plan_repository.update_squads(
+        UpdatePlanSquadsDto(plan_id=created.id, internal_squads=[uuid4()], external_squad=None)
+    )
+    return await plan_repository.update(UpdatePlanDto(plan_id=created.id, is_active=True))
+
+
+async def _make_unlimited(
+    subscription_repository: SubscriptionRepository, subscription_id: int
+) -> None:
+    await subscription_repository.session.execute(
+        update(Subscription)
+        .where(Subscription.id == subscription_id)
+        .values(expire_at=datetime(2099, 1, 1, tzinfo=timezone.utc))
+    )
+
+
+def _change_to(plan: PlanDto, subscription_id: int) -> CreateCheckoutDto:
+    return CreateCheckoutDto(
+        channel=PurchaseChannel.CABINET,
+        plan_id=plan.id,
+        duration_days=0,
+        currency=Currency.RUB,
+        purchase_type=PurchaseType.CHANGE,
+        target_subscription_id=subscription_id,
+        gateway_type=PaymentGatewayType.YOOKASSA,
+    )
+
+
+async def test_checkout_unlimited_to_unlimited_stores_credit(
+    create_checkout_use_case: CreateCheckoutUseCase,
+    _active_yookassa: None,
+    actor: UserDto,
+    plan: PlanDto,
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+    transaction_repository: TransactionRepository,
+) -> None:
+    # the seeded subscription was paid 500
+    subscription_id = await _seed_subscription(
+        subscription_repository, user_id=actor.id, remnawave_user_id=820_201, plan_id=plan.id
+    )
+    await _make_unlimited(subscription_repository, subscription_id)
+    premium = await _unlimited_plan(plan_repository, "premium-forever", "5000")
+
+    result = await create_checkout_use_case(actor, _change_to(premium, subscription_id))
+
+    order = await transaction_repository.get_by_id(result.order_id)
+    assert order.change_credit == Decimal("500.00")
+    assert order.base_price == Decimal("5000.00")
+    assert order.final_price == Decimal("4500")
+
+
+async def test_checkout_finite_to_unlimited_has_no_credit(
+    create_checkout_use_case: CreateCheckoutUseCase,
+    _active_yookassa: None,
+    actor: UserDto,
+    plan: PlanDto,
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+    transaction_repository: TransactionRepository,
+) -> None:
+    subscription_id = await _seed_subscription(
+        subscription_repository, user_id=actor.id, remnawave_user_id=820_202, plan_id=plan.id
+    )
+    premium = await _unlimited_plan(plan_repository, "premium-forever-2", "5000")
+
+    result = await create_checkout_use_case(actor, _change_to(premium, subscription_id))
+
+    order = await transaction_repository.get_by_id(result.order_id)
+    assert order.change_credit == Decimal("0")
+    assert order.final_price == Decimal("5000.00")
+
+
+async def test_checkout_unlimited_downgrade_is_free_order(
+    create_checkout_use_case: CreateCheckoutUseCase,
+    _active_yookassa: None,
+    fake_gateway: _FakeGateway,
+    purchase_dispatch: RecordingDispatch,
+    actor: UserDto,
+    plan: PlanDto,
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+    transaction_repository: TransactionRepository,
+) -> None:
+    subscription_id = await _seed_subscription(
+        subscription_repository, user_id=actor.id, remnawave_user_id=820_203, plan_id=plan.id
+    )
+    await _make_unlimited(subscription_repository, subscription_id)
+    basic = await _unlimited_plan(plan_repository, "basic-forever", "300")
+
+    result = await create_checkout_use_case(actor, _change_to(basic, subscription_id))
+
+    order = await transaction_repository.get_by_id(result.order_id)
+    assert order.final_price == Decimal("0")
+    assert order.status is TransactionStatus.PAID
+    assert fake_gateway.create_payment_calls == []
+    assert len(purchase_dispatch.messages) == 1

@@ -188,3 +188,16 @@ DEFAULT_ALLOWED_EMAIL_DOMAINS: Final[tuple[str, ...]] = (
 # an address a customer may type: one @, no spaces or header-breaking characters,
 # no "?" (an RFC 2047 encoded word would make one mailbox look like many)
 EMAIL_PATTERN: Final[str] = r'^[^@\s(),<>;:"?]+@[^@\s(),<>;:"?]+$'
+
+# A button's icon is a translation of its own, so it can differ per locale and
+# never gets mixed into the label text. The plain glyph goes into the button's
+# text, the premium id into Telegram's icon_custom_emoji_id; with both set the
+# id wins.
+ICON_KEY_SUFFIX: Final[str] = "-icon"
+ICON_ID_KEY_SUFFIX: Final[str] = "-icon-id"
+
+# an unlimited purchase as days, for a percent-of-days referral reward
+DEFAULT_UNLIMITED_REWARD_DAYS: Final[int] = 365
+
+# an unlimited (0-day) order's paid coverage, long enough to outlast any report
+UNLIMITED_COVERAGE_DAYS: Final[int] = 36500

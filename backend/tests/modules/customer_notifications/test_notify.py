@@ -1,4 +1,5 @@
 import secrets
+from dataclasses import replace
 from datetime import timedelta
 from typing import Any, Optional, Union, cast
 
@@ -45,18 +46,24 @@ from tests.modules.subscriptions.factories import make_plan_snapshot
 
 _FTL = """\
 ntf-customer-open-cabinet = Open cabinet
-ntf-customer-button-renew = Renew
-ntf-customer-button-buy = Buy
-ntf-customer-button-close = Close
-ntf-customer-button-connect = Connect
-ntf-customer-button-support = Support
-ntf-customer-button-revoke-sessions = End sessions
+btn-customer-notification =
+    .renew = Renew
+    .renew-icon = 🔄
+    .renew-icon-id = 5339428493992162714
+    .buy = [🚫](emoji:42) Buy
+    .close = Close
+    .connect = Connect
+    .support = Support
+    .support-icon = 📩
+    .revoke-sessions = End sessions
 ntf-customer-cabinet-new-device-sign-in = Signed in from { $ip }.
     .title = New sign-in
 ntf-customer-subscription-changed = Plan changed.
     .title = Changed
 ntf-customer-subscription-purchased = Subscription is active.
     .title = Activated
+ntf-customer-subscription-granted = { $plan_name } granted.
+    .title = Granted
 ntf-customer-subscription-expiring = Expires soon. { $is_trial ->
         [yes] Buy one.
        *[no] Renew it.
@@ -481,7 +488,11 @@ async def test_expiring_subscription_gets_a_renew_button(fx: _Fixture) -> None:
 
     (message,) = fx.telegram.messages
     assert message["buttons"] == [
-        {"text": "Renew", "callback_data": "cn:renew:77"},
+        {
+            "text": "Renew",
+            "callback_data": "cn:renew:77",
+            "icon_custom_emoji_id": "5339428493992162714",
+        },
         {"text": "Close", "callback_data": "cn:close"},
     ]
 
@@ -506,12 +517,73 @@ async def test_expiring_trial_gets_a_buy_button(fx: _Fixture) -> None:
     await fx.notify(user, "SubscriptionExpiringEvent", subscription_id=trial.id)
 
     (message,) = fx.telegram.messages
-    assert message["buttons"][0] == {"text": "Buy", "callback_data": "cn:buy"}
+    assert message["buttons"][0] == {
+        "text": "Buy",
+        "callback_data": "cn:buy",
+        "icon_custom_emoji_id": "42",
+    }
     assert (
         message["text"] == "<b>🔔 Expiring</b>\n\n<blockquote>Expires soon. Buy one.</blockquote>"
     )
     (row,) = await fx.feed_rows(user)
     assert row.args == {"is_trial": "yes"}
+
+
+async def test_a_grant_names_its_plan(fx: _Fixture) -> None:
+    # the event carries only the plan id; the feed renders the row again later
+    user = await fx.create(name="g", telegram_id=8093)
+    async with fx.uow:
+        granted = await SubscriptionRepository(fx.orders.session).create(
+            CreateSubscriptionDto(
+                user_id=user.id,
+                remnawave_user_id=880_093,
+                status=SubscriptionStatus.ACTIVE,
+                traffic_limit=0,
+                device_limit=0,
+                expire_at=datetime_now(),
+                url="https://example.test/sub",
+                plan_snapshot=replace(make_plan_snapshot(plan_id=1), name="Про"),
+            )
+        )
+
+    await fx.notify(
+        user,
+        "SubscriptionGrantedEvent",
+        subscription_id=granted.id,
+        args={"duration_days": 30},
+    )
+
+    (row,) = await fx.feed_rows(user)
+    assert row.args == {"duration_days": 30, "plan_name": "Про"}
+
+
+async def test_a_grant_names_its_plan_in_the_customers_language(fx: _Fixture) -> None:
+    user = await fx.create(name="g2", telegram_id=8094, language=Locale.RU)
+    async with fx.uow:
+        granted = await SubscriptionRepository(fx.orders.session).create(
+            CreateSubscriptionDto(
+                user_id=user.id,
+                remnawave_user_id=880_094,
+                status=SubscriptionStatus.ACTIVE,
+                traffic_limit=0,
+                device_limit=0,
+                expire_at=datetime_now(),
+                url="https://example.test/sub",
+                plan_snapshot=replace(
+                    make_plan_snapshot(plan_id=1), name="Pro", names={Locale.RU: "Про"}
+                ),
+            )
+        )
+
+    await fx.notify(
+        user,
+        "SubscriptionGrantedEvent",
+        subscription_id=granted.id,
+        args={"duration_days": 30},
+    )
+
+    (row,) = await fx.feed_rows(user)
+    assert row.args["plan_name"] == "Про"
 
 
 async def test_hours_are_rendered_as_a_span_but_stored_as_hours(fx: _Fixture) -> None:
@@ -709,7 +781,7 @@ async def test_a_customer_who_never_connected_gets_connect_and_support(fx: _Fixt
     (message,) = fx.telegram.messages
     assert message["buttons"] == [
         {"text": "Connect", "url": "https://example.test/sub"},
-        {"text": "Support", "url": "https://t.me/help_desk"},
+        {"text": "📩 Support", "url": "https://t.me/help_desk"},
         {"text": "Close", "callback_data": "cn:close"},
     ]
 
@@ -740,6 +812,6 @@ async def test_a_new_sign_in_offers_to_end_every_session(fx: _Fixture) -> None:
     (message,) = fx.telegram.messages
     assert message["buttons"] == [
         {"text": "End sessions", "callback_data": "cn:revoke-sessions"},
-        {"text": "Support", "url": "https://help.test"},
+        {"text": "📩 Support", "url": "https://help.test"},
         {"text": "Close", "callback_data": "cn:close"},
     ]

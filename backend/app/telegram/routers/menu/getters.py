@@ -12,7 +12,7 @@ from app.core.enums import PurchaseChannel, SubscriptionStatus
 from app.modules.banners import GetBannerForDisplayUseCase
 from app.modules.legal import ListVisibleLegalDocumentsUseCase
 from app.modules.referrals import GetReferralSettingsUseCase
-from app.modules.settings import GetShopSettingsUseCase
+from app.modules.settings import GetCabinetAuthSettingsUseCase, GetShopSettingsUseCase
 from app.modules.subscriptions import (
     GetAvailableTrialUseCase,
     ListOwnActiveSubscriptionsUseCase,
@@ -32,7 +32,7 @@ from app.telegram.dialogs.rendering import (
     render_window_text,
     resolve_variable_kwargs,
 )
-from app.telegram.i18n import format_datetime, get_translator
+from app.telegram.i18n import format_expiry, get_translator
 
 
 def menu_subscription(
@@ -89,7 +89,7 @@ def subscription_menu_values(
                 else unlimited
             ),
             "subscription_device_limit": str(devices) if devices else unlimited,
-            "subscription_expire_at": format_datetime(subscription.expire_at),
+            "subscription_expire_at": format_expiry(runner, subscription.expire_at, with_time=True),
         }
     if subscription is None:
         block = render_window_text(
@@ -125,6 +125,7 @@ async def menu_getter(
     list_own_active_subscriptions: FromDishka[ListOwnActiveSubscriptionsUseCase],
     list_own_subscriptions: FromDishka[ListOwnSubscriptionsUseCase],
     get_available_trial: FromDishka[GetAvailableTrialUseCase],
+    get_cabinet_auth_settings: FromDishka[GetCabinetAuthSettingsUseCase],
     get_shop_settings: FromDishka[GetShopSettingsUseCase],
     get_referral_settings: FromDishka[GetReferralSettingsUseCase],
     list_visible_legal_documents: FromDishka[ListVisibleLegalDocumentsUseCase],
@@ -152,6 +153,7 @@ async def menu_getter(
         user,
         active,
         get_available_trial,
+        get_cabinet_auth_settings,
         cabinet_url=config.cabinet.url,
         can_purchase=can_purchase,
         referral_enabled=referral_enabled,

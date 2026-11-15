@@ -13,7 +13,7 @@ from app.core.enums import SubscriptionStatus
 from app.core.exceptions import NotFoundError, ValidationError
 from app.modules.banners import GetBannerForDisplayUseCase
 from app.modules.referrals import GetReferralSettingsUseCase
-from app.modules.settings import GetShopSettingsUseCase
+from app.modules.settings import GetCabinetAuthSettingsUseCase, GetShopSettingsUseCase
 from app.modules.subscriptions import (
     DeviceDto,
     GetAvailableTrialUseCase,
@@ -38,7 +38,7 @@ from app.telegram.dialogs.rendering import (
     render_window_text,
     resolve_variable_kwargs,
 )
-from app.telegram.i18n import format_date, format_datetime, get_translator
+from app.telegram.i18n import format_date, format_datetime, format_expiry, get_translator
 from app.telegram.recurring import consent_callback_id
 from app.telegram.routers.subscriptions.handlers import SINGLE_RESET_KEY
 
@@ -57,6 +57,7 @@ async def subscriptions_list_getter(
     get_banner: FromDishka[GetBannerForDisplayUseCase],
     list_own_subscriptions: FromDishka[ListOwnSubscriptionsUseCase],
     get_available_trial: FromDishka[GetAvailableTrialUseCase],
+    get_cabinet_auth_settings: FromDishka[GetCabinetAuthSettingsUseCase],
     get_shop_settings: FromDishka[GetShopSettingsUseCase],
     get_referral_settings: FromDishka[GetReferralSettingsUseCase],
     i18n: FromDishka[TranslatorHub],
@@ -74,6 +75,7 @@ async def subscriptions_list_getter(
         user,
         active,
         get_available_trial,
+        get_cabinet_auth_settings,
         cabinet_url=config.cabinet.url,
         can_purchase=can_purchase,
         referral_enabled=referral_enabled,
@@ -86,11 +88,15 @@ async def subscriptions_list_getter(
     data["subscriptions"] = [
         {
             "id": s.id,
-            "label": runner.get(
+            "label": label_with_icon(
+                runner,
                 "btn-subscriptions.item",
-                status=s.status.value,
-                plan_name=s.plan_snapshot.name,
-                expire_at=format_date(s.expire_at),
+                # an active unlimited one has no date to read "until"
+                status="UNLIMITED"
+                if s.status is SubscriptionStatus.ACTIVE and s.is_unlimited
+                else s.status.value,
+                plan_name=s.plan_snapshot.display_name(user.language),
+                expire_at=format_expiry(runner, s.expire_at),
             ),
         }
         for s in subscriptions
@@ -156,6 +162,7 @@ async def subscription_card_getter(
     get_banner: FromDishka[GetBannerForDisplayUseCase],
     list_own_subscriptions: FromDishka[ListOwnSubscriptionsUseCase],
     get_available_trial: FromDishka[GetAvailableTrialUseCase],
+    get_cabinet_auth_settings: FromDishka[GetCabinetAuthSettingsUseCase],
     i18n: FromDishka[TranslatorHub],
     dialog_config_cache: FromDishka[DialogConfigCache],
     get_own_recurring_payment: FromDishka[GetOwnRecurringPaymentUseCase],
@@ -167,6 +174,7 @@ async def subscription_card_getter(
         user,
         await list_own_subscriptions(user),
         get_available_trial,
+        get_cabinet_auth_settings,
         cabinet_url=config.cabinet.url,
         selected_id=selected_subscription_id(dialog_manager),
     )
@@ -197,10 +205,10 @@ async def subscription_card_getter(
         data["window_text"] = render_window_text(
             runner,
             "msg-subscription-card",
-            plan_name=subscription.plan_snapshot.name,
+            plan_name=subscription.plan_snapshot.display_name(user.language),
             status=subscription.status.value,
             is_trial=int(subscription.is_trial),
-            expire_at=format_date(subscription.expire_at),
+            expire_at=format_expiry(runner, subscription.expire_at),
             traffic_limit=subscription.effective_traffic_limit,
             device_limit=subscription.effective_device_limit,
             **resolve_variable_kwargs(data),
@@ -250,7 +258,8 @@ async def devices_getter(
         {
             "index": index,
             "hwid": device.hwid,
-            "label": runner.get(
+            "label": label_with_icon(
+                runner,
                 "btn-devices.item",
                 platform_icon=runner.get(f"platform-icon.{_platform_icon_key(device.platform)}"),
                 platform=device.platform or "?",
@@ -260,7 +269,7 @@ async def devices_getter(
         }
         for index, device in enumerate(devices)
     ]
-    dialog_manager.dialog_data["hwid_map"] = formatted
+    dialog_manager.dialog_data["hwid_map"] = [{"hwid": item["hwid"]} for item in formatted]
 
     data: dict[str, Any] = {
         "devices": formatted,

@@ -1,17 +1,19 @@
 from dataclasses import replace
 from decimal import Decimal
-from typing import Any
+from typing import Any, Optional
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from remnapy.enums import TrafficLimitStrategy
 
-from app.core.constants import USER_KEY
+from app.core.constants import ICON_ID_KEY_SUFFIX, USER_KEY
 from app.core.enums import Currency, DiscountSource, Locale
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ValidationError
-from app.modules.subscriptions import PlanCatalogDto
+from app.modules.subscriptions import PlanCatalogDto, SubscriptionDto
 from app.telegram.dialogs.context import SELECTED_SUBSCRIPTION_KEY
 from app.telegram.routers.purchase.getters import (
+    _plan_details,
     _plan_title,
     confirm_getter,
     duration_getter,
@@ -22,6 +24,8 @@ from tests.telegram.routers.purchase.test_handlers import _plan
 
 
 def _get(key: str, **kwargs: Any) -> str:
+    if key.endswith(ICON_ID_KEY_SUFFIX):
+        return ""  # no premium icons: the glyph rides in the label
     return f"{key}{kwargs}" if kwargs else key
 
 
@@ -79,20 +83,21 @@ async def test_duration_labels_carry_the_quoted_price_and_the_period() -> None:
         _quote("2.25", 10, DiscountSource.PERSONAL),
     )
 
-    assert data["durations"] == [
-        {
-            "days": 30,
-            "label": _get(
-                "btn-purchase.duration",
-                period=_get("time-unit.month", value=1),
-                price="2.25",
-                currency_symbol="$",
-            ),
-        }
-    ]
+    [duration] = data["durations"]
+    assert duration["days"] == 30
+    # the glyph from the icon key precedes the label
+    assert duration["label"].text.endswith(
+        " "
+        + _get(
+            "btn-purchase.duration",
+            period=_get("time-unit.month", value=1),
+            price="2.25",
+            currency_symbol="$",
+        )
+    )
     assert "frg-purchase-discount" in data["window_text"]
     assert "'percent': 10" in data["window_text"]
-    assert data["back_text"].endswith(" btn-purchase.back-plans")
+    assert data["back_text"].text.endswith(" btn-purchase.back-plans")
 
 
 async def test_duration_falls_back_to_the_list_price_when_the_quote_fails() -> None:
@@ -101,7 +106,7 @@ async def test_duration_falls_back_to_the_list_price_when_the_quote_fails() -> N
 
     data = await _durations({"plan_id": 10, "purchase_type": "NEW"}, catalog, quote)
 
-    assert "'price': '2.50'" in data["durations"][0]["label"]
+    assert "'price': '2.50'" in data["durations"][0]["label"].text
     assert "frg-purchase-discount" not in data["window_text"]
 
 
@@ -124,7 +129,7 @@ async def test_renewal_shows_the_plans_limits_and_notes_its_edit() -> None:
     # the plan's own limits: a paid renewal moves the subscription to them
     assert "'traffic_limit': 0" in data["window_text"]
     assert "frg-purchase-plan-changed" in data["window_text"]
-    assert data["back_text"].endswith(" btn-back.general")
+    assert data["back_text"].text.endswith(" btn-back.general")
 
 
 async def test_renewal_of_an_unedited_plan_has_no_note() -> None:
@@ -175,35 +180,37 @@ async def test_method_labels_price_in_each_method_currency() -> None:
         i18n=_i18n(),
     )
 
-    assert data["methods"] == [
-        {
-            "id": "YOOKASSA",
-            "label": _get(
+    assert [(m["id"], m["label"].text) for m in data["methods"]] == [
+        (
+            "YOOKASSA",
+            "btn-purchase.method-icon "
+            + _get(
                 "btn-purchase.method",
                 gateway="gateway-name.YOOKASSA",
                 price="199",
                 currency_symbol="₽",
             ),
-        },
-        {
-            "id": "TELEGRAM_STARS",
-            "label": _get(
+        ),
+        (
+            "TELEGRAM_STARS",
+            "btn-purchase.method-icon "
+            + _get(
                 "btn-purchase.method",
                 gateway="gateway-name.TELEGRAM_STARS",
                 price="100",
                 currency_symbol="★",
             ),
-        },
+        ),
     ]
     assert "frg-purchase-plan" in data["window_text"]
-    assert data["back_text"].endswith(" btn-purchase.back-duration")
+    assert data["back_text"].text.endswith(" btn-purchase.back-duration")
 
 
-async def _confirm(dialog_data: dict) -> dict:
+async def _confirm(dialog_data: dict, owned: Optional[list[SubscriptionDto]] = None) -> dict:
     return await confirm_getter.__dishka_orig_func__(
         _manager(dialog_data),
         list_active_plans=AsyncMock(return_value=_CATALOG),
-        list_own_subscriptions=AsyncMock(return_value=[]),
+        list_own_subscriptions=AsyncMock(return_value=owned or []),
         list_visible_legal_documents=MagicMock(execute=AsyncMock(return_value=[])),
         get_own_recurring_payment=AsyncMock(),
         get_recurring_terms=AsyncMock(return_value=None),
@@ -221,23 +228,44 @@ async def test_confirm_shows_the_chosen_method_price() -> None:
     assert "'price': '2.50'" in text
     assert "'method': 'gateway-name.CRYPTOMUS'" in text
     assert "frg-purchase-type-notice" not in text
-    assert data["back_text"].endswith(" btn-purchase.back-method")
+    assert data["back_text"].text.endswith(" btn-purchase.back-method")
 
 
-async def test_confirm_of_a_change_warns_about_the_replacement() -> None:
-    data = await _confirm(
-        {
-            **_PRICED,
-            "purchase_type": "CHANGE",
-            "plan_name": "Plan 10",
-            "currency": "RUB",
-            "gateway_type": "YOOKASSA",
-            "method_skipped": True,
-        }
-    )
+_CHANGE: dict = {
+    **_PRICED,
+    "purchase_type": "CHANGE",
+    "plan_name": "Plan 10",
+    "currency": "RUB",
+    "gateway_type": "YOOKASSA",
+    "method_skipped": True,
+}
 
-    assert "frg-purchase-type-notice{'purchase_type': 'CHANGE'}" in data["window_text"]
-    assert data["back_text"].endswith(" btn-purchase.back-duration")
+
+async def test_confirm_of_a_change_shows_the_days_it_credits() -> None:
+    data = await _confirm({**_CHANGE, "change_credit_days": 109})
+
+    text = data["window_text"]
+    assert "frg-purchase-change-credit-days-notice" in text
+    assert "109" in text
+    assert data["back_text"].text.endswith(" btn-purchase.back-duration")
+
+
+@pytest.mark.parametrize(
+    ("quoted", "kind"),
+    [
+        ({"change_credit": True, "change_credit_days": 0}, "credit"),
+        ({"change_credit": False, "change_credit_days": 0}, "no_carry"),
+        ({}, "no_carry"),
+    ],
+)
+async def test_confirm_of_a_change_without_credit_days_says_what_carries_over(
+    quoted: dict, kind: str
+) -> None:
+    data = await _confirm({**_CHANGE, **quoted})
+
+    assert f"frg-purchase-change-unlimited-notice{{'kind': '{kind}'}}" in data["window_text"]
+    assert "frg-purchase-change-credit-days-notice" not in data["window_text"]
+    assert "frg-purchase-type-notice" not in data["window_text"]
 
 
 async def test_plan_buttons_carry_the_custom_emoji_or_lead_with_the_glyph() -> None:
@@ -263,3 +291,12 @@ def test_plan_title_renders_the_icon_before_an_escaped_name() -> None:
     assert _plan_title("A<B", "123", "📦") == '<tg-emoji emoji-id="123">📦</tg-emoji> A&lt;B'
     assert _plan_title("A<B", None, "⭐") == "⭐ A&lt;B"
     assert _plan_title("A<B", None, None) == "A&lt;B"
+
+
+def test_plan_description_renders_premium_emoji_and_escapes_html() -> None:
+    plan = replace(_plan(id=1), description="[\U0001f525](emoji:42) <b>fast</b>")
+    runner = MagicMock(get=lambda key, **kwargs: kwargs["description"])
+
+    assert _plan_details(runner, plan) == (
+        '<tg-emoji emoji-id="42">\U0001f525</tg-emoji> &lt;b&gt;fast&lt;/b&gt;\n'
+    )

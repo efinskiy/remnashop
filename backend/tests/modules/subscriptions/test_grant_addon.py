@@ -95,6 +95,7 @@ async def _create_subscription(
         PurchaseIdempotencyRepository(subscription_repository.session),
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
         recurring_closer=RecurringPaymentRepository(subscription_repository.session),
     )
     subscription = await use_case(

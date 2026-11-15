@@ -11,6 +11,7 @@ from app.core.dto import BaseDto, TimestampMixin
 from app.core.enums import (
     AddOnType,
     Currency,
+    Locale,
     PinnedPriceAction,
     PlanAvailability,
     PlanBadge,
@@ -36,6 +37,13 @@ class PlanDurationDto(BaseDto):
     order_index: int = 0
     base_price: Decimal
     overrides: list[PlanPriceOverrideDto] = Field(default_factory=list)
+
+
+@dataclass(frozen=True, kw_only=True)
+class PlanTranslationDto:
+    locale: Locale
+    name: str
+    description: Optional[str] = None
 
 
 class PlanDto(BaseDto, TimestampMixin):
@@ -64,12 +72,31 @@ class PlanDto(BaseDto, TimestampMixin):
     discount_starts_at: Optional[datetime] = None
     discount_ends_at: Optional[datetime] = None
     durations: list[PlanDurationDto] = Field(default_factory=list)
+    translations: list[PlanTranslationDto] = Field(default_factory=list)
+
+    def _translation(self, locale: Locale) -> Optional[PlanTranslationDto]:
+        return next((item for item in self.translations if item.locale == locale), None)
+
+    def display_name(self, locale: Locale) -> str:
+        translation = self._translation(locale)
+        return translation.name if translation is not None else self.name
+
+    def display_description(self, locale: Locale) -> Optional[str]:
+        translation = self._translation(locale)
+        # an empty one shows the plan's own, as an untranslated name does
+        if translation is not None and translation.description:
+            return translation.description
+        return self.description
+
+    def localized_names(self) -> dict[Locale, str]:
+        return {item.locale: item.name for item in self.translations}
 
     def sellable_durations(self) -> list[PlanDurationDto]:
-        # a trial plan offers only its one duration, free at 0; anywhere else a
-        # 0 price is a leftover from a plan that stopped being a trial
+        # a trial plan offers only its one duration, free at 0, never unlimited (one
+        # migrated so is kept but not offered); anywhere else a 0 price is a leftover
+        # from a plan that stopped being a trial
         if self.is_trial:
-            return self.durations[:1]
+            return [duration for duration in self.durations if duration.days > 0][:1]
         return [duration for duration in self.durations if duration.base_price > 0]
 
     def free_trial_duration(self) -> Optional[PlanDurationDto]:
@@ -100,6 +127,7 @@ class CreatePlanDto:
     is_trial: bool = False
     allow_bonus_days: bool = True
     allow_promocodes: bool = True
+    translations: list[PlanTranslationDto] = field(default_factory=list)
     # left unset by the API: CreatePlanUseCase generates it
     public_code: Optional[str] = None
 
@@ -121,6 +149,8 @@ class UpdatePlanDto:
     is_trial: Optional[bool] = None
     allow_bonus_days: Optional[bool] = None
     allow_promocodes: Optional[bool] = None
+    # replaces every translation when set
+    translations: Optional[list[PlanTranslationDto]] = None
     # fields sent as null: None above means "leave as is", these are emptied
     cleared: frozenset[str] = frozenset()
 

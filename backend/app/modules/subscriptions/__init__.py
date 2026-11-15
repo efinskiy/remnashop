@@ -1,3 +1,4 @@
+from app.modules.subscriptions.change_credit import ChangeCreditCalculator
 from app.modules.subscriptions.di import get_subscriptions_providers
 from app.modules.subscriptions.dispatch import GrantAddOnDispatch, PurchaseSubscriptionDispatch
 from app.modules.subscriptions.dto import (
@@ -52,6 +53,7 @@ from app.modules.subscriptions.ports import (
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.rollback import PurchaseRollbackService
 from app.modules.subscriptions.stats_repository import SubscriptionStatsRepository
+from app.modules.subscriptions.unlimited import is_unlimited_expiry
 from app.modules.subscriptions.usage import PanelTrafficUsage, traffic_spent_for_good
 from app.modules.subscriptions.usecases import (
     ActivateTrialSubscriptionUseCase,
@@ -76,6 +78,7 @@ __all__ = [
     "ApplyChannelMembershipUseCase",
     "CatalogDurationDto",
     "CatalogPlanDto",
+    "ChangeCreditCalculator",
     "ChannelMembershipDto",
     "DeleteAllDevicesUseCase",
     "DeleteDeviceDto",
@@ -127,6 +130,7 @@ __all__ = [
     "get_manageable_subscription",
     "get_owned_target",
     "get_subscriptions_providers",
+    "is_unlimited_expiry",
     "missing_squads",
     "traffic_spent_for_good",
 ]

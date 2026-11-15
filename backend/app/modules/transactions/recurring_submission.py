@@ -4,7 +4,7 @@ from typing import Literal, Optional
 import httpx
 from loguru import logger
 
-from app.modules.transactions.dto import TransactionDto
+from app.modules.transactions.dto import PaymentTextDto, TransactionDto
 from app.modules.transactions.gateways.yookassa import YooKassaGateway
 from app.modules.transactions.recurring_policy import RecurringReason
 
@@ -53,12 +53,13 @@ def _refusal(response: httpx.Response) -> RecurringSubmission:
 async def submit_recurring(
     gateway: YooKassaGateway,
     order: TransactionDto,
+    text: PaymentTextDto,
     payment_method: str,
     *,
     first_attempt: bool,
 ) -> RecurringSubmission:
     try:
-        intent = await gateway.create_recurring_payment(order, payment_method)
+        intent = await gateway.create_recurring_payment(order, text, payment_method)
     except httpx.HTTPStatusError as error:
         code = error.response.status_code
         logger.warning(f"YooKassa order '{order.id}' rejected with HTTP {code}")

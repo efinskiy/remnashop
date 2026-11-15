@@ -1,7 +1,6 @@
 from dataclasses import dataclass
-from datetime import datetime, timedelta
 from enum import auto
-from typing import Final, Optional
+from typing import Optional
 
 from pydantic import Field, SecretStr
 
@@ -15,10 +14,6 @@ from app.core.enums import (
     SmtpSecurity,
     UpperStrEnum,
 )
-from app.core.utils.time import datetime_now
-
-# Telegram keeps the last delivery error after the webhook recovers
-_BOT_ERROR_WINDOW: Final[timedelta] = timedelta(hours=1)
 
 
 class BotSettingsDto(BaseDto, TimestampMixin):
@@ -46,18 +41,10 @@ class BotStatusDto:
     webhook_url: Optional[str] = None
     pending_update_count: int = 0
     error: Optional[str] = None
-    last_error_at: Optional[datetime] = None
-
-    @property
-    def has_recent_error(self) -> bool:
-        if self.error is None:
-            return False
-        # no date means the getWebhookInfo call itself failed
-        return self.last_error_at is None or self.last_error_at > datetime_now() - _BOT_ERROR_WINDOW
 
     @property
     def is_running(self) -> bool:
-        return self.webhook_url is not None and not self.has_recent_error
+        return self.webhook_url is not None and self.error is None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -82,6 +69,7 @@ class ShopSettingsDto(BaseDto, TimestampMixin):
     support_telegram: Optional[str] = None
     support_url: Optional[str] = None
     payment_email: Optional[str] = None
+    plan_change_credit_enabled: bool = True
 
     @property
     def support_link(self) -> Optional[str]:
@@ -105,6 +93,7 @@ class CabinetSettingsDto:
     support_telegram: Optional[str]
     support_url: Optional[str]
     payments_enabled: bool
+    plan_change_credit_enabled: bool
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -123,6 +112,7 @@ class UpdateShopSettingsDto:
     support_telegram: Optional[str] = None
     support_url: Optional[str] = None
     payment_email: Optional[str] = None
+    plan_change_credit_enabled: Optional[bool] = None
     fields_set: frozenset[str] = frozenset()
 
 
@@ -250,7 +240,8 @@ class UpdateOAuthSettingsDto:
 class AppearanceSettingsDto(BaseDto, TimestampMixin):
     brand_name: Optional[str] = None
     primary_color: Optional[str] = None
-    shader_palette: Optional[list[str]] = None
+    shader_base: Optional[str] = None
+    shader_tones: Optional[list[Optional[str]]] = None
     shader_enabled: bool = True
     has_logo: bool = False
     has_favicon: bool = False
@@ -263,7 +254,9 @@ class UpdateAppearanceSettingsDto:
     target: AppearanceTarget
     brand_name: Optional[str] = None
     primary_color: Optional[str] = None
-    shader_palette: Optional[list[str]] = None
+    # "" clears it back to the accent-derived base
+    shader_base: Optional[str] = None
+    shader_tones: Optional[list[Optional[str]]] = None
     shader_enabled: Optional[bool] = None
 
 

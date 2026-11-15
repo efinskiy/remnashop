@@ -118,6 +118,9 @@ def checkout_quoter(
                 currency=currency,
                 plan_code=query.plan_code,
                 renew_subscription_id=query.renew_subscription_id,
+                change_subscription_id=selected_subscription_id(manager)
+                if manager.dialog_data.get("purchase_type") == PurchaseType.CHANGE.value
+                else None,
             ),
         )
 
@@ -138,7 +141,9 @@ async def start_purchase_steps(
     """Returns a notification key when the purchase can't start. A retry
     (`methods` and `quote` given) skips to the order's duration instead of the first step."""
     start = manager.start_data if isinstance(manager.start_data, dict) else {}
-    purchase_type = PurchaseType(start.get("purchase_type", PurchaseType.NEW.value))
+    purchase_type = PurchaseType(
+        manager.dialog_data.get("purchase_type", start.get("purchase_type", PurchaseType.NEW.value))
+    )
     manager.dialog_data["purchase_type"] = purchase_type.value
     code = start.get(PLAN_CODE_KEY)
     if code is not None:
@@ -150,7 +155,7 @@ async def start_purchase_steps(
     if purchase_type is PurchaseType.RENEW:
         assert target is not None
         if not any(plan.id == target.plan_snapshot.plan_id for plan in catalog.plans):
-            return "ntf-purchase.renew-plan-unavailable"
+            return "ntf-purchase.plan-unavailable"
         manager.dialog_data["plan_id"] = target.plan_snapshot.plan_id
         if methods is not None and quote is not None:
             return await select_duration(
@@ -184,7 +189,8 @@ async def _start_by_link(
     plan = catalog.plans[0]
     manager.dialog_data[PLAN_CODE_KEY] = code
     manager.dialog_data["plan_id"] = plan.id
-    if any(s.plan_snapshot.plan_id == plan.id for s in subscriptions):
+    # an unlimited one has nothing to renew
+    if any(s.plan_snapshot.plan_id == plan.id and not s.is_unlimited for s in subscriptions):
         manager.dialog_data[LINK_CHOICE_KEY] = True
         await manager.switch_to(Purchase.LINK_CHOICE)
     else:
@@ -300,13 +306,16 @@ async def select_duration(
     data["plan_name"] = plan.name
     data["plan_icon_id"] = plan.icon_emoji_id
     data["plan_icon_fallback"] = plan.icon_emoji_fallback
-    # what checkout charges, and the price before discounts beside it
+    # what checkout charges, and the price before discounts beside it: a plan
+    # change's credit comes off first and isn't a discount
     data["prices"] = {c.value: str(q.final_price) for c, q in quotes.items()}
-    data["base_prices"] = {c.value: str(q.base_price) for c, q in quotes.items()}
+    data["base_prices"] = {c.value: str(q.base_price - q.change_credit) for c, q in quotes.items()}
     # the same discount whatever the currency
     first = quotes[methods[0].currency]
     data["discount_percent"] = first.discount_percent
     data["discount_source"] = first.discount_source.value
+    data["change_credit"] = first.change_credit > 0
+    data["change_credit_days"] = first.change_credit_days
     data["methods"] = [
         {
             "gateway_type": m.gateway_type.value,
@@ -381,6 +390,10 @@ async def on_purchase_start(
     needs_subscriptions = by_link or not is_new
     subscriptions = await list_own_subscriptions(user) if needs_subscriptions else []
     catalog = await list_active_plans(user, catalog_query(manager))
+    if start.get("purchase_type") == PurchaseType.RENEW.value and not catalog.plans:
+        # nothing to renew into (an imported or switched-off plan): a plan change stands for it
+        manager.dialog_data["purchase_type"] = PurchaseType.CHANGE.value
+        catalog = await list_active_plans(user, catalog_query(manager))
     methods = await list_payment_methods(user) if retry else None
     key = await start_purchase_steps(
         manager, catalog, subscriptions, methods, checkout_quoter(user, manager, quote_checkout)

@@ -9,7 +9,8 @@ from fluentogram import FluentTranslator, TranslatorHub, TranslatorRunner
 from app.core.config import AppConfig
 from app.core.db.standalone import standalone_session
 from app.core.enums import Locale
-from app.core.utils.time import datetime_now
+from app.core.utils.time import datetime_now, period_parts
+from app.modules.subscriptions import is_unlimited_expiry
 from app.modules.translations import TranslationRepository
 from app.modules.users import UserDto
 
@@ -73,13 +74,18 @@ def format_price(price: Decimal) -> str:
     return f"{price:.2f}".removesuffix(".00")
 
 
+def format_expiry(runner: TranslatorRunner, value: datetime, *, with_time: bool = False) -> str:
+    """A subscription's expiry; an unlimited one has none to show."""
+    if is_unlimited_expiry(value):
+        return runner.get("time-unit.no-expiry")
+    return format_datetime(value) if with_time else format_date(value)
+
+
 def format_period(runner: TranslatorRunner, days: int) -> str:
-    """A plan duration as it reads: years or months when it divides evenly, else days."""
-    if days % 365 == 0:
-        return runner.get("time-unit.year", value=days // 365)
-    if days % 30 == 0:
-        return runner.get("time-unit.month", value=days // 30)
-    return runner.get("time-unit.day", value=days)
+    unit, value = period_parts(days)
+    if unit == "unlimited":
+        return runner.get("time-unit.unlimited")
+    return runner.get(f"time-unit.{unit}", value=value)
 
 
 def format_wait(runner: TranslatorRunner, until: datetime) -> str:

@@ -60,7 +60,9 @@ async def test_condition_data_uses_the_selected_subscription() -> None:
     active = [first, second]
     trial = AsyncMock(return_value=MagicMock(is_trial_available=False, plan=None))
 
-    data = await build_condition_data(_user(), active, trial, cabinet_url="", selected_id=2)
+    data = await build_condition_data(
+        _user(), active, trial, MagicMock(), cabinet_url="", selected_id=2
+    )
 
     assert data["connect_url"] == "https://b"
     assert data["subscriptions_count"] == 2
@@ -70,7 +72,7 @@ async def test_condition_data_without_a_selection_uses_the_first_subscription() 
     active = [_subscription(1, "https://a"), _subscription(2, "https://b")]
     trial = AsyncMock(return_value=MagicMock(is_trial_available=False, plan=None))
 
-    data = await build_condition_data(_user(), active, trial, cabinet_url="")
+    data = await build_condition_data(_user(), active, trial, MagicMock(), cabinet_url="")
 
     assert data["connect_url"] == "https://a"
 
@@ -80,7 +82,9 @@ async def test_condition_data_for_a_gone_selection_has_no_subscription() -> None
     active = [_subscription(1, "https://a")]
     trial = AsyncMock(return_value=MagicMock(is_trial_available=False, plan=None))
 
-    data = await build_condition_data(_user(), active, trial, cabinet_url="", selected_id=9)
+    data = await build_condition_data(
+        _user(), active, trial, MagicMock(), cabinet_url="", selected_id=9
+    )
 
     assert data["subscription"] is None
     assert data["connect_url"] == ""
@@ -169,6 +173,22 @@ async def test_device_confirm_getter_routes_message_text_through_resolve_variabl
     assert "window_text" in data
 
 
+@pytest.mark.parametrize(
+    ("cabinet_url", "telegram_enabled", "visible"),
+    [("https://cab", True, True), ("https://cab", False, False), ("", True, False)],
+)
+async def test_cabinet_button_needs_mini_app_sign_in(
+    cabinet_url: str, telegram_enabled: bool, visible: bool
+) -> None:
+    trial = AsyncMock(return_value=MagicMock(is_trial_available=False, plan=None))
+    cabinet_auth = MagicMock()
+    cabinet_auth.system = AsyncMock(return_value=MagicMock(telegram_enabled=telegram_enabled))
+
+    data = await build_condition_data(_user(), [], trial, cabinet_auth, cabinet_url=cabinet_url)
+
+    assert catalog.get_condition("cabinet_available")(data) is visible
+
+
 async def test_a_trial_is_not_offered_to_an_owner_of_a_subscription() -> None:
     offered = AsyncMock(
         return_value=MagicMock(
@@ -176,9 +196,11 @@ async def test_a_trial_is_not_offered_to_an_owner_of_a_subscription() -> None:
         )
     )
 
-    newcomer = await build_condition_data(_user(), [], offered, cabinet_url="")
+    newcomer = await build_condition_data(_user(), [], offered, MagicMock(), cabinet_url="")
     # an expired subscription is not in `active`, and still counts
-    owner = await build_condition_data(_user(), [], offered, cabinet_url="", owned_count=1)
+    owner = await build_condition_data(
+        _user(), [], offered, MagicMock(), cabinet_url="", owned_count=1
+    )
 
     assert newcomer["trial_available"] is True
     assert owner["trial_available"] is False
@@ -239,6 +261,7 @@ def test_retry_notice_shows_the_reason_and_actual_next_attempt():
 async def test_paused_subscription_keeps_the_withdrawal_button(monkeypatch):
     user = _user()
     subscription = _subscription(7, "https://example.test/subscription")
+    subscription.expire_at = datetime(2026, 12, 1, tzinfo=timezone.utc)
     manager = MagicMock()
     manager.middleware_data = {USER_KEY: user}
     manager.dialog_data = {SELECTED_SUBSCRIPTION_KEY: subscription.id}
@@ -264,6 +287,7 @@ async def test_paused_subscription_keeps_the_withdrawal_button(monkeypatch):
         get_banner=AsyncMock(),
         list_own_subscriptions=AsyncMock(return_value=[subscription]),
         get_available_trial=AsyncMock(),
+        get_cabinet_auth_settings=AsyncMock(),
         i18n=hub,
         dialog_config_cache=MagicMock(),
         get_own_recurring_payment=AsyncMock(return_value=state),

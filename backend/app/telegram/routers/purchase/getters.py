@@ -25,7 +25,12 @@ from app.modules.transactions import (
 from app.modules.users import UserDto
 from app.telegram.dialogs.context import selected_subscription_id
 from app.telegram.dialogs.rendering import TrustedHtml, label_with_icon, render_window_text
-from app.telegram.i18n import format_date, format_period, format_price, get_translator
+from app.telegram.i18n import (
+    format_expiry,
+    format_period,
+    format_price,
+    get_translator,
+)
 from app.telegram.recurring import consent_callback_id
 from app.telegram.routers.purchase.handlers import (
     PAYMENT_URL_KEY,
@@ -50,7 +55,7 @@ def _original_price(data: dict[str, Any]) -> str:
     # empty without a discount: the confirm text drops the line
     currency = data["currency"]
     base = data.get("base_prices", {}).get(currency)
-    if base is None or Decimal(base) == Decimal(data["prices"][currency]):
+    if base is None or Decimal(base) <= Decimal(data["prices"][currency]):
         return ""
     return format_price(Decimal(base))
 
@@ -69,6 +74,12 @@ async def _renewed(
 ) -> Optional[SubscriptionDto]:
     if _purchase_type(dialog_manager) is not PurchaseType.RENEW:
         return None
+    return await _target(dialog_manager, list_own_subscriptions)
+
+
+async def _target(
+    dialog_manager: DialogManager, list_own_subscriptions: ListOwnSubscriptionsUseCase
+) -> Optional[SubscriptionDto]:
     target_id = selected_subscription_id(dialog_manager)
     owned = await list_own_subscriptions(dialog_manager.middleware_data[USER_KEY])
     return next((s for s in owned if s.id == target_id), None)
@@ -95,8 +106,11 @@ def _plan_details(runner: TranslatorRunner, plan: CatalogPlanDto, period: str = 
             runner,
             "frg-purchase-plan",
             plan_name=_catalog_plan_title(plan),
-            # its own blank line after it, gone with it when there is none
-            description=f"{plan.description}\n" if plan.description else "",
+            # its own blank line after it, gone with it when there is none; plain
+            # text, trusted only so its premium-emoji markup renders
+            description=TrustedHtml(f"{html.escape(plan.description)}\n")
+            if plan.description
+            else "",
             traffic_limit=plan.traffic_limit,
             device_limit=plan.device_limit,
             period=period,
@@ -126,11 +140,31 @@ def _discount_notice(runner: TranslatorRunner, percent: int, source: DiscountSou
     return TrustedHtml(render_window_text(runner, "frg-purchase-discount", percent=percent))
 
 
-def _type_notice(runner: TranslatorRunner, purchase_type: PurchaseType) -> str:
+def _type_notice(
+    runner: TranslatorRunner, purchase_type: PurchaseType, data: dict[str, Any]
+) -> str:
     if purchase_type is PurchaseType.NEW:
         return ""
+    if purchase_type is PurchaseType.RENEW:
+        return TrustedHtml(
+            render_window_text(runner, "frg-purchase-type-notice", purchase_type="RENEW")
+        )
+    # what the quote credited: an unlimited one's payment off the price, or days on a fixed term
+    if data.get("change_credit"):
+        return TrustedHtml(
+            render_window_text(runner, "frg-purchase-change-unlimited-notice", kind="credit")
+        )
+    credit_days = data.get("change_credit_days", 0)
+    if credit_days > 0:
+        return TrustedHtml(
+            render_window_text(
+                runner,
+                "frg-purchase-change-credit-days-notice",
+                days=runner.get("time-unit.day", value=credit_days),
+            )
+        )
     return TrustedHtml(
-        render_window_text(runner, "frg-purchase-type-notice", purchase_type=purchase_type.value)
+        render_window_text(runner, "frg-purchase-change-unlimited-notice", kind="no_carry")
     )
 
 
@@ -214,7 +248,8 @@ async def duration_getter(
         durations.append(
             {
                 "days": duration.days,
-                "label": runner.get(
+                "label": label_with_icon(
+                    runner,
                     "btn-purchase.duration",
                     period=format_period(runner, duration.days),
                     price=format_price(price),
@@ -264,7 +299,8 @@ async def method_getter(
         "methods": [
             {
                 "id": method["gateway_type"],
-                "label": runner.get(
+                "label": label_with_icon(
+                    runner,
                     "btn-purchase.method",
                     gateway=runner.get(f"gateway-name.{method['gateway_type']}"),
                     price=_price(data["prices"], method["currency"]),
@@ -359,7 +395,7 @@ async def confirm_getter(
             original_price=_original_price(data),
             currency_symbol=Currency(data["currency"]).symbol,
             method=runner.get(f"gateway-name.{data['gateway_type']}"),
-            type_notice=_type_notice(runner, purchase_type),
+            type_notice=_type_notice(runner, purchase_type, data),
             plan_changed_notice=_plan_changed_notice(runner, plan, renewed) if plan else "",
             terms_notice=terms_notice,
         )
@@ -429,7 +465,7 @@ async def link_choice_getter(
     owned = [
         s
         for s in await list_own_subscriptions(user)
-        if plan is not None and s.plan_snapshot.plan_id == plan.id
+        if plan is not None and s.plan_snapshot.plan_id == plan.id and not s.is_unlimited
     ]
     return {
         "window_text": render_window_text(
@@ -443,7 +479,10 @@ async def link_choice_getter(
                 "label": label_with_icon(
                     runner,
                     "btn-purchase.link-renew",
-                    subscription=f"{s.plan_snapshot.name} — {format_date(s.expire_at)}",
+                    subscription=(
+                        f"{s.plan_snapshot.display_name(user.language)} — "
+                        f"{format_expiry(runner, s.expire_at)}"
+                    ),
                 ),
             }
             for s in owned

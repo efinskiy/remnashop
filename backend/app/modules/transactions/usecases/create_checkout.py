@@ -6,7 +6,7 @@ from uuid import uuid4
 from loguru import logger
 
 from app.core.config import AppConfig
-from app.core.constants import T_ME
+from app.core.constants import T_ME, ZERO_AMOUNT
 from app.core.db.uow import UnitOfWork
 from app.core.enums import (
     DiscountSource,
@@ -55,6 +55,7 @@ from app.modules.transactions.fulfillment import dispatch_fulfillment
 from app.modules.transactions.gateways.factory import PaymentGatewayFactory
 from app.modules.transactions.gateways.registry import GATEWAY_REGISTRY, gateway_currency
 from app.modules.transactions.gateways.telegram_stars import with_bot_settings
+from app.modules.transactions.ports import PaymentTexts
 from app.modules.transactions.recurring_repository import RecurringPaymentRepository
 from app.modules.transactions.recurring_terms import build_recurring_terms
 from app.modules.transactions.repository import TransactionRepository
@@ -85,6 +86,7 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
         config: AppConfig,
         event_publisher: EventPublisher,
         legal_recorder: LegalAcceptanceRecorder,
+        payment_texts: PaymentTexts,
     ) -> None:
         self._pricer = pricer
         self._user_repository = user_repository
@@ -101,6 +103,7 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
         self._config = config
         self._event_publisher = event_publisher
         self._legal_recorder = legal_recorder
+        self._payment_texts = payment_texts
 
     async def _return_url(self, data: CreateCheckoutDto, order_id: int) -> Optional[str]:
         if data.channel is PurchaseChannel.BOT:
@@ -192,7 +195,16 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
 
         previous_plan = await self._validate_provisioning_preconditions(actor.id, data)
         user = await self._pricer.drop_dead_promocode_discounts(user)
-        quote = await self._pricer.quote(plan, data.duration_days, data.currency, user)
+        change_credit = (
+            await self._pricer.change_credit(
+                actor.id, data.target_subscription_id, data.duration_days, data.currency
+            )
+            if data.purchase_type is PurchaseType.CHANGE
+            else ZERO_AMOUNT
+        )
+        quote = await self._pricer.quote(
+            plan, data.duration_days, data.currency, user, change_credit=change_credit
+        )
         if data.expected_price is not None and quote.final_price != data.expected_price:
             raise ConflictError(
                 f"Price changed from {data.expected_price} to {quote.final_price}",
@@ -273,7 +285,8 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
         return_url = await self._return_url(data, order.id)
         gateway = self._gateway_factory.build(data.gateway_type, gateway_settings, return_url)
         try:
-            intent = await gateway.create_payment(order)
+            text = await self._payment_texts.describe(order, actor.language)
+            intent = await gateway.create_payment(order, text)
         except Exception as error:
             # no payment exists at the provider, so the order and its spent discount go back
             async with self._uow:
@@ -422,6 +435,7 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
                 discount_source=quote.discount_source,
                 plan_discount_percent=quote.plan_discount_percent,
                 final_price=quote.final_price,
+                change_credit=quote.change_credit,
                 anchor_base_price=quote.anchor_base_price,
                 anchor_final_price=quote.anchor_final_price,
                 discount_promocode_id=quote.discount_promocode_id,
@@ -512,8 +526,8 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
                         "Renewing a different plan is a CHANGE, not a RENEW",
                         code=ErrorCode.RENEW_PLAN_MISMATCH,
                     )
-            elif data.duration_days <= 0:
+            elif data.duration_days < 0:
                 raise ValidationError(
-                    "duration_days must be positive", code=ErrorCode.DURATION_NOT_POSITIVE
+                    "duration_days can't be negative", code=ErrorCode.DURATION_NOT_POSITIVE
                 )
             return target

@@ -183,14 +183,16 @@ async def test_recurring_only_hides_pay_until_the_customer_consents(config):
     manager.current_context.return_value.stack_id = ""
     manager.current_context.return_value.id = "test"
     keyboard = await confirm.render_kbd(before, manager)
-    assert before["pay_text"] not in [
+    assert before["pay_text"].text not in [
         button.text for row in keyboard.inline_keyboard for button in row
     ]
     await _choice(manager)
     after = await _render(manager, _terms(config))
     assert after["can_pay"]
     keyboard = await confirm.render_kbd(after, manager)
-    assert after["pay_text"] in [button.text for row in keyboard.inline_keyboard for button in row]
+    assert after["pay_text"].text in [
+        button.text for row in keyboard.inline_keyboard for button in row
+    ]
 
 
 async def test_terms_can_be_read_without_giving_consent(config):

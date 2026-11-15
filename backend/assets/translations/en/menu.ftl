@@ -190,6 +190,7 @@ btn-subscriptions =
     .purchase-icon = 💸
     .item = { $status ->
         [ACTIVE] 🟢 { $plan_name } · until { $expire_at }
+        [UNLIMITED] 🟢 { $plan_name } · no end date
         [LIMITED] 🟡 { $plan_name } · traffic used up
         [EXPIRED] 🔴 { $plan_name } · expired { $expire_at }
         [DISABLED] ⚫ { $plan_name } · disabled
@@ -332,7 +333,6 @@ ntf-common =
 ntf-purchase =
     .stars-rejected = This order can't be paid any more. Please start the purchase again.
     .plan-unavailable = ❌ This plan is no longer available — please pick another one.
-    .renew-plan-unavailable = ❌ Your current plan is outdated and can't be renewed.
     .limit-reached = ❌ You've reached the subscription limit.
     .method-unavailable = ❌ This payment method is unavailable right now.
     .discount-used = ⚠️ The discount has already been used — check the new price.
@@ -408,6 +408,11 @@ msg-purchase-confirm =
     { $plan_changed_notice }
 
     { $terms_notice }
+frg-purchase-change-unlimited-notice = { $kind ->
+        [credit] <i>⚠️ Your current subscription will be <u>replaced</u> with the chosen plan. What you paid for your current unlimited subscription is already taken off the price.</i>
+       *[other] <i>⚠️ Your current subscription will be <u>replaced</u> with the chosen plan. The unused part of your payment <u>is not carried over</u>.</i>
+    }
+frg-purchase-change-credit-days-notice = <i>⚠️ Your current subscription will be <u>replaced</u> with the chosen plan. The unused part of your payment adds <b>{ $days }</b> to the new term.</i>
 frg-purchase-terms-notice = <i>By paying you accept the terms — /terms</i>
 frg-subscription-recurring = <b>Auto-renewal enabled</b>: up to { $amount } { $currency } for every { $days } days. Use the button below to stop future charges.
 frg-subscription-recurring-off = <b>Auto-renewal disabled</b>. Enabling it authorizes automatic charges of up to { $amount } { $currency } for every { $days } days before the subscription expires.
@@ -533,10 +538,13 @@ msg-promocode-confirm =
             [one] device
            *[other] devices
         }</b> on your device limit.
-        [SUBSCRIPTION] the <b>{ $promo_plan_name }</b> subscription for <b>{ $promo_reward } { $promo_reward ->
-            [one] day
-           *[other] days
-        }</b>.
+        [SUBSCRIPTION] the <b>{ $promo_plan_name }</b> subscription { $promo_reward ->
+            [0] <b>forever</b>
+           *[other] for <b>{ $promo_reward } { $promo_reward ->
+                [one] day
+               *[other] days
+            }</b>
+        }.
         [PERSONAL_DISCOUNT] a permanent <b>{ $promo_reward }% discount</b> on every purchase.
         [PURCHASE_DISCOUNT] a <b>{ $promo_reward }% discount</b> on your next purchase.
        *[other] a reward on your account.
@@ -620,6 +628,8 @@ time-unit =
     }
     .hour = { $value } h
     .minute = { $value } min
+    .unlimited = Forever
+    .no-expiry = no end date
 
 inline-invite =
     .title = Invite a friend
@@ -630,6 +640,8 @@ inline-invite =
         { $bot_name } can help you with that!
 
         ↘️ TAP THE BUTTON AND TRY IT FOR FREE!
+
+btn-inline-invite =
     .start = Join
     .start-icon = 🚀
 

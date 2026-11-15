@@ -11,6 +11,7 @@ from app.core.config import AppConfig
 from app.core.db.uow import UnitOfWork
 from app.core.enums import (
     Currency,
+    Locale,
     PaymentGatewayType,
     PurchaseType,
     SubscriptionStatus,
@@ -33,6 +34,7 @@ from app.modules.transactions.fulfillment import settle_verified_payment
 from app.modules.transactions.gateways.base import WebhookSignal
 from app.modules.transactions.gateways.factory import PaymentGatewayFactory
 from app.modules.transactions.gateways.yookassa import YooKassaGateway
+from app.modules.transactions.ports import PaymentTexts
 from app.modules.transactions.recurring_dto import RecurringPaymentDto
 from app.modules.transactions.recurring_policy import (
     POLICY_RECHECK_DELAY,
@@ -63,6 +65,7 @@ class ProcessRecurringPaymentsUseCase(UseCase[Optional[int], None]):
         purchase_dispatch: PurchaseSubscriptionDispatch,
         uow: UnitOfWork,
         config: AppConfig,
+        payment_texts: PaymentTexts,
     ) -> None:
         self._recurring = recurring_repository
         self._transactions = transaction_repository
@@ -75,6 +78,7 @@ class ProcessRecurringPaymentsUseCase(UseCase[Optional[int], None]):
         self._dispatch = purchase_dispatch
         self._uow = uow
         self._config = config
+        self._payment_texts = payment_texts
 
     async def _execute(self, actor: Actor, data: Optional[int]) -> None:
         if data is not None:
@@ -520,8 +524,9 @@ class ProcessRecurringPaymentsUseCase(UseCase[Optional[int], None]):
                 return None
             order, mandate, terms, gateway = context
             first_attempt = unsubmitted and mandate.submitted_at == submitted_at
+            text = await self._payment_texts.describe(order, Locale.RU)
             result = await submit_recurring(
-                gateway, order, mandate.payment_method_id or "", first_attempt=first_attempt
+                gateway, order, text, mandate.payment_method_id or "", first_attempt=first_attempt
             )
             await self._persist_submission(subscription_id, order, mandate, terms, result)
         return mandate, terms, result
