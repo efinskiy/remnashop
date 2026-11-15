@@ -8,10 +8,12 @@ import pytest
 from sqlalchemy import select, update
 
 from app.core.db.models import EventOutboxEntry, RecurringPayment, User
+from app.core.db.uow import UnitOfWork
 from app.core.enums import Currency, Locale, Role, TransactionStatus
 from app.core.event_bus import EventBus
 from app.core.events import EventCategory
 from app.core.exceptions import ValidationError
+from app.core.outbox_event_publisher import OutboxEventPublisher
 from app.core.utils.time import datetime_now
 from app.modules.customer_notifications.render_args import customer_render_args
 from app.modules.customer_notifications.routing import CustomerChannel, channels_for
@@ -26,8 +28,8 @@ from app.modules.transactions.recurring_events import (
     RecurringPaymentFailedEvent,
     RecurringPaymentPausedEvent,
     RecurringPaymentUpcomingEvent,
-    persist_recurring_event,
 )
+from tests.fakes.dispatch import RecordingDispatch
 from tests.fakes.events import stored_event
 from tests.modules.transactions import test_recurring_payments
 from tests.seeded_translations import seeded_fluent_source
@@ -114,8 +116,7 @@ async def test_admin_can_filter_retries_without_exposing_staff_names(case, sessi
 async def test_repository_notice_is_committed_with_its_state_and_rolls_back_together(session, uow):
     with pytest.raises(RuntimeError):
         async with uow:
-            await persist_recurring_event(
-                session,
+            await OutboxEventPublisher(UnitOfWork(session), RecordingDispatch()).publish(
                 RecurringPaymentPausedEvent(
                     user_id=5, subscription_id=7, reason="provider_unavailable"
                 ),
@@ -192,7 +193,7 @@ async def test_recurring_events_reach_customer_channels_and_have_complete_templa
 
 async def test_customer_state_distinguishes_a_pause_from_withdrawing_consent(case, uow):
     async with uow:
-        await case.repository.pause(case.subscription.id, "price_changed")
+        await case.lifecycle.pause(case.subscription.id, "price_changed")
     state = await case.get_state(case.user, case.subscription.id)
     assert state.enabled and state.paused and not state.available
     assert not state.retrying and state.next_payment_at is None

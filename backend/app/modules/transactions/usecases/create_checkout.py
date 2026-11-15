@@ -87,7 +87,9 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
         event_publisher: EventPublisher,
         legal_recorder: LegalAcceptanceRecorder,
         payment_texts: PaymentTexts,
+        recurring_repository: RecurringPaymentRepository,
     ) -> None:
+        self._recurring_repository = recurring_repository
         self._pricer = pricer
         self._user_repository = user_repository
         self._gateway_repository = gateway_repository
@@ -166,9 +168,9 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
             if replaced is None:
                 return None
             await give_back_purchase_discount(self._user_repository, replaced)
-            await RecurringPaymentRepository(
-                self._transaction_repository.session
-            ).revoke_consent_id(replaced.recurring_consent_id, channel=channel)
+            await self._recurring_repository.revoke_consent_id(
+                replaced.recurring_consent_id, channel=channel.value
+            )
         logger.info(f"Order '{order_id}' of user '{user_id}' canceled, replaced by a new checkout")
         return order_id
 
@@ -360,9 +362,7 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
                 raise ConflictError(
                     "Auto-renewal terms changed; confirm them again", code=ErrorCode.PRICE_CHANGED
                 )
-            consent_id = await RecurringPaymentRepository(
-                self._transaction_repository.session
-            ).record_consent(
+            consent_id = await self._recurring_repository.record_consent(
                 terms,
                 channel=data.channel,
                 telegram_id=actor.telegram_id,

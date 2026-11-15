@@ -6,6 +6,7 @@ from sqlalchemy import update
 
 from app.core.db.models import RecurringPayment
 from app.core.utils.time import datetime_now
+from app.modules.transactions.dto import ProcessRecurringPaymentDto
 from app.modules.transactions.tasks import (
     process_one_recurring_payment_task,
     process_recurring_payments_task,
@@ -41,7 +42,7 @@ async def test_scheduler_commits_claim_before_dispatch_and_does_not_enqueue_twic
 ):
     before = await case.repository.get(case.subscription.id)
     queue = _Queue(session)
-    scheduler = EnqueueRecurringPaymentsUseCase(case.repository, queue, uow, config)
+    scheduler = EnqueueRecurringPaymentsUseCase(case.repository, case.lifecycle, queue, uow, config)
     await scheduler.system()
     await scheduler.system()
     assert queue.messages == [case.subscription.id]
@@ -61,7 +62,7 @@ async def test_scheduler_can_recover_a_broker_failure_after_its_lease_expires(
 ):
     before = await case.repository.get(case.subscription.id)
     queue = _Queue(session, fail=True)
-    scheduler = EnqueueRecurringPaymentsUseCase(case.repository, queue, uow, config)
+    scheduler = EnqueueRecurringPaymentsUseCase(case.repository, case.lifecycle, queue, uow, config)
     await scheduler.system()
     await scheduler.system()
     assert queue.messages == [case.subscription.id]
@@ -87,9 +88,11 @@ async def test_scheduler_uses_a_separate_quota_for_real_pending_polls(case, uow,
     mandate = await case.repository.get(case.subscription.id)
     assert mandate.pending_transaction_id is not None
     async with uow:
-        await case.repository.defer(case.subscription.id, datetime_now() - timedelta(seconds=1))
+        await case.lifecycle.defer(case.subscription.id, datetime_now() - timedelta(seconds=1))
     queue = RecordingDispatch()
-    await EnqueueRecurringPaymentsUseCase(case.repository, queue, uow, config).system()
+    await EnqueueRecurringPaymentsUseCase(
+        case.repository, case.lifecycle, queue, uow, config
+    ).system()
     assert queue.messages == [{"subscription_id": case.subscription.id}]
     assert len(case.provider.posts) == 1
 
@@ -104,7 +107,9 @@ async def test_new_charges_are_enqueued_before_polls_with_independent_batch_limi
     monkeypatch.setattr(config.recurring, "notice_lead_minutes", 0)
     repository = MagicMock(list_due=AsyncMock(side_effect=[[11, 12], [21, 22, 23]]))
     queue = RecordingDispatch()
-    await EnqueueRecurringPaymentsUseCase(repository, queue, uow, config).system()
+    await EnqueueRecurringPaymentsUseCase(
+        repository, MagicMock(close_overdue=AsyncMock()), queue, uow, config
+    ).system()
     assert queue.messages == [{"subscription_id": value} for value in (11, 12, 21, 22, 23)]
     debit, poll = repository.list_due.await_args_list
     assert debit.kwargs["pending"] is False and debit.kwargs["limit"] == 2
@@ -121,7 +126,9 @@ async def test_no_jobs_are_published_when_the_claim_transaction_fails(uow, confi
     )
     queue = RecordingDispatch()
     with pytest.raises(RuntimeError, match="database unavailable"):
-        await EnqueueRecurringPaymentsUseCase(repository, queue, uow, config).system()
+        await EnqueueRecurringPaymentsUseCase(
+            repository, MagicMock(close_overdue=AsyncMock()), queue, uow, config
+        ).system()
     assert not queue.messages
 
 
@@ -131,7 +138,7 @@ async def test_scheduled_task_only_enqueues_work_and_each_child_receives_its_sub
     scheduler.system.assert_awaited_once_with()
     worker = AsyncMock()
     await process_one_recurring_payment_task.original_func.__dishka_orig_func__(7, use_case=worker)
-    worker.system.assert_awaited_once_with(7)
+    worker.system.assert_awaited_once_with(ProcessRecurringPaymentDto(subscription_id=7))
     assert process_one_recurring_payment_task.labels["retry_on_error"] is True
     assert process_one_recurring_payment_task.labels["max_retries"] == 3
 
@@ -158,7 +165,7 @@ async def test_technical_deferral_preserves_the_bank_retry_deadline_and_releases
                 bank_retry_at=bank_deadline, leased_until=datetime_now() + timedelta(minutes=30)
             )
         )
-        await case.repository.defer(case.subscription.id, technical_retry, "provider_unavailable")
+        await case.lifecycle.defer(case.subscription.id, technical_retry, "provider_unavailable")
     state = await case.repository.get(case.subscription.id)
     assert state.bank_retry_at == bank_deadline
     assert state.next_attempt_at == technical_retry
@@ -170,14 +177,12 @@ async def test_preference_toggles_cannot_erase_an_unresolved_bank_outcome(case, 
     original = await case.repository.get(case.subscription.id)
     async with uow:
         await case.repository.mark_submitted(case.subscription.id)
-        await case.repository.pause(case.subscription.id, reason)
-        await case.repository.set_enabled(case.subscription.id, False)
+        await case.lifecycle.pause(case.subscription.id, reason)
+        await case.lifecycle.set_enabled(case.subscription.id, False)
     disabled = await case.repository.get(case.subscription.id)
     assert not disabled.enabled and disabled.last_error == "customer_disabled"
     async with uow:
-        await case.repository.set_enabled(
-            case.subscription.id, True, consent_id=original.consent_id
-        )
+        await case.lifecycle.set_enabled(case.subscription.id, True, consent_id=original.consent_id)
     blocked = await case.repository.get(case.subscription.id)
     assert not blocked.enabled and blocked.last_error == "payment_status_unknown"
     assert blocked.submitted_at is not None
@@ -202,14 +207,12 @@ async def test_fresh_enable_resets_the_bank_schedule_but_disable_keeps_retry_his
                 leased_until=datetime_now() + timedelta(minutes=30),
             )
         )
-        await case.repository.set_enabled(case.subscription.id, False)
+        await case.lifecycle.set_enabled(case.subscription.id, False)
     disabled = await case.repository.get(case.subscription.id)
     assert disabled.bank_retry_at == bank_deadline and disabled.retry_count == 2
     assert disabled.leased_until is None
     async with uow:
-        await case.repository.set_enabled(
-            case.subscription.id, True, consent_id=original.consent_id
-        )
+        await case.lifecycle.set_enabled(case.subscription.id, True, consent_id=original.consent_id)
     enabled = await case.repository.get(case.subscription.id)
     assert enabled.enabled and enabled.bank_retry_at is None
     assert enabled.first_failure_at is None and enabled.retry_count == 0

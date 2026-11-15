@@ -13,6 +13,7 @@ from app.modules.transactions.dto import CreateTransactionDto, HandleWebhookDto,
 from app.modules.transactions.recurring_dto import SetRecurringPaymentDto
 from app.modules.transactions.usecases import HandlePaymentWebhookUseCase
 from tests.fakes.events import RecordingEventPublisher
+from tests.fakes.recurring import fulfil, make_recurring_lifecycle
 from tests.modules.transactions import test_recurring_payments as recurring_cases
 from tests.modules.transactions.test_recurring_payments import _tick_again
 
@@ -69,7 +70,7 @@ async def _manual_stars_renewal(case, transaction_repository, session, uow):
             .where(Subscription.id == case.subscription.id)
             .values(expire_at=datetime_now() + timedelta(days=30))
         )
-        await transaction_repository.mark_fulfilled(order.id, case.subscription.id)
+        await fulfil(transaction_repository.session, order.id, case.subscription.id)
     return order
 
 
@@ -171,11 +172,12 @@ async def test_a_cancellation_webhook_before_cron_still_schedules_a_bank_retry(
     handler = HandlePaymentWebhookUseCase(
         transaction_repository,
         gateway_repository,
-        case.worker._factory,
+        case.worker._poller._factory,
         user_repository,
         RecordingEventPublisher(),
         uow,
         case.dispatch,
+        make_recurring_lifecycle(transaction_repository.session),
     )
     await handler.system(
         HandleWebhookDto(
@@ -254,8 +256,8 @@ async def test_a_stale_cancellation_cannot_clear_the_next_pending_attempt(
     current = await case.repository.get(case.subscription.id)
     assert current.pending_transaction_id is not None and current.pending_transaction_id != old.id
     case.provider.status = "canceled"
-    gateway = await case.worker._gateway()
-    await case.worker._poll(case.subscription.id, old, gateway)
+    gateway = await case.worker._poller.gateway()
+    await case.worker._poller.poll(case.subscription.id, old, gateway)
     after = await case.repository.get(case.subscription.id)
     assert after.pending_transaction_id == current.pending_transaction_id
     assert after.retry_count == current.retry_count
@@ -494,11 +496,12 @@ async def test_late_verified_success_resumes_the_original_authorization_without_
     handler = HandlePaymentWebhookUseCase(
         transaction_repository,
         gateway_repository,
-        case.worker._factory,
+        case.worker._poller._factory,
         user_repository,
         RecordingEventPublisher(),
         uow,
         case.dispatch,
+        make_recurring_lifecycle(transaction_repository.session),
     )
     await handler.system(
         HandleWebhookDto(
@@ -524,7 +527,7 @@ async def test_late_verified_success_resumes_the_original_authorization_without_
             .where(Subscription.id == case.subscription.id)
             .values(expire_at=datetime_now() + timedelta(days=30))
         )
-        await transaction_repository.mark_fulfilled(old_id, case.subscription.id)
+        await fulfil(transaction_repository.session, old_id, case.subscription.id)
     restored = await case.repository.get(case.subscription.id)
     assert restored.enabled and restored.last_error is None
     assert restored.consent_id == grant_id and restored.pending_transaction_id is None
@@ -566,7 +569,7 @@ async def test_paid_manual_renewal_waiting_for_fulfillment_prevents_an_auto_debi
             .where(Subscription.id == case.subscription.id)
             .values(expire_at=datetime_now() + timedelta(days=30))
         )
-        await transaction_repository.mark_fulfilled(order.id, case.subscription.id)
+        await fulfil(transaction_repository.session, order.id, case.subscription.id)
     await case.worker.system()
     after = await case.repository.get(case.subscription.id)
     assert after.enabled and after.pending_transaction_id is None

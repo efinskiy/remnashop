@@ -40,6 +40,7 @@ from app.modules.settings.repository import SettingsRepository
 from app.modules.subscriptions import ChangeCreditCalculator, SubscriptionRepository
 from app.modules.transactions.checkout_pricing import CheckoutPricer
 from app.modules.transactions.dto import QuoteCheckoutDto
+from app.modules.transactions.recurring_repository import RecurringPaymentRepository
 from app.modules.transactions.repository import TransactionRepository
 from app.modules.transactions.usecases import CreateCheckoutUseCase, QuoteCheckoutUseCase
 from app.modules.transactions.waitlist_repository import WaitlistRepository
@@ -132,6 +133,7 @@ def checkout_use_case(
         event_publisher,
         LegalAcceptanceRecorder(legal_repository, translation_repository),
         FixedPaymentTexts(),
+        RecurringPaymentRepository(plan_repository.session),
     )
 
 

@@ -47,12 +47,12 @@ from app.modules.transactions.events import (
     TransactionRefundedManuallyEvent,
 )
 from app.modules.transactions.gateways.factory import PaymentGatewayFactory
-from app.modules.transactions.recurring_repository import RecurringPaymentRepository
 from app.modules.transactions.repository import TransactionRepository
 from app.modules.transactions.usecases import PreviewRefundUseCase, RefundTransactionUseCase
 from app.modules.users import UserRepository
 from app.modules.users.dto import CreateUserDto, UserDto
 from tests.fakes.events import RecordingEventPublisher
+from tests.fakes.recurring import make_recurring_lifecycle
 from tests.fakes.remnawave import FakeUserStore
 from tests.modules.subscriptions.factories import (
     create_subscription,
@@ -698,7 +698,7 @@ async def race(
                     UserRepository(subscriptions.session),
                     AppConfig.get(),
                     SettingsRepository(purchase_session),
-                    recurring_closer=RecurringPaymentRepository(purchase_session),
+                    recurring_closer=make_recurring_lifecycle(purchase_session),
                 ),
                 purchase_session=purchase_session,
             )

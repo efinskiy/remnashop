@@ -137,12 +137,12 @@ async def test_stale_submission_cannot_change_a_replacement_attempt(
     values["idempotency_key"] = uuid4().hex
     async with uow:
         replacement = await transaction_repository.create(CreateTransactionDto(**values))
-        await case.repository.set_pending(
+        await case.lifecycle.set_pending(
             case.subscription.id,
             replacement.id,
             expire_at=case.subscription.expire_at,
         )
-        await case.repository.defer(
+        await case.lifecycle.defer(
             case.subscription.id,
             datetime_now() + timedelta(minutes=5),
             "provider_unavailable",

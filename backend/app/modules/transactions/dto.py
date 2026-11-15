@@ -3,6 +3,8 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Final, Literal, Optional
 
+from pydantic import Field
+
 from app.core.constants import DEFAULT_PAGE_SIZE, ZERO_AMOUNT
 from app.core.dto import BaseDto, TimestampMixin
 from app.core.enums import (
@@ -87,6 +89,9 @@ class TransactionDto(BaseDto, TimestampMixin):
     recurring_consent: bool = False
     is_recurring: bool = False
     yookassa_receipt_vat_code: Optional[int] = None
+    # only from an authenticated provider status response; never leaves the API
+    saved_payment_method_id: Optional[str] = Field(default=None, repr=False)
+    payment_method_shop_id: Optional[str] = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -382,3 +387,14 @@ class UnratedAnchorCountDto:
 @dataclass(frozen=True, kw_only=True)
 class RateUnratedAnchorAmountsDto:
     client_ip: str
+
+
+@dataclass(frozen=True, kw_only=True)
+class ProcessRecurringPaymentDto:
+    subscription_id: int
+
+
+@dataclass(frozen=True, kw_only=True)
+class CheckRecurringPaymentDto:
+    subscription_id: int
+    transaction_id: int

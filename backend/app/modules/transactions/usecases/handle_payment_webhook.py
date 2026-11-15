@@ -25,6 +25,7 @@ from app.modules.transactions.gateways.base import (
     WebhookSignal,
 )
 from app.modules.transactions.gateways.factory import PaymentGatewayFactory
+from app.modules.transactions.recurring_lifecycle import RecurringLifecycle
 from app.modules.transactions.repository import TransactionRepository
 from app.modules.transactions.unpaid_orders import UNPAID_FINAL, give_back_purchase_discount
 from app.modules.users import UserRepository
@@ -60,7 +61,9 @@ class HandlePaymentWebhookUseCase(UseCase[HandleWebhookDto, WebhookAck]):
         event_publisher: EventPublisher,
         uow: UnitOfWork,
         purchase_dispatch: PurchaseSubscriptionDispatch,
+        recurring_lifecycle: RecurringLifecycle,
     ) -> None:
+        self._recurring_lifecycle = recurring_lifecycle
         self._user_repository = user_repository
         self._transaction_repository = transaction_repository
         self._gateway_repository = gateway_repository
@@ -241,7 +244,7 @@ class HandlePaymentWebhookUseCase(UseCase[HandleWebhookDto, WebhookAck]):
                 ),
             )
             if changed and order.is_recurring and status is TransactionStatus.CANCELED:
-                await self._transaction_repository.record_recurring_cancellation(
+                await self._recurring_lifecycle.on_canceled(
                     order.id, signal.cancellation_reason or "bank_declined"
                 )
             if changed and restores_discount:

@@ -39,7 +39,6 @@ from app.modules.subscriptions import (
     SpentPurchaseDiscount,
 )
 from app.modules.transactions.dto import CreateTransactionDto, DailyPaidDto, TransactionDto
-from app.modules.transactions.recurring_repository import RecurringPaymentRepository
 
 # Test orders never provision a subscription and must stay out of every
 # revenue/analytics/reconciliation query, and out of the admin order list.
@@ -152,6 +151,8 @@ class TransactionRepository:
             recurring_consent=row.recurring_consent,
             is_recurring=row.is_recurring,
             yookassa_receipt_vat_code=row.yookassa_receipt_vat_code,
+            saved_payment_method_id=row.saved_payment_method_id,
+            payment_method_shop_id=row.payment_method_shop_id,
             created_at=row.created_at,
             updated_at=row.updated_at,
         )
@@ -348,17 +349,20 @@ class TransactionRepository:
         ).all()
         return [self._to_dto(row) for row in rows]
 
-    async def mark_fulfilled_by_key(self, idempotency_key: str, subscription_id: int) -> None:
-        await self._mark_fulfilled_where(
+    async def mark_fulfilled_by_key(
+        self, idempotency_key: str, subscription_id: int
+    ) -> Optional[TransactionDto]:
+        return await self._mark_fulfilled_where(
             Transaction.idempotency_key == idempotency_key, subscription_id
         )
 
-    async def mark_fulfilled(self, order_id: int, subscription_id: int) -> None:
-        await self._mark_fulfilled_where(Transaction.id == order_id, subscription_id)
+    async def mark_fulfilled(self, order_id: int, subscription_id: int) -> Optional[TransactionDto]:
+        return await self._mark_fulfilled_where(Transaction.id == order_id, subscription_id)
 
     async def _mark_fulfilled_where(
         self, condition: ColumnElement[bool], subscription_id: int
-    ) -> None:
+    ) -> Optional[TransactionDto]:
+        """The order it marked; None when it was already fulfilled."""
         # updated_at is the paid-at timestamp every revenue query groups by;
         # pinned to itself, since Core update() still applies its onupdate
         row = await self.session.scalar(
@@ -371,11 +375,7 @@ class TransactionRepository:
             )
             .returning(Transaction)
         )
-        if row is not None:
-            await RecurringPaymentRepository(self.session).on_fulfilled(row, subscription_id)
-
-    async def record_recurring_cancellation(self, order_id: int, reason: str) -> None:
-        await RecurringPaymentRepository(self.session).on_canceled(order_id, reason)
+        return self._to_dto(row) if row is not None else None
 
     async def remember_payment_method(
         self, order_id: int, payment_method_id: Optional[str], shop_id: Optional[str]

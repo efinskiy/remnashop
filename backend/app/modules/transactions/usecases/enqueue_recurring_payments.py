@@ -8,6 +8,7 @@ from app.core.db.uow import UnitOfWork
 from app.core.usecase import UseCase
 from app.core.utils.time import datetime_now
 from app.modules.transactions.dispatch import ProcessRecurringPaymentDispatch
+from app.modules.transactions.recurring_lifecycle import RecurringLifecycle
 from app.modules.transactions.recurring_repository import RecurringPaymentRepository
 
 
@@ -17,11 +18,13 @@ class EnqueueRecurringPaymentsUseCase(UseCase[None, None]):
     def __init__(
         self,
         recurring_repository: RecurringPaymentRepository,
+        recurring_lifecycle: RecurringLifecycle,
         dispatch: ProcessRecurringPaymentDispatch,
         uow: UnitOfWork,
         config: AppConfig,
     ) -> None:
         self._recurring = recurring_repository
+        self._lifecycle = recurring_lifecycle
         self._dispatch = dispatch
         self._uow = uow
         self._config = config
@@ -32,6 +35,7 @@ class EnqueueRecurringPaymentsUseCase(UseCase[None, None]):
         due_before = now + timedelta(minutes=max(1440, policy.notice_lead_minutes))
         lease = now + timedelta(minutes=policy.queue_lease_minutes)
         async with self._uow:
+            await self._lifecycle.close_overdue(now, limit=policy.batch_size)
             debits = await self._recurring.list_due(
                 now,
                 due_before=due_before,

@@ -11,6 +11,7 @@ from app.core.utils.lock import cron_lock
 from app.modules.transactions.dto import (
     MarkOrderFulfilledDto,
     NotifyPaymentWaitlistDto,
+    ProcessRecurringPaymentDto,
     ReconcilePaidTransactionsDto,
     StarsPaymentDto,
 )
@@ -19,7 +20,7 @@ from app.modules.transactions.usecases import (
     EnqueueRecurringPaymentsUseCase,
     MarkOrderFulfilledUseCase,
     NotifyPaymentWaitlistUseCase,
-    ProcessRecurringPaymentsUseCase,
+    ProcessRecurringPaymentUseCase,
     PruneExpiredTransactionsUseCase,
     ReconcilePaidTransactionsUseCase,
 )
@@ -39,9 +40,9 @@ async def process_recurring_payments_task(
 @inject(patch_module=True)
 async def process_one_recurring_payment_task(
     subscription_id: int,
-    use_case: FromDishka[ProcessRecurringPaymentsUseCase],
+    use_case: FromDishka[ProcessRecurringPaymentUseCase],
 ) -> None:
-    await use_case.system(subscription_id)
+    await use_case.system(ProcessRecurringPaymentDto(subscription_id=subscription_id))
 
 
 @broker.task(schedule=[{"cron": "*/10 * * * *"}])

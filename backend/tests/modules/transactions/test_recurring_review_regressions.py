@@ -9,7 +9,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select, update
 
-import app.modules.transactions.usecases.process_recurring_payments as worker_module
+import app.modules.transactions.usecases.process_recurring_payment as worker_module
 from app.core.db.models import (
     EventOutboxEntry,
     RecurringConsent,
@@ -50,6 +50,7 @@ from app.modules.transactions.recurring_policy import RecurringState, classify
 from app.modules.transactions.recurring_terms import build_recurring_terms
 from app.modules.transactions.usecases import HandlePaymentWebhookUseCase
 from tests.fakes.events import RecordingEventPublisher
+from tests.fakes.recurring import fulfil, make_recurring_lifecycle
 from tests.fakes.remnawave import _user_payload
 from tests.modules.transactions import test_recurring_payments as cases
 
@@ -129,7 +130,8 @@ async def _new_subscription(case, subscription_repository, uow, snapshot):
 async def _notice_types(session):
     return list(
         await session.scalars(
-            select(EventOutboxEntry.event_type).where(
+            select(EventOutboxEntry.event_type)
+            .where(
                 EventOutboxEntry.event_type.in_(
                     [
                         "RecurringPaymentFailedEvent",
@@ -138,6 +140,7 @@ async def _notice_types(session):
                     ]
                 )
             )
+            .order_by(EventOutboxEntry.id)
         )
     )
 
@@ -177,7 +180,7 @@ async def test_one_day_plan_does_not_charge_again_at_purchase(case, session, uow
             .where(Subscription.id == case.subscription.id)
             .values(expire_at=expiry, plan_snapshot=snapshot.to_json())
         )
-        await case.repository.set_enabled(case.subscription.id, True, consent_id=consent_id)
+        await case.lifecycle.set_enabled(case.subscription.id, True, consent_id=consent_id)
     await case.worker.system()
     mandate = await case.repository.get(case.subscription.id)
     assert terms.lead_minutes == 720
@@ -210,8 +213,8 @@ async def test_unknown_payment_still_allows_withdrawal_and_late_success_cannot_r
         await transaction_repository.mark_status(
             mandate.pending_transaction_id, TransactionStatus.PAID
         )
-        await transaction_repository.mark_fulfilled(
-            mandate.pending_transaction_id, case.subscription.id
+        await fulfil(
+            transaction_repository.session, mandate.pending_transaction_id, case.subscription.id
         )
     after = await case.repository.get(case.subscription.id)
     assert after.customer_disabled and not after.enabled
@@ -253,8 +256,8 @@ async def test_plan_change_preserves_the_actual_withdrawal_time(
     old = await case.repository.get(case.subscription.id)
     new = await _new_subscription(case, subscription_repository, uow, snapshot)
     async with uow:
-        await case.repository.close_for_plan_change(case.subscription.id)
-        await transaction_repository.mark_fulfilled(order.id, new.id)
+        await case.lifecycle.close_for_plan_change(case.subscription.id)
+        await fulfil(transaction_repository.session, order.id, new.id)
     changed = await case.repository.get(new.id)
     assert changed.enabled is not withdraw_after_consent
     assert changed.customer_disabled is withdraw_after_consent
@@ -285,7 +288,7 @@ async def test_manual_renewal_mandate_decision_table(
     before = await case.repository.get(case.subscription.id)
     order = await _order(case, transaction_repository, uow, consent=consent, saved=saved)
     async with uow:
-        await transaction_repository.mark_fulfilled(order.id, case.subscription.id)
+        await fulfil(transaction_repository.session, order.id, case.subscription.id)
     after = await case.repository.get(case.subscription.id)
     if consent and saved:
         assert after.enabled and after.payment_method_id == "new-method"
@@ -443,6 +446,8 @@ async def test_overdue_mandate_has_a_terminal_state_and_leaves_the_queue(case, s
             .values(expire_at=datetime_now() - timedelta(hours=terms.max_overdue_hours + 1))
         )
     now = datetime_now()
+    async with uow:
+        await case.lifecycle.close_overdue(now, limit=100)
     assert case.subscription.id not in await case.repository.list_due(
         now, due_before=now + timedelta(days=2), limit=100
     )
@@ -450,6 +455,8 @@ async def test_overdue_mandate_has_a_terminal_state_and_leaves_the_queue(case, s
     assert not current.enabled and current.last_error == "renewal_window_expired"
     notices = await _notice_types(session)
     assert notices == ["RecurringPaymentPausedEvent"]
+    async with uow:
+        await case.lifecycle.close_overdue(now + timedelta(days=30), limit=100)
     assert case.subscription.id not in await case.repository.list_due(
         now + timedelta(days=30), due_before=now + timedelta(days=31), limit=100
     )
@@ -489,8 +496,8 @@ async def test_poll_of_already_paid_order_does_not_touch_revenue_timestamp_or_re
     paid = await transaction_repository.get_by_id(current.pending_transaction_id)
     count = len(case.dispatch.messages)
     async with uow:
-        gateway = await case.worker._gateway()
-    await case.worker._poll(case.subscription.id, paid, gateway)
+        gateway = await case.worker._poller.gateway()
+    await case.worker._poller.poll(case.subscription.id, paid, gateway)
     after = await transaction_repository.get_by_id(paid.id)
     assert after.updated_at == paid.updated_at
     assert len(case.dispatch.messages) == count
@@ -549,7 +556,7 @@ async def test_first_enrollment_without_saved_method_is_reported(
         )
     order = await _order(case, transaction_repository, uow, consent=True, saved=False)
     async with uow:
-        await transaction_repository.mark_fulfilled(order.id, case.subscription.id)
+        await fulfil(transaction_repository.session, order.id, case.subscription.id)
     current = await case.repository.get(case.subscription.id)
     assert not current.enabled and current.last_error == "payment_method_not_saved"
     assert current.consent_id == order.recurring_consent_id
@@ -631,11 +638,12 @@ async def test_late_cancel_webhook_resolves_lost_create_response_without_new_deb
     handler = HandlePaymentWebhookUseCase(
         transaction_repository,
         gateway_repository,
-        case.worker._factory,
+        case.worker._poller._factory,
         user_repository,
         RecordingEventPublisher(),
         uow,
         case.dispatch,
+        make_recurring_lifecycle(session),
     )
     callback = HandleWebhookDto(
         gateway_type=PaymentGatewayType.YOOKASSA,

@@ -34,8 +34,8 @@ from app.modules.transactions.usecases.own_recurring_payment import (
     SetOwnRecurringPaymentUseCase,
 )
 from app.modules.transactions.usecases.preview_refund import PreviewRefundUseCase
-from app.modules.transactions.usecases.process_recurring_payments import (
-    ProcessRecurringPaymentsUseCase,
+from app.modules.transactions.usecases.process_recurring_payment import (
+    ProcessRecurringPaymentUseCase,
 )
 from app.modules.transactions.usecases.prune_expired_transactions import (
     PruneExpiredTransactionsUseCase,
@@ -76,7 +76,7 @@ __all__ = [
     "MarkOrderFulfilledUseCase",
     "NotifyPaymentWaitlistUseCase",
     "PreviewRefundUseCase",
-    "ProcessRecurringPaymentsUseCase",
+    "ProcessRecurringPaymentUseCase",
     "PruneExpiredTransactionsUseCase",
     "QuoteCheckoutUseCase",
     "RateUnratedAnchorAmountsUseCase",

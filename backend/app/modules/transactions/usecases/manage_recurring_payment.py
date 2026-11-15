@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta
+from typing import Final
 
 from app.core.actor import Actor
 from app.core.db.uow import UnitOfWork
-from app.core.enums import PurchaseChannel
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ConflictError, ValidationError
 from app.core.ports import EventPublisher
@@ -10,16 +10,18 @@ from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.core.utils.time import datetime_now
 from app.modules.subscriptions import SubscriptionRepository, get_manageable_subscription
+from app.modules.transactions.dto import CheckRecurringPaymentDto
 from app.modules.transactions.events import RecurringPaymentManagedEvent
 from app.modules.transactions.recurring_admin import ManageRecurringPaymentDto
 from app.modules.transactions.recurring_dto import RecurringPaymentDto
+from app.modules.transactions.recurring_lifecycle import RecurringLifecycle
 from app.modules.transactions.recurring_policy import RecurringReason, RetryKind, recurring_reason
 from app.modules.transactions.recurring_repository import RecurringPaymentRepository
 from app.modules.transactions.repository import TransactionRepository
-from app.modules.transactions.usecases.process_recurring_payments import (
-    ProcessRecurringPaymentsUseCase,
-)
+from app.modules.transactions.usecases.check_recurring_payment import CheckRecurringPaymentUseCase
 from app.modules.users import UserRepository
+
+ADMIN_REVOKE_CHANNEL: Final[str] = "admin"
 
 
 class ManageRecurringPaymentUseCase(UseCase[ManageRecurringPaymentDto, None]):
@@ -28,18 +30,20 @@ class ManageRecurringPaymentUseCase(UseCase[ManageRecurringPaymentDto, None]):
     def __init__(
         self,
         recurring_repository: RecurringPaymentRepository,
+        recurring_lifecycle: RecurringLifecycle,
         transaction_repository: TransactionRepository,
         subscription_repository: SubscriptionRepository,
         user_repository: UserRepository,
-        worker: ProcessRecurringPaymentsUseCase,
+        check_recurring_payment_use_case: CheckRecurringPaymentUseCase,
         event_publisher: EventPublisher,
         uow: UnitOfWork,
     ) -> None:
         self._recurring = recurring_repository
+        self._lifecycle = recurring_lifecycle
         self._transactions = transaction_repository
         self._subscriptions = subscription_repository
         self._users = user_repository
-        self._worker = worker
+        self._check_recurring_payment_use_case = check_recurring_payment_use_case
         self._events = event_publisher
         self._uow = uow
 
@@ -85,7 +89,12 @@ class ManageRecurringPaymentUseCase(UseCase[ManageRecurringPaymentDto, None]):
                 )
             )
         if data.action == "check" and before.pending_transaction_id is not None:
-            await self._worker.check_pending(data.subscription_id, before.pending_transaction_id)
+            await self._check_recurring_payment_use_case.system(
+                CheckRecurringPaymentDto(
+                    subscription_id=data.subscription_id,
+                    transaction_id=before.pending_transaction_id,
+                )
+            )
 
     async def _retry(self, mandate: RecurringPaymentDto, expire_at: datetime) -> None:
         terms = await self._recurring.consent_terms(mandate.consent_id)
@@ -107,12 +116,12 @@ class ManageRecurringPaymentUseCase(UseCase[ManageRecurringPaymentDto, None]):
                 "Renewal cannot be retried under the current consent",
                 code=ErrorCode.GATEWAY_NOT_AVAILABLE,
             )
-        await self._recurring.resume(mandate.subscription_id)
+        await self._lifecycle.resume(mandate.subscription_id)
 
     async def _close(
         self, actor: Actor, data: ManageRecurringPaymentDto, mandate: RecurringPaymentDto
     ) -> None:
-        if not await self._recurring.retire_pending(
+        if not await self._lifecycle.retire_pending(
             data.subscription_id,
             mandate.pending_transaction_id,
             force_unknown=True,
@@ -121,10 +130,10 @@ class ManageRecurringPaymentUseCase(UseCase[ManageRecurringPaymentDto, None]):
             raise ConflictError(
                 "The payment can no longer be closed", code=ErrorCode.PAYMENT_ORDER_NOT_CHECKABLE
             )
-        await self._recurring.revoke_consent(
+        await self._lifecycle.revoke_consent(
             data.subscription_id,
-            channel=PurchaseChannel.CABINET,
+            channel=ADMIN_REVOKE_CHANNEL,
             event_id=f"admin:{actor.id}",
             ip_address=data.client_ip,
         )
-        await self._recurring.disable(data.subscription_id, RecurringReason.ADMIN_CLOSED)
+        await self._lifecycle.disable(data.subscription_id, RecurringReason.ADMIN_CLOSED)

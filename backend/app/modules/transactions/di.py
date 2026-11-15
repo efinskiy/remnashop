@@ -14,6 +14,8 @@ from app.modules.transactions.dispatch import (
 from app.modules.transactions.gateways.base import HTTP_TIMEOUT_S, PaymentHttpClient
 from app.modules.transactions.gateways.factory import PaymentGatewayFactory
 from app.modules.transactions.recurring_admin_repository import RecurringPaymentAdminRepository
+from app.modules.transactions.recurring_lifecycle import RecurringLifecycle
+from app.modules.transactions.recurring_poller import RecurringPoller
 from app.modules.transactions.recurring_repository import RecurringPaymentRepository
 from app.modules.transactions.repository import TransactionRepository
 from app.modules.transactions.stats_repository import TransactionStatsRepository
@@ -44,7 +46,7 @@ from app.modules.transactions.usecases import (
     MarkOrderFulfilledUseCase,
     NotifyPaymentWaitlistUseCase,
     PreviewRefundUseCase,
-    ProcessRecurringPaymentsUseCase,
+    ProcessRecurringPaymentUseCase,
     PruneExpiredTransactionsUseCase,
     QuoteCheckoutUseCase,
     RateUnratedAnchorAmountsUseCase,
@@ -53,6 +55,7 @@ from app.modules.transactions.usecases import (
     SetOwnRecurringPaymentUseCase,
     ValidateStarsPreCheckoutUseCase,
 )
+from app.modules.transactions.usecases.check_recurring_payment import CheckRecurringPaymentUseCase
 from app.modules.transactions.usecases.get_recurring_terms import GetCheckoutRecurringTermsUseCase
 from app.modules.transactions.usecases.list_recurring_payments import ListRecurringPaymentsUseCase
 from app.modules.transactions.usecases.manage_recurring_payment import ManageRecurringPaymentUseCase
@@ -64,7 +67,9 @@ class TransactionsProvider(Provider):
 
     transaction_repository = provide(TransactionRepository)
     recurring_repository = provide(RecurringPaymentRepository)
-    recurring_closer = alias(source=RecurringPaymentRepository, provides=RecurringPaymentCloser)
+    recurring_lifecycle = provide(RecurringLifecycle)
+    recurring_poller = provide(RecurringPoller)
+    recurring_closer = alias(source=RecurringLifecycle, provides=RecurringPaymentCloser)
     recurring_admin_repository = provide(RecurringPaymentAdminRepository)
     transaction_stats_repository = provide(TransactionStatsRepository)
     waitlist_repository = provide(WaitlistRepository)
@@ -81,7 +86,8 @@ class TransactionsProvider(Provider):
         GetCheckoutRecurringTermsUseCase,
         GetOwnRecurringPaymentUseCase,
         SetOwnRecurringPaymentUseCase,
-        ProcessRecurringPaymentsUseCase,
+        ProcessRecurringPaymentUseCase,
+        CheckRecurringPaymentUseCase,
         QuoteCheckoutUseCase,
         RateUnratedAnchorAmountsUseCase,
         CreateTestPaymentUseCase,

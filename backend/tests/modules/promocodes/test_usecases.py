@@ -73,12 +73,12 @@ from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.usecases import PurchaseSubscriptionUseCase
 from app.modules.transactions.dto import CreateTransactionDto
-from app.modules.transactions.recurring_repository import RecurringPaymentRepository
 from app.modules.transactions.repository import TransactionRepository
 from app.modules.users.dto import CreateUserDto, UpdateUserDto, UserDto
 from app.modules.users.repository import UserRepository
 from tests.fakes.dispatch import RecordingDispatch
 from tests.fakes.events import RecordingEventPublisher
+from tests.fakes.recurring import make_recurring_lifecycle
 from tests.modules.subscriptions.factories import (
     make_eligibility,
     make_plan_snapshot,
@@ -468,7 +468,7 @@ def _activate_use_case(
         UserRepository(subscription_repository.session),
         AppConfig.get(),
         SettingsRepository(subscription_repository.session),
-        recurring_closer=RecurringPaymentRepository(subscription_repository.session),
+        recurring_closer=make_recurring_lifecycle(subscription_repository.session),
     )
     return ActivatePromocodeUseCase(
         promocode_repository,
@@ -1034,7 +1034,7 @@ async def test_activate_duration_reward_extends_subscription_expiry(
         UserRepository(subscription_repository.session),
         AppConfig.get(),
         SettingsRepository(subscription_repository.session),
-        recurring_closer=RecurringPaymentRepository(subscription_repository.session),
+        recurring_closer=make_recurring_lifecycle(subscription_repository.session),
     )
     subscription = await purchase_use_case(
         actor,
@@ -1111,7 +1111,7 @@ async def test_activate_traffic_reward_dispatches_the_addon_grant(
         UserRepository(subscription_repository.session),
         AppConfig.get(),
         SettingsRepository(subscription_repository.session),
-        recurring_closer=RecurringPaymentRepository(subscription_repository.session),
+        recurring_closer=make_recurring_lifecycle(subscription_repository.session),
     )
     subscription = await purchase_use_case(
         actor,

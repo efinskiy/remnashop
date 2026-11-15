@@ -13,6 +13,7 @@ from app.core.usecase import UseCase
 from app.modules.gateways import GatewayRepository
 from app.modules.subscriptions import SubscriptionRepository, get_owned_target
 from app.modules.transactions.recurring_dto import RecurringPaymentState, SetRecurringPaymentDto
+from app.modules.transactions.recurring_lifecycle import RecurringLifecycle
 from app.modules.transactions.recurring_policy import (
     RecurringState,
     RetryKind,
@@ -150,11 +151,13 @@ class SetOwnRecurringPaymentUseCase(
     def __init__(
         self,
         recurring_repository: RecurringPaymentRepository,
+        recurring_lifecycle: RecurringLifecycle,
         subscription_repository: SubscriptionRepository,
         get_own_recurring_payment: GetOwnRecurringPaymentUseCase,
         uow: UnitOfWork,
     ) -> None:
         self._recurring = recurring_repository
+        self._lifecycle = recurring_lifecycle
         self._subscriptions = subscription_repository
         self._get_state = get_own_recurring_payment
         self._uow = uow
@@ -176,9 +179,9 @@ class SetOwnRecurringPaymentUseCase(
             await self._recurring.get(data.subscription_id, for_update=True)
             consent_id = None
             if data.enabled and state.terms is not None:
-                await self._recurring.revoke_consent(
+                await self._lifecycle.revoke_consent(
                     data.subscription_id,
-                    channel=data.channel,
+                    channel=data.channel.value,
                     event_id=data.event_id,
                     ip_address=data.client_ip,
                 )
@@ -190,13 +193,13 @@ class SetOwnRecurringPaymentUseCase(
                     ip_address=data.client_ip,
                 )
             else:
-                await self._recurring.revoke_consent(
+                await self._lifecycle.revoke_consent(
                     data.subscription_id,
-                    channel=data.channel,
+                    channel=data.channel.value,
                     event_id=data.event_id,
                     ip_address=data.client_ip,
                 )
-            await self._recurring.set_enabled(
+            await self._lifecycle.set_enabled(
                 data.subscription_id, data.enabled, consent_id=consent_id
             )
         logger.info(

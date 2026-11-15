@@ -6,8 +6,10 @@ from app.core.enums import Role, TransactionStatus
 from app.core.exceptions import ConflictError, PermissionDeniedError, ValidationError
 from app.modules.transactions.recurring_admin import ManageRecurringPaymentDto
 from app.modules.transactions.recurring_dto import SetRecurringPaymentDto
+from app.modules.transactions.usecases.check_recurring_payment import CheckRecurringPaymentUseCase
 from app.modules.transactions.usecases.manage_recurring_payment import ManageRecurringPaymentUseCase
 from app.modules.users.dto import CreateUserDto
+from tests.fakes.recurring import fulfil
 from tests.modules.transactions import test_recurring_payments as cases
 
 case = cases.case
@@ -28,10 +30,13 @@ async def manager(
         )
     return ManageRecurringPaymentUseCase(
         case.repository,
+        case.lifecycle,
         transaction_repository,
         subscription_repository,
         user_repository,
-        case.worker,
+        CheckRecurringPaymentUseCase(
+            case.repository, transaction_repository, case.worker._poller, uow
+        ),
         event_publisher,
         uow,
     ), operator
@@ -55,7 +60,7 @@ async def test_operator_checks_a_timed_out_payment_without_starting_a_new_charge
     await case.worker.system()
     before = await case.repository.get(case.subscription.id)
     async with uow:
-        await case.repository.pause(case.subscription.id, "pending_timeout")
+        await case.lifecycle.pause(case.subscription.id, "pending_timeout")
     case.provider.status = "succeeded"
     await action(
         operator,
@@ -97,11 +102,11 @@ async def test_operator_close_revokes_consent_but_preserves_a_late_paid_fulfillm
     assert order.status is TransactionStatus.FAILED
     case.provider.status = "succeeded"
     async with uow:
-        gateway = await case.worker._gateway()
-    await case.worker._poll(case.subscription.id, order, gateway)
+        gateway = await case.worker._poller.gateway()
+    await case.worker._poller.poll(case.subscription.id, order, gateway)
     assert (await transaction_repository.get_by_id(order.id)).status is TransactionStatus.PAID
     async with uow:
-        await transaction_repository.mark_fulfilled(order.id, case.subscription.id)
+        await fulfil(transaction_repository.session, order.id, case.subscription.id)
     state = await case.get_state(case.user, case.subscription.id)
     assert not state.enabled and not state.can_disable and state.available
     assert (await case.repository.get(case.subscription.id)).submitted_at is None
@@ -209,8 +214,8 @@ async def test_late_verified_cancellation_resolves_operator_closed_payment_witho
     case.provider.status = "canceled"
     order = await transaction_repository.get_by_id(before.pending_transaction_id)
     async with uow:
-        gateway = await case.worker._gateway()
-    await case.worker._poll(case.subscription.id, order, gateway)
+        gateway = await case.worker._poller.gateway()
+    await case.worker._poller.poll(case.subscription.id, order, gateway)
     after = await case.repository.get(case.subscription.id)
     assert after.submitted_at is None and not after.enabled
     assert after.last_error == "admin_closed"

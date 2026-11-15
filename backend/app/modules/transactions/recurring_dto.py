@@ -5,11 +5,12 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-from app.core.enums import PurchaseChannel
+from app.core.enums import Currency, PaymentGatewayType, PurchaseChannel, TransactionStatus
 from app.modules.transactions.recurring_terms import RecurringTerms
 
 
-@dataclass(frozen=True, kw_only=True)
+# mutable: recurring_transitions edits a copy, the repository writes the changed fields
+@dataclass(kw_only=True)
 class RecurringPaymentDto:
     subscription_id: int
     source_transaction_id: Optional[int]
@@ -30,6 +31,29 @@ class RecurringPaymentDto:
     next_attempt_at: Optional[datetime] = None
     leased_until: Optional[datetime] = None
     bank_retry_at: Optional[datetime] = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class ConsentFacts:
+    id: int
+    owner_user_id: int
+    revoked: bool
+    accepted_at: datetime
+
+
+@dataclass(frozen=True, kw_only=True)
+class PaidOrderFacts:
+    id: int
+    user_id: int
+    status: TransactionStatus
+    gateway_type: PaymentGatewayType
+    is_test: bool
+    is_recurring: bool
+    recurring_consent_id: Optional[int]
+    saved_payment_method_id: Optional[str] = field(repr=False)
+    payment_method_shop_id: Optional[str]
+    final_price: Decimal
+    currency: Currency
 
 
 class RecurringPaymentState(BaseModel):

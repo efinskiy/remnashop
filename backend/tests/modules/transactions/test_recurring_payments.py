@@ -2,13 +2,14 @@ import json
 from dataclasses import dataclass, fields, replace
 from datetime import timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, Optional
 from uuid import uuid4
 
 import httpx
 import pytest
 from sqlalchemy import func, select, text, update
 
+from app.core.config import AppConfig
 from app.core.db.models import RecurringConsent, RecurringPayment, Subscription, Transaction
 from app.core.enums import (
     Currency,
@@ -39,24 +40,28 @@ from app.modules.transactions.dto import (
     CreateTransactionDto,
     HandleWebhookDto,
     MarkOrderFulfilledDto,
+    ProcessRecurringPaymentDto,
     WebhookRequest,
 )
 from app.modules.transactions.gateways.base import PaymentHttpClient
 from app.modules.transactions.gateways.factory import PaymentGatewayFactory
 from app.modules.transactions.recurring_dto import SetRecurringPaymentDto
+from app.modules.transactions.recurring_lifecycle import RecurringLifecycle
+from app.modules.transactions.recurring_poller import RecurringPoller
 from app.modules.transactions.recurring_repository import RecurringPaymentRepository
 from app.modules.transactions.recurring_terms import build_recurring_terms
 from app.modules.transactions.usecases import (
     GetOwnRecurringPaymentUseCase,
     HandlePaymentWebhookUseCase,
     MarkOrderFulfilledUseCase,
-    ProcessRecurringPaymentsUseCase,
+    ProcessRecurringPaymentUseCase,
     SetOwnRecurringPaymentUseCase,
 )
 from app.modules.users.dto import CreateUserDto
 from tests.fakes.dispatch import RecordingDispatch
 from tests.fakes.events import RecordingEventPublisher
 from tests.fakes.payment_texts import FixedPaymentTexts
+from tests.fakes.recurring import fulfil, make_recurring_lifecycle
 from tests.fakes.remnawave import _user_payload
 from tests.modules.subscriptions.factories import make_eligibility
 
@@ -108,10 +113,48 @@ class _YooKassa:
         return [request for request in self.requests if request.method == "POST"]
 
 
+class _Worker:
+    """The scheduler's fan-out in one call: every due mandate, then each of them."""
+
+    def __init__(
+        self,
+        use_case: ProcessRecurringPaymentUseCase,
+        lifecycle: RecurringLifecycle,
+        repository: RecurringPaymentRepository,
+        uow: Any,
+        config: AppConfig,
+    ) -> None:
+        self.use_case = use_case
+        self._lifecycle = lifecycle
+        self._repository = repository
+        self._uow = uow
+        self._config = config
+
+    async def system(self, subscription_id: Optional[int] = None) -> None:
+        if subscription_id is None:
+            now = datetime_now()
+            async with self._uow:
+                await self._lifecycle.close_overdue(now, limit=1000)
+                ids = await self._repository.list_due(
+                    now,
+                    due_before=now
+                    + timedelta(minutes=max(1440, self._config.recurring.notice_lead_minutes)),
+                    limit=1000,
+                )
+        else:
+            ids = [subscription_id]
+        for due in ids:
+            await self.use_case.system(ProcessRecurringPaymentDto(subscription_id=due))
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.use_case, name)
+
+
 @dataclass
 class _Case:
-    worker: ProcessRecurringPaymentsUseCase
+    worker: _Worker
     repository: RecurringPaymentRepository
+    lifecycle: RecurringLifecycle
     get_state: GetOwnRecurringPaymentUseCase
     set_state: SetOwnRecurringPaymentUseCase
     user: Any
@@ -225,7 +268,7 @@ async def case(
         )
         await transaction_repository.mark_status(source.id, TransactionStatus.PAID)
         await transaction_repository.remember_payment_method(source.id, "method-token", "1000")
-        await transaction_repository.mark_fulfilled(source.id, subscription.id)
+        await fulfil(transaction_repository.session, source.id, subscription.id)
         # The original purchase predates the renewal cycle, as it does in production.
         paid_at = datetime_now() - timedelta(days=30)
         await session.execute(
@@ -234,14 +277,26 @@ async def case(
             .values(created_at=paid_at, updated_at=paid_at, fulfilled_at=paid_at)
         )
     repository = RecurringPaymentRepository(session)
+    lifecycle = make_recurring_lifecycle(transaction_repository.session)
     provider = _YooKassa()
     dispatch = RecordingDispatch()
     get_state = GetOwnRecurringPaymentUseCase(
         repository, transaction_repository, subscription_repository, gateway_repository, uow, config
     )
     async with httpx.AsyncClient(transport=httpx.MockTransport(provider)) as http:
-        worker = ProcessRecurringPaymentsUseCase(
+        poller = RecurringPoller(
             repository,
+            lifecycle,
+            transaction_repository,
+            gateway_repository,
+            PaymentGatewayFactory(config, PaymentHttpClient(http)),
+            dispatch,
+            uow,
+        )
+        use_case = ProcessRecurringPaymentUseCase(
+            repository,
+            lifecycle,
+            poller,
             transaction_repository,
             subscription_repository,
             user_repository,
@@ -257,17 +312,18 @@ async def case(
                 subscription_repository,
                 settings_repository,
             ),
-            PaymentGatewayFactory(config, PaymentHttpClient(http)),
-            dispatch,
             uow,
             config,
             FixedPaymentTexts(),
         )
         yield _Case(
-            worker,
+            _Worker(use_case, lifecycle, repository, uow, config),
             repository,
+            lifecycle,
             get_state,
-            SetOwnRecurringPaymentUseCase(repository, subscription_repository, get_state, uow),
+            SetOwnRecurringPaymentUseCase(
+                repository, lifecycle, subscription_repository, get_state, uow
+            ),
             user,
             subscription,
             source,
@@ -278,7 +334,7 @@ async def case(
 
 async def _tick_again(case: _Case, uow) -> None:
     async with uow:
-        await case.repository.defer(case.subscription.id, datetime_now() - timedelta(seconds=1))
+        await case.lifecycle.defer(case.subscription.id, datetime_now() - timedelta(seconds=1))
     await case.worker.system()
 
 
@@ -463,8 +519,8 @@ async def test_fulfillment_moves_the_cycle_and_preserves_customer_opt_out(
             .where(Subscription.id == case.subscription.id)
             .values(expire_at=datetime_now() + timedelta(days=30))
         )
-        await transaction_repository.mark_fulfilled(
-            mandate.pending_transaction_id, case.subscription.id
+        await fulfil(
+            transaction_repository.session, mandate.pending_transaction_id, case.subscription.id
         )
     await _tick_again(case, uow)
     assert len(case.provider.posts) == 1
@@ -488,7 +544,7 @@ async def test_delayed_manual_fulfillment_cannot_reenable_a_canceled_subscriptio
         case.user, SetRecurringPaymentDto(subscription_id=case.subscription.id, enabled=False)
     )
     async with uow:
-        await transaction_repository.mark_fulfilled(case.source.id, case.subscription.id)
+        await fulfil(transaction_repository.session, case.source.id, case.subscription.id)
     state = await case.get_state(case.user, case.subscription.id)
     assert not state.enabled and state.customer_disabled
     await case.worker.system()
@@ -517,8 +573,8 @@ async def test_new_cycle_waits_for_fulfillment_and_current_subscription_expiry(
             .where(Subscription.id == case.subscription.id)
             .values(expire_at=datetime_now() + timedelta(days=30))
         )
-        await transaction_repository.mark_fulfilled(
-            mandate.pending_transaction_id, case.subscription.id
+        await fulfil(
+            transaction_repository.session, mandate.pending_transaction_id, case.subscription.id
         )
     await _tick_again(case, uow)
     assert len(case.provider.posts) == 1
@@ -565,7 +621,9 @@ async def test_recurring_payment_runs_the_real_subscription_fulfillment_once(
     second = await subscription_repository.get_by_id(case.subscription.id)
     assert first.expire_at > case.subscription.expire_at + timedelta(days=29)
     assert second.expire_at == first.expire_at
-    await MarkOrderFulfilledUseCase(transaction_repository, uow).system(
+    await MarkOrderFulfilledUseCase(
+        transaction_repository, uow, make_recurring_lifecycle(transaction_repository.session)
+    ).system(
         MarkOrderFulfilledDto(
             payment_key=case.dispatch.messages[0]["idempotency_key"], subscription_id=first.id
         )
@@ -732,7 +790,7 @@ async def _manual_renewal(case, transaction_repository, session, uow, *, consent
             .where(Subscription.id == case.subscription.id)
             .values(expire_at=datetime_now() + timedelta(days=30))
         )
-        await transaction_repository.mark_fulfilled(order.id, case.subscription.id)
+        await fulfil(transaction_repository.session, order.id, case.subscription.id)
     return await transaction_repository.get_by_id(order.id)
 
 
@@ -788,7 +846,7 @@ async def test_manual_payment_releases_an_aged_unknown_pending_order(
 ) -> None:
     await _lose_recurring_payment(case, session, uow)
     async with uow:
-        await case.repository.disable(case.subscription.id, "payment_status_unknown")
+        await case.lifecycle.disable(case.subscription.id, "payment_status_unknown")
     await _manual_renewal(case, transaction_repository, session, uow)
     mandate = await case.repository.get(case.subscription.id)
     assert mandate.pending_transaction_id is None
@@ -801,7 +859,7 @@ async def test_unknown_retirement_rolls_back_the_order_and_mandate_together(
     old_id = await _lose_recurring_payment(case, session, uow)
     with pytest.raises(RuntimeError, match="rollback"):
         async with uow:
-            retired = await case.repository.retire_pending(case.subscription.id, old_id)
+            retired = await case.lifecycle.retire_pending(case.subscription.id, old_id)
             assert retired
             raise RuntimeError("rollback")
     mandate = await case.repository.get(case.subscription.id)
@@ -860,11 +918,12 @@ async def test_late_success_of_retired_order_cannot_clear_the_new_cycle(
     handler = HandlePaymentWebhookUseCase(
         transaction_repository,
         gateway_repository,
-        case.worker._factory,
+        case.worker._poller._factory,
         user_repository,
         RecordingEventPublisher(),
         uow,
         case.dispatch,
+        make_recurring_lifecycle(transaction_repository.session),
     )
     case.provider.status = "succeeded"
     notification = HandleWebhookDto(
@@ -885,7 +944,7 @@ async def test_late_success_of_retired_order_cannot_clear_the_new_cycle(
     assert (await transaction_repository.get_by_id(old_id)).status is TransactionStatus.PAID
     assert len(case.dispatch.messages) == 1
     async with uow:
-        await transaction_repository.mark_fulfilled(old_id, case.subscription.id)
+        await fulfil(transaction_repository.session, old_id, case.subscription.id)
     after = await case.repository.get(case.subscription.id)
     assert after.pending_transaction_id == active.pending_transaction_id
     assert after.source_transaction_id == manual.id
