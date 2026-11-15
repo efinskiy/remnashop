@@ -54,6 +54,7 @@ from app.modules.transactions.usecases import (
     RefundTransactionUseCase,
     SetOwnRecurringPaymentUseCase,
     ValidateStarsPreCheckoutUseCase,
+    WipeStalePaymentMethodsUseCase,
 )
 from app.modules.transactions.usecases.check_recurring_payment import CheckRecurringPaymentUseCase
 from app.modules.transactions.usecases.get_recurring_terms import GetCheckoutRecurringTermsUseCase
@@ -88,6 +89,7 @@ class TransactionsProvider(Provider):
         SetOwnRecurringPaymentUseCase,
         ProcessRecurringPaymentUseCase,
         CheckRecurringPaymentUseCase,
+        WipeStalePaymentMethodsUseCase,
         QuoteCheckoutUseCase,
         RateUnratedAnchorAmountsUseCase,
         CreateTestPaymentUseCase,

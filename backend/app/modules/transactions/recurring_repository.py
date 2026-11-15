@@ -242,6 +242,19 @@ class RecurringPaymentRepository:
             .values(subscription_id=subscription_id)
         )
 
+    async def wipe_stale_methods(self, before: datetime) -> int:
+        result = await self.session.execute(
+            update(RecurringPayment)
+            .where(
+                RecurringPayment.customer_disabled.is_(True),
+                RecurringPayment.disabled_at < before,
+                RecurringPayment.pending_transaction_id.is_(None),
+                RecurringPayment.payment_method_id.is_not(None),
+            )
+            .values(payment_method_id=None)
+        )
+        return int(result.rowcount or 0)  # type: ignore[attr-defined]
+
     async def mark_submitted(self, subscription_id: int) -> datetime:
         token = await self.session.scalar(
             update(RecurringPayment)

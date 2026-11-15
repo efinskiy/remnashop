@@ -23,6 +23,7 @@ from app.modules.transactions.usecases import (
     ProcessRecurringPaymentUseCase,
     PruneExpiredTransactionsUseCase,
     ReconcilePaidTransactionsUseCase,
+    WipeStalePaymentMethodsUseCase,
 )
 
 _RECONCILE_LOCK_TTL_S: Final[int] = 14 * 60
@@ -43,6 +44,14 @@ async def process_one_recurring_payment_task(
     use_case: FromDishka[ProcessRecurringPaymentUseCase],
 ) -> None:
     await use_case.system(ProcessRecurringPaymentDto(subscription_id=subscription_id))
+
+
+@broker.task(schedule=[{"cron": "30 4 * * *"}])
+@inject(patch_module=True)
+async def wipe_stale_payment_methods_task(
+    use_case: FromDishka[WipeStalePaymentMethodsUseCase],
+) -> None:
+    await use_case.system()
 
 
 @broker.task(schedule=[{"cron": "*/10 * * * *"}])

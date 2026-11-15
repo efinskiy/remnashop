@@ -32,6 +32,7 @@ from app.modules.gateways.gateway_settings import (
     WataSettings,
     YooKassaSettings,
     YooMoneySettings,
+    yookassa_payment_mode,
 )
 from app.modules.gateways.repository import GatewayRepository
 
@@ -68,4 +69,5 @@ __all__ = [
     "gateway_flags",
     "get_gateways_providers",
     "is_gateway_configured",
+    "yookassa_payment_mode",
 ]

@@ -101,7 +101,7 @@ class RecurringReason(StrEnum):
         return _REASON_POLICIES[self]
 
 
-_BANK = ReasonPolicy(RetryKind.BANK, attention=False, block_enable=False)
+_BANK = ReasonPolicy(RetryKind.BANK, admin_notice=False, attention=False, block_enable=False)
 _TECHNICAL = ReasonPolicy(RetryKind.TECHNICAL, customer_notice=False)
 _TERMINAL = ReasonPolicy(RetryKind.NONE, terminal=True)
 _REASON_POLICIES: Final[dict[RecurringReason, ReasonPolicy]] = {

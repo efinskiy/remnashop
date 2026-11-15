@@ -51,6 +51,9 @@ from app.modules.transactions.usecases.refund_transaction import RefundTransacti
 from app.modules.transactions.usecases.validate_stars_pre_checkout import (
     ValidateStarsPreCheckoutUseCase,
 )
+from app.modules.transactions.usecases.wipe_stale_payment_methods import (
+    WipeStalePaymentMethodsUseCase,
+)
 
 __all__ = [
     "CheckTransactionPaymentUseCase",
@@ -84,4 +87,5 @@ __all__ = [
     "RefundTransactionUseCase",
     "SetOwnRecurringPaymentUseCase",
     "ValidateStarsPreCheckoutUseCase",
+    "WipeStalePaymentMethodsUseCase",
 ]
