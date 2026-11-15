@@ -148,7 +148,6 @@ class TransactionRepository:
             fulfilled_subscription_id=row.fulfilled_subscription_id,
             is_test=row.is_test,
             recurring_consent_id=row.recurring_consent_id,
-            recurring_consent=row.recurring_consent,
             is_recurring=row.is_recurring,
             yookassa_receipt_vat_code=row.yookassa_receipt_vat_code,
             saved_payment_method_id=row.saved_payment_method_id,

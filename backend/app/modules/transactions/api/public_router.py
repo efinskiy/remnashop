@@ -1,5 +1,3 @@
-from typing import Optional
-
 from dishka import FromDishka
 from dishka.integrations.fastapi import inject
 from fastapi import APIRouter, Depends, Query, Request, status
@@ -11,6 +9,7 @@ from app.core.enums import PurchaseChannel, SessionAudience
 from app.core.utils.http import resolve_client_ip
 from app.modules.transactions.api.schemas import (
     CheckoutQuoteResponse,
+    CheckoutRecurringTermsResponse,
     CheckoutResponse,
     CreateCheckoutRequest,
     OwnTransactionListResponse,
@@ -18,6 +17,7 @@ from app.modules.transactions.api.schemas import (
     PaymentMethodListResponse,
     PaymentMethodResponse,
     QuoteCheckoutRequest,
+    RecurringPaymentStateResponse,
     SetRecurringPaymentRequest,
 )
 from app.modules.transactions.dto import (
@@ -25,8 +25,7 @@ from app.modules.transactions.dto import (
     ListOwnTransactionsDto,
     QuoteCheckoutDto,
 )
-from app.modules.transactions.recurring_dto import RecurringPaymentState, SetRecurringPaymentDto
-from app.modules.transactions.recurring_terms import RecurringTerms
+from app.modules.transactions.recurring_dto import SetRecurringPaymentDto
 from app.modules.transactions.usecases import (
     CreateCheckoutUseCase,
     GetCheckoutRecurringTermsUseCase,
@@ -47,7 +46,7 @@ router = APIRouter(tags=["transactions"])
 
 @router.get(
     "/subscriptions/me/{subscription_id:int}/auto-renew",
-    response_model=RecurringPaymentState,
+    response_model=RecurringPaymentStateResponse,
     responses=error_responses(400, 404),
 )
 @inject
@@ -55,13 +54,14 @@ async def get_own_recurring_payment(
     subscription_id: int,
     use_case: FromDishka[GetOwnRecurringPaymentUseCase],
     actor: UserDto = Depends(get_current_user),
-) -> RecurringPaymentState:
-    return await use_case(actor, subscription_id)
+) -> RecurringPaymentStateResponse:
+    state = await use_case(actor, subscription_id)
+    return RecurringPaymentStateResponse.model_validate(state, from_attributes=True)
 
 
 @router.put(
     "/subscriptions/me/{subscription_id:int}/auto-renew",
-    response_model=RecurringPaymentState,
+    response_model=RecurringPaymentStateResponse,
     responses=error_responses(400, 404),
 )
 @inject
@@ -71,8 +71,8 @@ async def set_own_recurring_payment(
     request: Request,
     use_case: FromDishka[SetOwnRecurringPaymentUseCase],
     actor: UserDto = Depends(get_current_user),
-) -> RecurringPaymentState:
-    return await use_case(
+) -> RecurringPaymentStateResponse:
+    state = await use_case(
         actor,
         SetRecurringPaymentDto(
             subscription_id=subscription_id,
@@ -82,6 +82,7 @@ async def set_own_recurring_payment(
             client_ip=resolve_client_ip(request),
         ),
     )
+    return RecurringPaymentStateResponse.model_validate(state, from_attributes=True)
 
 
 @router.post(
@@ -124,7 +125,7 @@ async def create_checkout(
 
 @router.post(
     "/checkout/recurring-terms",
-    response_model=Optional[RecurringTerms],
+    response_model=CheckoutRecurringTermsResponse,
     responses=error_responses(400, 404),
 )
 @inject
@@ -132,8 +133,8 @@ async def checkout_recurring_terms(
     payload: CreateCheckoutRequest,
     use_case: FromDishka[GetCheckoutRecurringTermsUseCase],
     actor: UserDto = Depends(get_current_user),
-) -> Optional[RecurringTerms]:
-    return await use_case(
+) -> CheckoutRecurringTermsResponse:
+    terms = await use_case(
         actor,
         CreateCheckoutDto(
             plan_id=payload.plan_id,
@@ -147,6 +148,7 @@ async def checkout_recurring_terms(
             legal_locale=payload.legal_locale,
         ),
     )
+    return CheckoutRecurringTermsResponse.model_validate({"terms": terms}, from_attributes=True)
 
 
 @router.post(

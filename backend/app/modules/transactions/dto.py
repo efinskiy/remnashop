@@ -86,7 +86,6 @@ class TransactionDto(BaseDto, TimestampMixin):
     fulfilled_subscription_id: Optional[int] = None
     is_test: bool = False
     recurring_consent_id: Optional[int] = None
-    recurring_consent: bool = False
     is_recurring: bool = False
     yookassa_receipt_vat_code: Optional[int] = None
     # only from an authenticated provider status response; never leaves the API
@@ -126,7 +125,6 @@ class CreateTransactionDto:
     previous_plan_snapshot: Optional[PlanSnapshot] = None
     is_test: bool = False
     recurring_consent_id: Optional[int] = None
-    recurring_consent: bool = False
     is_recurring: bool = False
     yookassa_receipt_vat_code: Optional[int] = None
     change_credit: Decimal = ZERO_AMOUNT

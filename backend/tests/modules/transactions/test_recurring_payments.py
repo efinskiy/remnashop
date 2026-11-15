@@ -286,7 +286,6 @@ async def case(
                 customer_email="buyer@example.com",
                 idempotency_key=uuid4().hex,
                 expires_at=datetime_now(),
-                recurring_consent=True,
                 recurring_consent_id=consent_id,
             )
         )
@@ -790,7 +789,6 @@ async def _manual_renewal(case, transaction_repository, session, uow, *, consent
         plan_snapshot=replace(case.source.plan_snapshot, price_paid=Decimal("500")),
     )
     async with uow:
-        values["recurring_consent"] = consent
         values["recurring_consent_id"] = (
             await case.repository.record_consent(
                 await build_recurring_terms(

@@ -30,15 +30,15 @@ class UpdateGatewaySettingsUseCase(UseCase[UpdateGatewaySettingsDto, PaymentGate
     async def _execute(self, actor: Actor, data: UpdateGatewaySettingsDto) -> PaymentGatewayDto:
         validate_gateway_field_keys(data.type, data.values)
         validate_gateway_field_values(data.type, data.values)
-        values = dict(data.values)
+
         async with self._uow:
-            gateway = await self._gateway_repository.update_settings(data.type, values)
+            gateway = await self._gateway_repository.update_settings(data.type, data.values)
             await self._event_publisher.publish(
                 GatewayChangedEvent(
                     actor=actor,
                     action="settings",
                     gateway_type=data.type,
-                    changed_fields=sorted(values),
+                    changed_fields=sorted(data.values),
                 )
             )
         logger.info(f"{actor.log} Updated settings of gateway '{data.type.value}'")

@@ -296,7 +296,6 @@ class ProcessRecurringPaymentUseCase(UseCase[ProcessRecurringPaymentDto, None]):
                     customer_email=customer_email,
                     idempotency_key=uuid4().hex,
                     expires_at=now + SAFE_REPOST_WINDOW,
-                    recurring_consent=True,
                     recurring_consent_id=current.consent_id,
                     is_recurring=True,
                     yookassa_receipt_vat_code=int(vat_code) if vat_code is not None else None,

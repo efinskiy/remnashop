@@ -105,7 +105,9 @@ class YooKassaGateway(PaymentGateway[YooKassaSettings]):
         body["confirmation"] = {"type": "redirect", "return_url": self._return_url}
         # Explicit false also suppresses YooKassa's conditional-save checkbox.
         body["save_payment_method"] = (
-            self.settings.recurring_enabled and order.recurring_consent and not order.is_test
+            self.settings.recurring_enabled
+            and order.recurring_consent_id is not None
+            and not order.is_test
         )
 
         data = await self._post_payment(order, body)

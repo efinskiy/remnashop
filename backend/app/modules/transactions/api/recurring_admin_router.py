@@ -9,12 +9,14 @@ from app.api.errors import error_responses
 from app.core.actor import Actor
 from app.core.constants import DEFAULT_PAGE_SIZE, INT32_MAX, MAX_PAGE_SIZE, SEARCH_MAX_LENGTH
 from app.core.utils.http import resolve_client_ip
-from app.modules.transactions.api.schemas import ManageRecurringPaymentRequest
+from app.modules.transactions.api.schemas import (
+    ManageRecurringPaymentRequest,
+    RecurringPaymentAdminPageResponse,
+)
 from app.modules.transactions.recurring_admin import (
     ListRecurringPaymentsDto,
     ManageRecurringPaymentDto,
     RecurringAction,
-    RecurringPaymentAdminPage,
 )
 from app.modules.transactions.recurring_policy import RecurringState
 from app.modules.transactions.usecases.list_recurring_payments import ListRecurringPaymentsUseCase
@@ -23,7 +25,7 @@ from app.modules.transactions.usecases.manage_recurring_payment import ManageRec
 router = APIRouter()
 
 
-@router.get("/recurring", response_model=RecurringPaymentAdminPage, responses=error_responses(403))
+@router.get("/recurring", response_model=RecurringPaymentAdminPageResponse)
 @inject
 async def list_recurring_payments(
     use_case: FromDishka[ListRecurringPaymentsUseCase],
@@ -32,25 +34,20 @@ async def list_recurring_payments(
     search: Optional[str] = Query(None, max_length=SEARCH_MAX_LENGTH),
     page: int = Query(1, ge=1),
     page_size: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
-) -> RecurringPaymentAdminPage:
-    return await use_case(
+) -> RecurringPaymentAdminPageResponse:
+    result = await use_case(
         actor, ListRecurringPaymentsDto(state=state, search=search, page=page, page_size=page_size)
     )
+    return RecurringPaymentAdminPageResponse.model_validate(result, from_attributes=True)
 
 
-@router.post(
-    "/recurring/{subscription_id:int}/actions/{action}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    responses=error_responses(400, 403, 404, 409, 502),
-)
-@inject
-async def manage_recurring_payment(
+async def _manage(
     action: RecurringAction,
+    subscription_id: int,
     data: ManageRecurringPaymentRequest,
     request: Request,
-    use_case: FromDishka[ManageRecurringPaymentUseCase],
-    subscription_id: int = Path(ge=1, le=INT32_MAX),
-    actor: Actor = Depends(require_admin),
+    use_case: ManageRecurringPaymentUseCase,
+    actor: Actor,
 ) -> Response:
     await use_case(
         actor,
@@ -62,3 +59,51 @@ async def manage_recurring_payment(
         ),
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/recurring/{subscription_id:int}/actions/check",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=error_responses(400, 404, 409, 502),
+)
+@inject
+async def check_recurring_payment(
+    data: ManageRecurringPaymentRequest,
+    request: Request,
+    use_case: FromDishka[ManageRecurringPaymentUseCase],
+    subscription_id: int = Path(ge=1, le=INT32_MAX),
+    actor: Actor = Depends(require_admin),
+) -> Response:
+    return await _manage("check", subscription_id, data, request, use_case, actor)
+
+
+@router.post(
+    "/recurring/{subscription_id:int}/actions/close",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=error_responses(400, 404, 409),
+)
+@inject
+async def close_recurring_payment(
+    data: ManageRecurringPaymentRequest,
+    request: Request,
+    use_case: FromDishka[ManageRecurringPaymentUseCase],
+    subscription_id: int = Path(ge=1, le=INT32_MAX),
+    actor: Actor = Depends(require_admin),
+) -> Response:
+    return await _manage("close", subscription_id, data, request, use_case, actor)
+
+
+@router.post(
+    "/recurring/{subscription_id:int}/actions/retry",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=error_responses(400, 404, 409),
+)
+@inject
+async def retry_recurring_payment(
+    data: ManageRecurringPaymentRequest,
+    request: Request,
+    use_case: FromDishka[ManageRecurringPaymentUseCase],
+    subscription_id: int = Path(ge=1, le=INT32_MAX),
+    actor: Actor = Depends(require_admin),
+) -> Response:
+    return await _manage("retry", subscription_id, data, request, use_case, actor)

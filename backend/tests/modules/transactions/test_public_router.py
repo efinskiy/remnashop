@@ -442,13 +442,13 @@ async def test_checkout_requires_explicit_consent_and_records_the_exact_terms(
         f"{API_V1}/checkout/recurring-terms", json=payload, headers=auth_headers
     )
     assert response.status_code == 200
-    terms = response.json()
+    terms = response.json()["terms"]
     assert terms["text"] and terms["amount_limit"] == "500"
     payload.update(recurring_consent=consent, recurring_terms_id=terms["terms_id"])
     response = await client.post(f"{API_V1}/checkout", json=payload, headers=auth_headers)
     assert response.status_code == 201
     order = await session.get(Transaction, response.json()["order_id"])
-    assert order.recurring_consent is consent
+    assert (order.recurring_consent_id is not None) is consent
     assert _YOOKASSA_REQUESTS[-1]["save_payment_method"] is consent
     if consent:
         recorded = await session.get(RecurringConsent, order.recurring_consent_id)
@@ -512,7 +512,7 @@ async def test_replacing_a_recurring_checkout_revokes_its_authorization(
     }
     terms = (
         await client.post(f"{API_V1}/checkout/recurring-terms", json=payload, headers=auth_headers)
-    ).json()
+    ).json()["terms"]
     first = await client.post(
         f"{API_V1}/checkout",
         headers=auth_headers,
@@ -531,7 +531,7 @@ async def test_replacing_a_recurring_checkout_revokes_its_authorization(
     )
     assert consent.revoked_at is not None
     fresh = await session.get(Transaction, second.json()["order_id"])
-    assert not fresh.recurring_consent and fresh.recurring_consent_id is None
+    assert fresh.recurring_consent_id is None
 
 
 @pytest.mark.parametrize(
@@ -570,7 +570,7 @@ async def test_yookassa_payment_mode_enforces_checkout_consent(
         f"{API_V1}/checkout/recurring-terms", json=payload, headers=auth_headers
     )
     assert response.status_code == 200
-    terms = response.json()
+    terms = response.json()["terms"]
     assert (terms is not None) == (mode != "single")
     methods = (await client.get(f"{API_V1}/checkout/methods", headers=auth_headers)).json()["items"]
     method = next(item for item in methods if item["gateway_type"] == "YOOKASSA")

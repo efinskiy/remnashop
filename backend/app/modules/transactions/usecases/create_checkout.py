@@ -257,7 +257,6 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
                 quote,
                 customer_email,
                 previous_plan,
-                recurring_consent=consent_id is not None,
                 recurring_consent_id=consent_id,
             )
             # paying accepts the offer on either channel; the client's locale only picks
@@ -446,7 +445,6 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
         customer_email: Optional[str],
         previous_plan: Optional[PlanSnapshot],
         *,
-        recurring_consent: bool,
         recurring_consent_id: Optional[int],
     ) -> TransactionDto:
         return await self._transaction_repository.create(
@@ -482,7 +480,6 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
                 previous_plan_snapshot=previous_plan,
                 idempotency_key=uuid4().hex,
                 expires_at=datetime_now() + _ORDER_TTL,
-                recurring_consent=recurring_consent,
                 recurring_consent_id=recurring_consent_id,
             )
         )

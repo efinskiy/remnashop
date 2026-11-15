@@ -102,7 +102,6 @@ async def _order(
             target_subscription_id=case.subscription.id,
             plan_id=snapshot.plan_id,
             plan_snapshot=snapshot,
-            recurring_consent=consent,
             recurring_consent_id=consent_id,
         )
         order = await transaction_repository.create(CreateTransactionDto(**values))

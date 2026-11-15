@@ -278,7 +278,7 @@ async def test_yookassa_checkout_never_infers_customer_consent_from_shop_setting
             gateway_type=PaymentGatewayType.YOOKASSA,
         ),
     )
-    assert fake_gateway.create_payment_calls[0].recurring_consent is False
+    assert fake_gateway.create_payment_calls[0].recurring_consent_id is None
 
 
 async def test_checkout_stores_channel(

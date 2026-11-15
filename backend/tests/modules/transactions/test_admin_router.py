@@ -377,7 +377,7 @@ async def test_recurring_management_rejects_unknown_action(client, owner_auth_he
         headers=owner_auth_headers,
         json={"expected_pending_transaction_id": None},
     )
-    assert response.status_code == 422
+    assert response.status_code in {404, 405}
 
 
 async def test_recurring_close_uses_the_pending_order_confirmed_by_the_operator(

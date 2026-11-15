@@ -60,8 +60,6 @@ async def _manual_stars_renewal(case, transaction_repository, session, uow):
             case.source.plan_snapshot, currency=Currency.XTR, price_paid=Decimal("100")
         ),
     )
-    if "recurring_consent" in values:
-        values["recurring_consent"] = False
     async with uow:
         order = await transaction_repository.create(CreateTransactionDto(**values))
         await transaction_repository.mark_status(order.id, TransactionStatus.PAID)
@@ -554,7 +552,6 @@ async def test_paid_manual_renewal_waiting_for_fulfillment_prevents_an_auto_debi
         purchase_type=PurchaseType.RENEW,
         target_subscription_id=case.subscription.id,
         recurring_consent_id=None,
-        recurring_consent=False,
     )
     async with uow:
         order = await transaction_repository.create(CreateTransactionDto(**values))

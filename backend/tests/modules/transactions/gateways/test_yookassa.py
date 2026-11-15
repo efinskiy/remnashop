@@ -274,7 +274,7 @@ async def test_saving_a_method_requires_the_shop_flag_and_a_real_recurring_order
         http=http.client,
     )
     await gateway.create_payment(
-        make_order(recurring_consent=consent, is_test=is_test), PAYMENT_TEXT
+        make_order(recurring_consent_id=1 if consent else None, is_test=is_test), PAYMENT_TEXT
     )
     assert http.last_json()["save_payment_method"] is saved
 
