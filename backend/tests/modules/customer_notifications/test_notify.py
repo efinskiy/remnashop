@@ -5,15 +5,16 @@ from typing import Any, Optional, Union, cast
 
 import pytest
 from redis.asyncio import Redis
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import AppConfig
 from app.core.constants import REDIS_KEY_PREFIX
-from app.core.db.models import CustomerNotification, RecurringPayment
+from app.core.db.models import CustomerNotification, PaymentGateway, RecurringPayment
 from app.core.db.uow import UnitOfWork
 from app.core.enums import (
     Locale,
+    PaymentGatewayType,
     PaymentOutcome,
     PlanType,
     PurchaseChannel,
@@ -31,6 +32,7 @@ from app.modules.customer_notifications.links import customer_url
 from app.modules.customer_notifications.metrics import CUSTOMER_NOTIFICATIONS
 from app.modules.customer_notifications.repository import CustomerNotificationRepository
 from app.modules.customer_notifications.usecases import NotifyCustomerUseCase
+from app.modules.gateways import GatewayRepository
 from app.modules.notifications.dto import PushMessage
 from app.modules.notifications.render import NotificationRenderer
 from app.modules.notifications.repository import NotificationRepository
@@ -145,6 +147,7 @@ class _Fixture:
             config,
             uow,
             RecurringPaymentRepository(orders.session),
+            GatewayRepository(orders.session),
         )
 
     async def create(self, **fields: Any) -> UserDto:
@@ -822,7 +825,14 @@ async def test_a_new_sign_in_offers_to_end_every_session(fx: _Fixture) -> None:
     ]
 
 
-async def _subscription_with_mandate(fx: _Fixture, user: UserDto, *, enabled: bool) -> int:
+async def _subscription_with_mandate(
+    fx: _Fixture,
+    user: UserDto,
+    *,
+    enabled: bool,
+    last_error: Optional[str] = None,
+    payment_mode: str = "both",
+) -> int:
     async with fx.uow:
         plan = await PlanRepository(fx.orders.session).create(
             CreatePlanDto(
@@ -842,8 +852,19 @@ async def _subscription_with_mandate(fx: _Fixture, user: UserDto, *, enabled: bo
     async with fx.uow:
         fx.orders.session.add(
             RecurringPayment(
-                subscription_id=subscription_id, enabled=enabled, next_attempt_at=datetime_now()
+                subscription_id=subscription_id,
+                enabled=enabled,
+                last_error=last_error,
+                next_attempt_at=datetime_now(),
             )
+        )
+        await GatewayRepository(fx.orders.session).update_settings(
+            PaymentGatewayType.YOOKASSA, {"payment_mode": payment_mode}
+        )
+        await fx.orders.session.execute(
+            update(PaymentGateway)
+            .where(PaymentGateway.type == PaymentGatewayType.YOOKASSA)
+            .values(is_active=True)
         )
     return subscription_id
 
@@ -860,6 +881,28 @@ async def test_expiring_reminder_skipped_with_auto_renewal(fx: _Fixture) -> None
 async def test_expiring_reminder_sent_after_mandate_disabled(fx: _Fixture) -> None:
     user = await fx.create(name="manual", telegram_id=8302)
     subscription_id = await _subscription_with_mandate(fx, user, enabled=False)
+
+    await fx.notify(user, "SubscriptionExpiringEvent", subscription_id=subscription_id)
+
+    assert len(fx.telegram.messages) == 1
+
+
+async def test_expiring_reminder_sent_while_auto_renewal_is_paused(fx: _Fixture) -> None:
+    user = await fx.create(name="paused", telegram_id=8303)
+    subscription_id = await _subscription_with_mandate(
+        fx, user, enabled=True, last_error="gateway_disabled"
+    )
+
+    await fx.notify(user, "SubscriptionExpiringEvent", subscription_id=subscription_id)
+
+    assert len(fx.telegram.messages) == 1
+
+
+async def test_expiring_reminder_sent_when_the_shop_turned_auto_renewal_off(fx: _Fixture) -> None:
+    user = await fx.create(name="restored", telegram_id=8304)
+    subscription_id = await _subscription_with_mandate(
+        fx, user, enabled=True, payment_mode="single"
+    )
 
     await fx.notify(user, "SubscriptionExpiringEvent", subscription_id=subscription_id)
 

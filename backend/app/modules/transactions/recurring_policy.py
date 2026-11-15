@@ -104,6 +104,8 @@ class RecurringReason(StrEnum):
 _BANK = ReasonPolicy(RetryKind.BANK, admin_notice=False, attention=False, block_enable=False)
 _TECHNICAL = ReasonPolicy(RetryKind.TECHNICAL, customer_notice=False)
 _TERMINAL = ReasonPolicy(RetryKind.NONE, terminal=True)
+# the customer's own card or bank ended it: the customer acts, not the shop
+_CARD_ENDED = ReasonPolicy(RetryKind.NONE, admin_notice=False, terminal=True)
 _REASON_POLICIES: Final[dict[RecurringReason, ReasonPolicy]] = {
     RecurringReason.CUSTOMER_DISABLED: ReasonPolicy(
         RetryKind.NONE,
@@ -123,10 +125,10 @@ _REASON_POLICIES: Final[dict[RecurringReason, ReasonPolicy]] = {
     RecurringReason.PROVIDER_CONFIGURATION_ERROR: ReasonPolicy(
         RetryKind.NONE, customer_notice=False, terminal=True
     ),
-    RecurringReason.PERMISSION_REVOKED: _TERMINAL,
-    RecurringReason.PAYMENT_METHOD_RESTRICTED: _TERMINAL,
-    RecurringReason.CARD_EXPIRED: _TERMINAL,
-    RecurringReason.FRAUD_SUSPECTED: _TERMINAL,
+    RecurringReason.PERMISSION_REVOKED: _CARD_ENDED,
+    RecurringReason.PAYMENT_METHOD_RESTRICTED: _CARD_ENDED,
+    RecurringReason.CARD_EXPIRED: _CARD_ENDED,
+    RecurringReason.FRAUD_SUSPECTED: _CARD_ENDED,
     RecurringReason.PRICE_CHANGED: ReasonPolicy(RetryKind.TECHNICAL),
     RecurringReason.SUBSCRIPTION_CHANGED: _TERMINAL,
     RecurringReason.SHOP_CHANGED: _TECHNICAL,
@@ -139,7 +141,7 @@ _REASON_POLICIES: Final[dict[RecurringReason, ReasonPolicy]] = {
     ),
     RecurringReason.PAYMENT_STATUS_UNKNOWN: _TERMINAL,
     RecurringReason.PENDING_TIMEOUT: ReasonPolicy(RetryKind.POLL),
-    RecurringReason.RETRIES_EXHAUSTED: _TERMINAL,
+    RecurringReason.RETRIES_EXHAUSTED: _CARD_ENDED,
     RecurringReason.PAYMENT_METHOD_NOT_SAVED: _TERMINAL,
     RecurringReason.RENEWAL_WINDOW_EXPIRED: _TERMINAL,
     RecurringReason.REFUNDED: ReasonPolicy(RetryKind.NONE, customer_notice=False, terminal=True),

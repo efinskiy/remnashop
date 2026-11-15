@@ -296,3 +296,20 @@ async def test_paused_subscription_keeps_the_withdrawal_button(monkeypatch):
     assert result["auto_renew_text"].text == hub.get_translator_by_locale(Locale.EN.value).get(
         "btn-recurring.disable"
     )
+
+
+def test_withdrawal_during_a_sent_payment_says_the_payment_may_complete() -> None:
+    hub = build_translator_hub([Locale.EN], {Locale.EN: seeded_fluent_source(Locale.EN)}, Locale.EN)
+    state = RecurringPaymentState(
+        subscription_id=7,
+        enabled=False,
+        available=True,
+        customer_disabled=True,
+        payment_pending=True,
+        payment_in_flight=True,
+        amount_limit=Decimal("500"),
+        currency="RUB",
+        duration_days=30,
+    )
+    text = _auto_renew_block(state, hub.get_translator_by_locale(Locale.EN.value))
+    assert "sent to YooKassa" in text

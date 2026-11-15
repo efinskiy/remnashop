@@ -654,7 +654,7 @@ frg-purchase-recurring-required = This payment method is available with auto-ren
 
 frg-subscription-recurring-retrying = <b>Auto-renewal enabled, awaiting another payment attempt</b>: up to { $amount } { $currency } every { $days } days.
 frg-subscription-recurring-pending = <b>Automatic payment is being processed</b>. Awaiting YooKassa confirmation. Disabling stops new charges; a submitted payment may still complete.
-frg-subscription-recurring-in-flight = <b>The automatic payment was sent to YooKassa</b>. Disabling stops future charges; this payment may still complete.
+frg-subscription-recurring-in-flight = <b>The automatic payment was sent to YooKassa</b> and may still complete. Disabling auto-renewal stops only future charges.
 frg-subscription-recurring-reason = Reason: { $reason }.
 frg-subscription-recurring-next-retry = Next payment attempt: { $when } UTC.
 frg-subscription-recurring-next-check = Next payment check: { $when } UTC.

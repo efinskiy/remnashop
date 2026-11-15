@@ -112,11 +112,13 @@ async def subscriptions_list_getter(
 
 
 def _auto_renew_state_key(recurring: RecurringPaymentState) -> str:
+    # a payment already sent may still complete, even after the customer withdrew
+    if recurring.payment_in_flight:
+        return "frg-subscription-recurring-in-flight"
     if recurring.customer_disabled:
         return "frg-subscription-recurring-off"
     for matches, key in (
         (recurring.paused, "frg-subscription-recurring-paused"),
-        (recurring.payment_in_flight, "frg-subscription-recurring-in-flight"),
         (recurring.payment_pending, "frg-subscription-recurring-pending"),
         (recurring.retrying, "frg-subscription-recurring-retrying"),
         (recurring.enabled, "frg-subscription-recurring"),
@@ -127,7 +129,9 @@ def _auto_renew_state_key(recurring: RecurringPaymentState) -> str:
 
 
 def _auto_renew_block(recurring: RecurringPaymentState, runner: TranslatorRunner) -> str:
-    if not (recurring.enabled or recurring.available or recurring.paused):
+    if not (
+        recurring.enabled or recurring.available or recurring.paused or recurring.payment_in_flight
+    ):
         return ""
     state_key = _auto_renew_state_key(recurring)
     lines = [

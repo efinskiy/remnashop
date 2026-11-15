@@ -22,6 +22,7 @@ from app.core.db.uow import UnitOfWork
 from app.core.enums import (
     AppearanceTarget,
     Locale,
+    PaymentGatewayType,
     PaymentOutcome,
     PurchaseChannel,
     SessionAudience,
@@ -44,6 +45,7 @@ from app.modules.customer_notifications.routing import (
 )
 from app.modules.customer_notifications.waitlist import PAYMENTS_RESTORED
 from app.modules.email import SendEmailDispatch, load_email_brand, render_email
+from app.modules.gateways import GatewayRepository
 from app.modules.notifications import (
     BotTokenSource,
     NotificationRenderer,
@@ -154,6 +156,7 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
         config: AppConfig,
         uow: UnitOfWork,
         recurring_repository: RecurringPaymentRepository,
+        gateway_repository: GatewayRepository,
     ) -> None:
         self._user_repository = user_repository
         self._settings_repository = settings_repository
@@ -171,6 +174,7 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
         self._config = config
         self._uow = uow
         self._recurring_repository = recurring_repository
+        self._gateway_repository = gateway_repository
 
     async def _execute(self, actor: Actor, data: NotifyCustomerDto) -> None:
         # the outbox row is already processed, so only a retry can save a failed run;
@@ -186,7 +190,11 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
             return False
         async with self._uow:
             mandate = await self._recurring_repository.get(data.subscription_id)
-        return mandate is not None and mandate.enabled
+            if mandate is None or not mandate.enabled or mandate.last_error is not None:
+                return False
+            gateway = await self._gateway_repository.get_by_type(PaymentGatewayType.YOOKASSA)
+        # a paused mandate or a shop that turned auto-renewal off will not charge
+        return bool(gateway.is_active and gateway.flags.get("recurring_enabled", False))
 
     async def _notify(self, data: NotifyCustomerDto) -> None:
         if not should_notify_customer(data.event_type, data.args):

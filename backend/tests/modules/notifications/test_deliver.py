@@ -327,6 +327,8 @@ async def test_bank_decline_not_delivered_to_admins(
     await use_case.system(_recurring("RecurringPaymentFailedEvent", "insufficient_funds"))
     await use_case.system(_recurring("RecurringPaymentUpcomingEvent", "none"))
     await use_case.system(_recurring("RecurringPaymentPausedEvent", "customer_disabled"))
+    for reason in ("retries_exhausted", "card_expired", "fraud_suspected", "permission_revoked"):
+        await use_case.system(_recurring("RecurringPaymentExhaustedEvent", reason))
 
     assert push.sent == []
 

@@ -664,7 +664,7 @@ frg-purchase-recurring-required = Этот способ оплаты досту�
 
 frg-subscription-recurring-retrying = <b>Автопродление включено, ожидается повторная оплата</b>: до { $amount } { $currency } за каждые { $days } дней.
 frg-subscription-recurring-pending = <b>Автоплатёж обрабатывается</b>. Ожидается подтверждение от ЮKassa. Отключение остановит новые списания; отправленный платёж может завершиться.
-frg-subscription-recurring-in-flight = <b>Автоплатёж отправлен в ЮKassa</b>. Отключение остановит следующие списания; этот платёж может завершиться.
+frg-subscription-recurring-in-flight = <b>Автоплатёж отправлен в ЮKassa</b> и может завершиться. Отключение автопродления останавливает только следующие списания.
 frg-subscription-recurring-reason = Причина: { $reason }.
 frg-subscription-recurring-next-retry = Следующая попытка оплаты: { $when } UTC.
 frg-subscription-recurring-next-check = Следующая проверка платежа: { $when } UTC.
