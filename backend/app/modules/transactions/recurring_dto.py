@@ -67,6 +67,8 @@ class RecurringPaymentState(BaseModel):
     paused: bool = False
     retrying: bool = False
     payment_pending: bool = False
+    # a charge request was sent and its outcome is not known yet
+    payment_in_flight: bool = False
     next_retry_at: Optional[datetime] = None
     amount_limit: Optional[Decimal] = None
     currency: Optional[str] = None

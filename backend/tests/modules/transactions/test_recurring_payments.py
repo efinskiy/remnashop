@@ -2,7 +2,7 @@ import json
 from dataclasses import dataclass, fields, replace
 from datetime import timedelta
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any, Awaitable, Callable, Optional
 from uuid import uuid4
 
 import httpx
@@ -81,8 +81,10 @@ class _YooKassa:
             "parameter": "receipt.items",
         }
         self.cancellation_reason = "bank_declined"
+        # awaited while a charge request is in flight, with the provider's payment id
+        self.on_post: Optional[Callable[[str], Awaitable[None]]] = None
 
-    def __call__(self, request: httpx.Request) -> httpx.Response:
+    def __call__(self, request: httpx.Request) -> Any:
         self.requests.append(request)
         if request.method == "POST":
             if self.reject:
@@ -93,6 +95,8 @@ class _YooKassa:
             if self.lose_response:
                 self.lose_response = False
                 raise httpx.ReadTimeout("response lost", request=request)
+            if self.on_post is not None:
+                return _after_hook(self.on_post, payment_id)
             return httpx.Response(200, json={"id": payment_id})
         payment_id = request.url.path.rsplit("/", 1)[-1]
         return httpx.Response(
@@ -111,6 +115,11 @@ class _YooKassa:
     @property
     def posts(self) -> list[httpx.Request]:
         return [request for request in self.requests if request.method == "POST"]
+
+
+async def _after_hook(hook: Callable[[str], Awaitable[None]], payment_id: str) -> httpx.Response:
+    await hook(payment_id)
+    return httpx.Response(200, json={"id": payment_id})
 
 
 class _Worker:

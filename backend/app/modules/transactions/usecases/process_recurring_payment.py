@@ -489,8 +489,8 @@ class ProcessRecurringPaymentUseCase(UseCase[ProcessRecurringPaymentDto, None]):
             order, mandate, terms, gateway = context
             unsubmitted = mandate.submitted_at is None
             submitted_at = await self._recurring.mark_submitted(subscription_id)
-        # Commit intent before POST: a killed worker must not turn a possibly charged
-        # key into an unsent order. Recheck withdrawal under the same ordered locks.
+        # intent is committed before the request: a killed worker must not turn a
+        # possibly charged key into an unsent order
         async with self._uow:
             context = await self._submission_context(subscription_id, order)
             if context is None:
@@ -499,10 +499,21 @@ class ProcessRecurringPaymentUseCase(UseCase[ProcessRecurringPaymentDto, None]):
             order, mandate, terms, gateway = context
             first_attempt = unsubmitted and mandate.submitted_at == submitted_at
             text = await self._payment_texts.describe(order, Locale.RU)
-            result = await submit_recurring(
-                gateway, order, text, mandate.payment_method_id or "", first_attempt=first_attempt
-            )
-            await self._persist_submission(subscription_id, order, mandate, terms, result)
+        # no transaction or row lock while the provider answers; a withdrawal landing
+        # now stops the next cycle, this already-sent payment may still complete
+        result = await submit_recurring(
+            gateway, order, text, mandate.payment_method_id or "", first_attempt=first_attempt
+        )
+        async with self._uow:
+            current = await self._transactions.get_by_id_for_update(order.id)
+            latest = await self._recurring.get(subscription_id, for_update=True)
+            if (
+                latest is not None
+                and latest.pending_transaction_id == order.id
+                and latest.submitted_at == mandate.submitted_at
+                and current.status is TransactionStatus.PENDING
+            ):
+                await self._persist_submission(subscription_id, current, latest, terms, result)
         return mandate, terms, result
 
     async def _abandon_submission(

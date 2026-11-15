@@ -134,6 +134,9 @@ class GetOwnRecurringPaymentUseCase(UseCase[int, RecurringPaymentState, UserDto]
             paused=paused,
             retrying=retrying,
             payment_pending=payment_pending,
+            payment_in_flight=bool(
+                payment_pending and mandate and mandate.submitted_at is not None
+            ),
             next_retry_at=next_retry_at,
             amount_limit=source.base_price if source else None,
             currency=source.currency.value if source else None,
