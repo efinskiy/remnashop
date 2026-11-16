@@ -11,6 +11,7 @@ class GatewayResponse(BaseModel):
     is_active: bool
     is_configured: bool
     flags: dict[str, bool]
+    values: dict[str, str]
 
 
 class UpdateGatewaySettingsRequest(BaseModel):

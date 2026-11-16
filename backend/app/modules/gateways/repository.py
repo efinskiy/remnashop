@@ -7,7 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db.models.payment_gateway import PaymentGateway
 from app.core.enums import PaymentGatewayType
 from app.modules.gateways.dto import PaymentGatewayDto
-from app.modules.gateways.field_catalog import gateway_flags, is_gateway_configured
+from app.modules.gateways.field_catalog import (
+    gateway_flags,
+    gateway_values,
+    is_gateway_configured,
+)
 
 
 class GatewayRepository:
@@ -26,6 +30,7 @@ class GatewayRepository:
             is_active=row.is_active,
             is_configured=is_gateway_configured(row.type, values),
             flags=gateway_flags(row.type, values),
+            values=gateway_values(row.type, values),
             created_at=row.created_at,
             updated_at=row.updated_at,
         )
@@ -37,6 +42,7 @@ class GatewayRepository:
             is_active=False,
             is_configured=is_gateway_configured(gateway_type, {}),
             flags=gateway_flags(gateway_type, {}),
+            values=gateway_values(gateway_type, {}),
         )
 
     async def _get_row(self, gateway_type: PaymentGatewayType) -> Optional[PaymentGateway]:

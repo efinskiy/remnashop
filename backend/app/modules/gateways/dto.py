@@ -10,6 +10,8 @@ class PaymentGatewayDto(BaseDto, TimestampMixin):
     is_active: bool = False
     is_configured: bool = False
     flags: dict[str, bool] = {}
+    # non-secret settings as stored; secrets never leave the repository
+    values: dict[str, str] = {}
 
 
 @dataclass(frozen=True, kw_only=True)

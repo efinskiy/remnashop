@@ -3,7 +3,7 @@ from typing import Optional
 from app.core.enums import PaymentGatewayType, PurchaseChannel, PurchaseType
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ConflictError, ValidationError
-from app.modules.gateways import gateway_flags
+from app.modules.gateways import yookassa_recurring_enabled, yookassa_recurring_required
 from app.modules.plans import PlanDto
 from app.modules.recurring_payments.lifecycle import RecurringLifecycle
 from app.modules.recurring_payments.policy import ConsentChannel, recurring_policy
@@ -56,8 +56,8 @@ class RecurringCheckoutConsent:
         quote: PriceQuote,
         gateway_settings: dict[str, str],
     ) -> Optional[int]:
-        flags = gateway_flags(data.gateway_type, gateway_settings)
-        if flags.get("recurring_required", False) and quote.final_price > 0:
+        yookassa = data.gateway_type is PaymentGatewayType.YOOKASSA
+        if yookassa and yookassa_recurring_required(gateway_settings) and quote.final_price > 0:
             if not data.recurring_consent or plan.is_trial or data.duration_days <= 0:
                 raise ValidationError(
                     "This payment method requires explicit consent to auto-renewal",
@@ -66,8 +66,8 @@ class RecurringCheckoutConsent:
         if not data.recurring_consent:
             return None
         recurring_allowed = (
-            data.gateway_type is PaymentGatewayType.YOOKASSA
-            and flags.get("recurring_enabled", False)
+            yookassa
+            and yookassa_recurring_enabled(gateway_settings)
             and not plan.is_trial
             and data.duration_days > 0
             and quote.final_price > 0

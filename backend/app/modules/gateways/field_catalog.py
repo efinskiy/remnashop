@@ -12,7 +12,6 @@ from app.modules.gateways.gateway_settings import (
     GATEWAY_SETTINGS,
     RECURRING_TIMINGS,
     NumericStr,
-    yookassa_payment_mode,
 )
 
 _CURRENCY_FIELD_KEY: Final[str] = "currency"
@@ -86,11 +85,24 @@ def gateway_flags(gateway_type: PaymentGatewayType, values: dict[str, str]) -> d
         for field_spec in GATEWAY_FIELD_CATALOG[gateway_type]
         if field_spec.kind is GatewayFieldKind.BOOLEAN
     }
-    if gateway_type is PaymentGatewayType.YOOKASSA:
-        mode = yookassa_payment_mode(values)
-        flags["recurring_enabled"] = mode != "single"
-        flags["recurring_required"] = mode == "recurring"
     return flags
+
+
+_READABLE_KINDS: Final[frozenset[GatewayFieldKind]] = frozenset(
+    {GatewayFieldKind.TEXT, GatewayFieldKind.NUMBER, GatewayFieldKind.CHOICE}
+)
+
+
+def gateway_values(gateway_type: PaymentGatewayType, values: dict[str, str]) -> dict[str, str]:
+    # every stored setting but the secrets, so the dashboard shows what is in effect
+    readable: dict[str, str] = {}
+    for field_spec in GATEWAY_FIELD_CATALOG[gateway_type]:
+        if field_spec.kind not in _READABLE_KINDS:
+            continue
+        value = values.get(field_spec.key) or field_spec.default
+        if value:
+            readable[field_spec.key] = value
+    return readable
 
 
 def validate_gateway_field_keys(gateway_type: PaymentGatewayType, values: dict[str, str]) -> None:

@@ -34,6 +34,8 @@ from app.modules.gateways.gateway_settings import (
     YooKassaSettings,
     YooMoneySettings,
     yookassa_payment_mode,
+    yookassa_recurring_enabled,
+    yookassa_recurring_required,
 )
 from app.modules.gateways.repository import GatewayRepository
 
@@ -72,4 +74,6 @@ __all__ = [
     "get_gateways_providers",
     "is_gateway_configured",
     "yookassa_payment_mode",
+    "yookassa_recurring_enabled",
+    "yookassa_recurring_required",
 ]

@@ -5,7 +5,7 @@ from app.core.db.uow import UnitOfWork
 from app.core.enums import PaymentGatewayType, PurchaseType, SubscriptionStatus, TransactionStatus
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
-from app.modules.gateways import GatewayRepository
+from app.modules.gateways import GatewayRepository, yookassa_recurring_enabled
 from app.modules.recurring_payments.dto import RecurringPaymentStateDto
 from app.modules.recurring_payments.policy import (
     RecurringState,
@@ -45,7 +45,7 @@ class GetOwnRecurringPaymentUseCase(UseCase[int, RecurringPaymentStateDto, UserD
             subscription = await get_owned_target(self._subscriptions, data, actor.id)
             mandate = await self._recurring.get(data)
             gateway = await self._gateways.get_by_type(PaymentGatewayType.YOOKASSA)
-            if mandate is None and not gateway.flags.get("recurring_enabled", False):
+            if mandate is None and not yookassa_recurring_enabled(gateway.values):
                 # opened on every subscription card: a shop without auto-renewal stops here
                 return RecurringPaymentStateDto(
                     subscription_id=data, enabled=False, available=False
@@ -63,7 +63,7 @@ class GetOwnRecurringPaymentUseCase(UseCase[int, RecurringPaymentStateDto, UserD
             and source
             and gateway.is_active
             and gateway.is_configured
-            and gateway.flags.get("recurring_enabled", False)
+            and yookassa_recurring_enabled(gateway.values)
             and mandate.shop_id == settings.get("shop_id")
             and subscription.status not in {SubscriptionStatus.DELETED, SubscriptionStatus.DISABLED}
             and not subscription.is_trial

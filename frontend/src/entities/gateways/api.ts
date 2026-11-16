@@ -8,6 +8,8 @@ export interface Gateway {
   is_configured: boolean;
   /** current state of the gateway's boolean settings, the only readable ones */
   flags: Record<string, boolean>;
+  // every non-secret setting as stored
+  values: Record<string, string>;
 }
 
 export type GatewayFieldKind = "text" | "secret" | "number" | "boolean" | "choice";

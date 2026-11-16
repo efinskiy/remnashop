@@ -6,11 +6,16 @@ from app.core.exceptions import ValidationError
 from app.modules.gateways.field_catalog import (
     GATEWAY_FIELD_CATALOG,
     gateway_flags,
+    gateway_values,
     is_gateway_configured,
     validate_gateway_field_keys,
     validate_gateway_field_values,
 )
-from app.modules.gateways.gateway_settings import YooKassaSettings
+from app.modules.gateways.gateway_settings import (
+    YooKassaSettings,
+    yookassa_recurring_enabled,
+    yookassa_recurring_required,
+)
 
 
 def test_all_gateway_types_have_a_catalog_entry() -> None:
@@ -120,15 +125,9 @@ def test_rub_only_gateways_have_no_currency_field() -> None:
 
 
 def test_yookassa_verify_ip_defaults_on_and_reads_back() -> None:
-    assert gateway_flags(PaymentGatewayType.YOOKASSA, {}) == {
-        "verify_ip": True,
-        "recurring_enabled": False,
-        "recurring_required": False,
-    }
+    assert gateway_flags(PaymentGatewayType.YOOKASSA, {}) == {"verify_ip": True}
     assert gateway_flags(PaymentGatewayType.YOOKASSA, {"verify_ip": "false"}) == {
-        "verify_ip": False,
-        "recurring_enabled": False,
-        "recurring_required": False,
+        "verify_ip": False
     }
     assert gateway_flags(PaymentGatewayType.ROBOKASSA, {}) == {}
 
@@ -153,8 +152,10 @@ def test_yookassa_payment_mode_has_explicit_catalog_options_and_safe_flags(mode,
     assert specs["payment_mode"].options == ("single", "recurring", "both")
     assert "recurring_enabled" not in specs
     validate_gateway_field_values(PaymentGatewayType.YOOKASSA, {"payment_mode": mode})
-    flags = gateway_flags(PaymentGatewayType.YOOKASSA, {"payment_mode": mode})
-    assert flags["recurring_enabled"] is enabled and flags["recurring_required"] is required
+    values = {"payment_mode": mode}
+    assert yookassa_recurring_enabled(values) is enabled
+    assert yookassa_recurring_required(values) is required
+    assert gateway_values(PaymentGatewayType.YOOKASSA, values)["payment_mode"] == mode
     settings = YooKassaSettings.from_values(
         {"shop_id": "1", "api_key": "key", "payment_mode": mode}
     )
@@ -176,3 +177,17 @@ def test_recurring_timing_outside_its_bounds_is_rejected() -> None:
 
 def test_recurring_timing_within_its_bounds_is_accepted() -> None:
     validate_gateway_field_values(PaymentGatewayType.YOOKASSA, {"recurring_lead_minutes": "60"})
+
+
+def test_gateway_values_read_back_settings_but_never_secrets() -> None:
+    stored = {
+        "shop_id": "1000",
+        "api_key": "live-secret",
+        "recurring_lead_minutes": "60",
+        "verify_ip": "false",
+    }
+    values = gateway_values(PaymentGatewayType.YOOKASSA, stored)
+    assert values["shop_id"] == "1000" and values["recurring_lead_minutes"] == "60"
+    # an unset choice reads as its default, a boolean stays in flags
+    assert values["payment_mode"] == "single" and "verify_ip" not in values
+    assert "live-secret" not in values.values() and "api_key" not in values

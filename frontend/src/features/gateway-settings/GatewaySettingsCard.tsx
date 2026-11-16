@@ -74,7 +74,11 @@ export function GatewaySettingsCard({
   const docsUrl = GATEWAY_DOCS_URLS[gateway.type];
   const logoUrl = GATEWAY_LOGOS[gateway.type];
   const canExpand = fields.length > 0 || webhookUrl !== null;
-  const dirty = Object.values(values).some((value) => value !== "");
+  const stored = (key: string) => gateway.values[key] ?? "";
+  const changedValues = Object.fromEntries(
+    Object.entries(values).filter(([key, value]) => value !== "" && value !== stored(key)),
+  );
+  const dirty = Object.keys(changedValues).length > 0;
   // Stars pays inside the bot, there is no provider page to open
   const permissions = usePermissions();
   const canUpdate = permissions.includes("GATEWAYS_UPDATE");
@@ -83,12 +87,11 @@ export function GatewaySettingsCard({
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    const changed = Object.fromEntries(Object.entries(values).filter(([, value]) => value !== ""));
-    if (Object.keys(changed).length === 0) return;
+    if (!dirty) return;
 
     setIsSubmitting(true);
     try {
-      onChanged(await updateGatewaySettings(gateway.type, changed));
+      onChanged(await updateGatewaySettings(gateway.type, changedValues));
       setValues({});
       toast.success(t("common.saved"));
     } catch (err) {
@@ -229,7 +232,7 @@ export function GatewaySettingsCard({
               >
                 <SelectDropdown
                   id={`gateway-${gateway.type}-${field.key}`}
-                  value={gateway.flags.recurring_required ? "recurring" : gateway.flags.recurring_enabled ? "both" : "single"}
+                  value={stored(field.key)}
                   options={field.options.map((value) => ({ value, label: t(`settings.gateways.paymentModes.${value}` as ParseKeys) }))}
                   placeholder={t("settings.gateways.fields.payment_mode")}
                   icon={CreditCard}
@@ -245,7 +248,8 @@ export function GatewaySettingsCard({
               const inputProps = {
                 id: `gateway-${gateway.type}-${field.key}`,
                 inputMode: inputModeFor(field),
-                value: values[field.key] ?? "",
+                // a secret is never sent back, so its field starts empty; the rest show what is stored
+                value: values[field.key] ?? (field.kind === "secret" ? "" : stored(field.key)),
                 onChange: (event: ChangeEvent<HTMLInputElement>) =>
                   setValues((prev) => ({
                     ...prev,

@@ -45,7 +45,7 @@ from app.modules.customer_notifications.routing import (
 )
 from app.modules.customer_notifications.waitlist import PAYMENTS_RESTORED
 from app.modules.email import SendEmailDispatch, load_email_brand, render_email
-from app.modules.gateways import GatewayRepository
+from app.modules.gateways import GatewayRepository, yookassa_recurring_enabled
 from app.modules.notifications import (
     BotTokenSource,
     NotificationRenderer,
@@ -195,7 +195,7 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
             if mandate is None or not mandate.enabled or mandate.last_error is not None:
                 return False
             gateway = await self._gateway_repository.get_by_type(PaymentGatewayType.YOOKASSA)
-        return bool(gateway.is_active and gateway.flags.get("recurring_enabled", False))
+        return bool(gateway.is_active and yookassa_recurring_enabled(gateway.values))
 
     async def _notify(self, data: NotifyCustomerDto) -> None:
         if not should_notify_customer(data.event_type, data.args):

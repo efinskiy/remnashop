@@ -4,7 +4,7 @@ from app.core.db.uow import UnitOfWork
 from app.core.enums import Currency, PaymentGatewayType, PurchaseType
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
-from app.modules.gateways import GatewayRepository
+from app.modules.gateways import GatewayRepository, yookassa_recurring_enabled
 from app.modules.recurring_payments.dto import CheckoutRecurringTermsDto, RecurringTerms
 from app.modules.recurring_payments.policy import recurring_policy
 from app.modules.recurring_payments.ports import RecurringTermsTexts
@@ -45,7 +45,7 @@ class GetCheckoutRecurringTermsUseCase(
             if not (
                 gateway.is_active
                 and gateway.is_configured
-                and gateway.flags.get("recurring_enabled", False)
+                and yookassa_recurring_enabled(gateway.values)
             ):
                 return None
             plan, user = await self._pricer.load_purchasable_plan(

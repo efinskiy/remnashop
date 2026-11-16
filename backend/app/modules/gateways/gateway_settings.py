@@ -43,6 +43,14 @@ def yookassa_payment_mode(values: dict[str, Any]) -> YooKassaPaymentMode:
     return "single"
 
 
+def yookassa_recurring_enabled(values: dict[str, Any]) -> bool:
+    return yookassa_payment_mode(values) != "single"
+
+
+def yookassa_recurring_required(values: dict[str, Any]) -> bool:
+    return yookassa_payment_mode(values) == "recurring"
+
+
 # auto-renewal timings a shop may tune: default, minimum, maximum
 RECURRING_TIMINGS: Final[dict[str, tuple[int, int, int]]] = {
     "recurring_lead_minutes": (1440, 0, 1440),

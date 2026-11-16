@@ -4,7 +4,7 @@ from typing import Optional
 
 from app.core.enums import PaymentGatewayType
 from app.core.utils.time import datetime_now
-from app.modules.gateways import GatewayRepository
+from app.modules.gateways import GatewayRepository, yookassa_recurring_enabled
 from app.modules.recurring_payments.dto import RecurringPaymentDto
 from app.modules.recurring_payments.lifecycle import RecurringLifecycle
 from app.modules.recurring_payments.policy import (
@@ -55,7 +55,7 @@ class RecurringDebitChecks:
             access.payments_enabled
             and gateway.is_active
             and gateway.is_configured
-            and gateway.flags.get("recurring_enabled", False)
+            and yookassa_recurring_enabled(gateway.values)
         )
 
     async def has_consent(

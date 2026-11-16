@@ -178,6 +178,6 @@ async def test_saved_recurring_only_mode_can_be_changed_to_single(
             type=PaymentGatewayType.YOOKASSA, values={"payment_mode": "single"}
         ),
     )
-    assert not result.flags["recurring_enabled"] and not result.flags["recurring_required"]
+    assert result.values["payment_mode"] == "single"
     raw = await gateway_repository.get_raw_settings(PaymentGatewayType.YOOKASSA)
     assert raw["payment_mode"] == "single"
