@@ -19,9 +19,6 @@ from app.modules.recurring_payments.usecases.enqueue_recurring_payments import (
     EnqueueRecurringPaymentsUseCase,
 )
 from tests.fakes.dispatch import RecordingDispatch
-from tests.modules.recurring_payments import test_recurring_payments
-
-case = test_recurring_payments.case
 
 
 class _Queue:

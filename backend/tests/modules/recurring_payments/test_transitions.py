@@ -21,6 +21,8 @@ from app.modules.recurring_payments.transitions import (
 )
 
 NOW = datetime(2026, 11, 15, 12, 0, tzinfo=timezone.utc)
+
+
 EXPIRE = NOW + timedelta(hours=2)
 
 

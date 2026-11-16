@@ -1,14 +1,34 @@
+from datetime import timedelta
+from decimal import Decimal
+
 import pytest
 from sqlalchemy import select, update
 
-from app.core.db.models import EventOutboxEntry, RecurringConsent, RecurringPayment
-from app.core.enums import PurchaseChannel, Role, TransactionStatus
+from app.core.db.models import (
+    EventOutboxEntry,
+    RecurringConsent,
+    RecurringPayment,
+    User,
+)
+from app.core.enums import (
+    Currency,
+    PurchaseChannel,
+    Role,
+    TransactionStatus,
+)
 from app.core.exceptions import ConflictError, PermissionDeniedError, ValidationError
+from app.core.utils.time import datetime_now
 from app.modules.recurring_payments.admin_guard import RecurringAdminGuard
+from app.modules.recurring_payments.admin_repository import RecurringPaymentAdminRepository
 from app.modules.recurring_payments.dto import (
+    ListRecurringPaymentsDto,
     RecurringAction,
     RecurringAdminActionDto,
     SetRecurringPaymentDto,
+)
+from app.modules.recurring_payments.policy import (
+    RecurringState,
+    classify,
 )
 from app.modules.recurring_payments.usecases.check_recurring_payment import (
     CheckRecurringPaymentUseCase,
@@ -20,15 +40,11 @@ from app.modules.recurring_payments.usecases.retry_recurring_payment import (
     RetryRecurringPaymentUseCase,
 )
 from app.modules.users.dto import CreateUserDto
+from app.modules.users.listing import ALLOWED_ROLES, STAFF_ROLES
 from tests.fakes.recurring import fulfil
-from tests.modules.recurring_payments import test_recurring_payments as cases
-
-case = cases.case
-
-
-@pytest.fixture(autouse=True)
-def production_session_mode(session):
-    session.autoflush = False
+from tests.modules.recurring_payments.harness import (
+    recurring_order,
+)
 
 
 @pytest.fixture
@@ -68,6 +84,7 @@ async def _audit(session):
     )
 
 
+@pytest.mark.usefixtures("production_session_mode")
 async def test_operator_checks_a_timed_out_payment_without_starting_a_new_charge(
     case, manager, session, uow, transaction_repository
 ):
@@ -94,6 +111,7 @@ async def test_operator_checks_a_timed_out_payment_without_starting_a_new_charge
     assert entries[0].payload["action"] == "check" and entries[0].ip_address == "127.0.0.1"
 
 
+@pytest.mark.usefixtures("production_session_mode")
 async def test_operator_close_revokes_consent_but_preserves_a_late_paid_fulfillment(
     case, manager, session, uow, transaction_repository
 ):
@@ -128,6 +146,7 @@ async def test_operator_close_revokes_consent_but_preserves_a_late_paid_fulfillm
     assert len(case.provider.posts) == 1 and len(await _audit(session)) == 1
 
 
+@pytest.mark.usefixtures("production_session_mode")
 async def test_operator_cannot_apply_close_to_a_replaced_pending_order(case, manager, session):
     action, operator = manager
     case.provider.status = "pending"
@@ -147,6 +166,7 @@ async def test_operator_cannot_apply_close_to_a_replaced_pending_order(case, man
     assert not await _audit(session)
 
 
+@pytest.mark.usefixtures("production_session_mode")
 async def test_operator_retry_requeues_a_corrected_shop_error_without_touching_consent(
     case, manager, session
 ):
@@ -170,6 +190,7 @@ async def test_operator_retry_requeues_a_corrected_shop_error_without_touching_c
     assert len(case.provider.posts) == 2 and len(await _audit(session)) == 1
 
 
+@pytest.mark.usefixtures("production_session_mode")
 @pytest.mark.parametrize(
     "reason", ["retries_exhausted", "payment_status_unknown", "permission_revoked"]
 )
@@ -194,6 +215,7 @@ async def test_operator_retry_cannot_bypass_terminal_payment_limits(
     assert not case.provider.posts and not await _audit(session)
 
 
+@pytest.mark.usefixtures("production_session_mode")
 async def test_operator_retry_cannot_override_customer_withdrawal(case, manager, session):
     action, operator = manager
     await case.set_state(
@@ -214,6 +236,7 @@ async def test_operator_retry_cannot_override_customer_withdrawal(case, manager,
     assert not case.provider.posts and not await _audit(session)
 
 
+@pytest.mark.usefixtures("production_session_mode")
 async def test_customer_cannot_manage_an_autopayment_without_operator_permission(case, manager):
     action, _ = manager
     with pytest.raises(PermissionDeniedError):
@@ -227,6 +250,7 @@ async def test_customer_cannot_manage_an_autopayment_without_operator_permission
     assert not case.provider.posts
 
 
+@pytest.mark.usefixtures("production_session_mode")
 async def test_late_verified_cancellation_resolves_operator_closed_payment_without_reenabling(
     case, manager, session, uow, transaction_repository
 ):
@@ -253,3 +277,104 @@ async def test_late_verified_cancellation_resolves_operator_closed_payment_witho
     assert (await transaction_repository.get_by_id(order.id)).status is TransactionStatus.CANCELED
     assert not (await case.get_state(case.user, case.subscription.id)).can_disable
     assert len(case.provider.posts) == 1
+
+
+async def test_admin_summary_counts_only_real_recurring_orders(
+    case, session, uow, transaction_repository
+):
+    await recurring_order(case, transaction_repository, uow, TransactionStatus.PAID)
+    await recurring_order(case, transaction_repository, uow, TransactionStatus.CANCELED)
+    repository = RecurringPaymentAdminRepository(session)
+    summary = await repository.summary()
+    assert summary.total == 1 and summary.enabled == 1
+    assert summary.paid_renewals == 1 and summary.failed_renewals == 1
+    assert summary.revenue == Decimal("400") and summary.currency is Currency.RUB
+    items, total = await repository.list_page(ListRecurringPaymentsDto(), roles=STAFF_ROLES)
+    assert total == 1 and items[0].subscription_id == case.subscription.id
+    assert items[0].amount_limit == Decimal("500")
+    assert "method-token" not in repr(items[0])
+    assert not hasattr(items[0], "payment_method_id")
+
+
+async def test_admin_sees_stopped_pending_payments_as_attention(
+    case, session, uow, transaction_repository
+):
+    order = await recurring_order(case, transaction_repository, uow, TransactionStatus.PENDING)
+    async with uow:
+        await session.execute(
+            update(RecurringPayment)
+            .where(RecurringPayment.subscription_id == case.subscription.id)
+            .values(enabled=False, pending_transaction_id=order.id, last_error="pending_timeout")
+        )
+    repository = RecurringPaymentAdminRepository(session)
+    items, total = await repository.list_page(
+        ListRecurringPaymentsDto(state="attention"), roles=STAFF_ROLES
+    )
+    assert total == 1 and items[0].state == "attention"
+    assert items[0].pending_transaction_id == order.id and items[0].next_attempt_at is not None
+    summary = await repository.summary()
+    assert summary.pending == 0 and summary.attention == 1
+
+
+async def test_staff_rows_are_hidden_without_admins_manage(case, session, uow):
+    async with uow:
+        await session.execute(update(User).where(User.id == case.user.id).values(role=Role.ADMIN))
+        await session.execute(
+            update(RecurringPayment)
+            .where(RecurringPayment.subscription_id == case.subscription.id)
+            .values(
+                retry_count=2,
+                first_failure_at=datetime_now() - timedelta(hours=3),
+                last_error="insufficient_funds",
+            )
+        )
+    repository = RecurringPaymentAdminRepository(session)
+    items, total = await repository.list_page(
+        ListRecurringPaymentsDto(state="retrying"), roles=STAFF_ROLES
+    )
+    assert total == 1 and items[0].state == "retrying" and items[0].retry_count == 2
+    for data in (
+        ListRecurringPaymentsDto(state="retrying"),
+        ListRecurringPaymentsDto(search=case.user.name),
+        ListRecurringPaymentsDto(search=str(case.user.id)),
+    ):
+        assert await repository.list_page(data, roles=ALLOWED_ROLES) == ([], 0)
+
+
+@pytest.mark.usefixtures("production_session_mode")
+@pytest.mark.parametrize(
+    ("enabled", "customer_disabled", "pending", "failed", "reason"),
+    [
+        (True, False, False, False, None),
+        (True, False, True, False, None),
+        (True, False, False, True, "insufficient_funds"),
+        (True, False, True, False, "pending_timeout"),
+        (False, True, True, False, "customer_disabled"),
+    ],
+)
+async def test_admin_filters_and_totals_use_the_same_state_as_customer_policy(
+    case, session, uow, enabled, customer_disabled, pending, failed, reason
+):
+    async with uow:
+        await session.execute(
+            update(RecurringPayment)
+            .where(RecurringPayment.subscription_id == case.subscription.id)
+            .values(
+                enabled=enabled,
+                customer_disabled=customer_disabled,
+                pending_transaction_id=case.source.id if pending else None,
+                first_failure_at=datetime_now() if failed else None,
+                last_error=reason,
+            )
+        )
+    expected = classify(await case.repository.get(case.subscription.id))
+    repository = RecurringPaymentAdminRepository(session)
+    for state in RecurringState:
+        rows, total = await repository.list_page(
+            ListRecurringPaymentsDto(state=state), roles=STAFF_ROLES
+        )
+        assert total == int(state is expected)
+        assert all(row.state is expected for row in rows)
+    totals = await repository.summary()
+    assert sum(getattr(totals, state.value) for state in RecurringState) == totals.total == 1
+    assert getattr(totals, expected.value) == 1
