@@ -53,14 +53,11 @@ def due_for_work(now: datetime, *, due_before: datetime) -> ColumnElement[bool]:
                 RecurringPayment.enabled.is_(True),
                 Subscription.expire_at <= due_before,
                 ~renewal_window_expired(now),
+                # a code this version doesn't know stops debits, as stored_reason reads it
                 or_(
                     RecurringPayment.last_error.is_(None),
-                    RecurringPayment.last_error.not_in(
-                        [
-                            reason.value
-                            for reason in RecurringReason
-                            if not reason.policy.allows_debit
-                        ]
+                    RecurringPayment.last_error.in_(
+                        [reason.value for reason in RecurringReason if reason.policy.allows_debit]
                     ),
                 ),
             ),

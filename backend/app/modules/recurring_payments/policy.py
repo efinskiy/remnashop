@@ -261,11 +261,16 @@ def admin_may_retry(
     pending: bool,
     submitted: bool,
     has_method: bool,
+    authorized: bool,
+    overdue: bool,
 ) -> bool:
-    # a technical stop the shop fixed; never a bank refusal or the customer's own choice
+    # a technical stop the shop fixed, under a live consent and inside its window; never a
+    # bank refusal or the customer's own choice. The admin list and the retry share it.
     reason = last_error
     return bool(
-        reason is not None
+        authorized
+        and not overdue
+        and reason is not None
         and (
             reason.policy.retry is RetryKind.TECHNICAL
             or reason

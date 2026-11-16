@@ -162,6 +162,35 @@ class ListRecurringPaymentsDto:
 
 
 @dataclass(frozen=True, kw_only=True)
+class RecurringPaymentAdminRowDto:
+    # one mandate as stored, for the admin list to decide what it may offer
+    subscription_id: int
+    user_id: int
+    user_name: Optional[str]
+    plan_name: str
+    enabled: bool
+    customer_disabled: bool
+    state: RecurringState
+    last_error: Optional[RecurringReason]
+    next_attempt_at: Optional[datetime]
+    submitted_at: Optional[datetime]
+    pending_transaction_id: Optional[int]
+    pending_status: Optional[TransactionStatus]
+    external_payment_id: Optional[str]
+    has_saved_method: bool
+    # a consent is attached and not withdrawn
+    authorized: bool
+    # past the window the consent allows charges in
+    overdue: bool
+    retry_count: int
+    first_failure_at: Optional[datetime]
+    amount_limit: Optional[Decimal]
+    currency: Optional[Currency]
+    duration_days: Optional[int]
+    expire_at: datetime
+
+
+@dataclass(frozen=True, kw_only=True)
 class RecurringPaymentAdminItemDto:
     subscription_id: int
     user_id: int

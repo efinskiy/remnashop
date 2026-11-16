@@ -1,5 +1,5 @@
 import type { ParseKeys } from "i18next";
-import { BookOpen, CreditCard } from "lucide-react";
+import { BookOpen, SlidersHorizontal } from "lucide-react";
 import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -75,8 +75,16 @@ export function GatewaySettingsCard({
   const logoUrl = GATEWAY_LOGOS[gateway.type];
   const canExpand = fields.length > 0 || webhookUrl !== null;
   const stored = (key: string) => gateway.values[key] ?? "";
+  const fieldByKey = new Map(fields.map((field) => [field.key, field]));
+  // a blank secret or required field keeps what is stored; a blank optional one clears it
+  const clearable = (key: string) => {
+    const field = fieldByKey.get(key);
+    return field !== undefined && field.kind !== "secret" && !field.required;
+  };
   const changedValues = Object.fromEntries(
-    Object.entries(values).filter(([key, value]) => value !== "" && value !== stored(key)),
+    Object.entries(values).filter(
+      ([key, value]) => value !== stored(key) && (value !== "" || clearable(key)),
+    ),
   );
   const dirty = Object.keys(changedValues).length > 0;
   // Stars pays inside the bot, there is no provider page to open
@@ -233,9 +241,12 @@ export function GatewaySettingsCard({
                 <SelectDropdown
                   id={`gateway-${gateway.type}-${field.key}`}
                   value={stored(field.key)}
-                  options={field.options.map((value) => ({ value, label: t(`settings.gateways.paymentModes.${value}` as ParseKeys) }))}
-                  placeholder={t("settings.gateways.fields.payment_mode")}
-                  icon={CreditCard}
+                  options={field.options.map((value) => ({
+                    value,
+                    label: t(`settings.gateways.choices.${field.key}.${value}` as ParseKeys),
+                  }))}
+                  placeholder={t(`settings.gateways.fields.${field.key}` as ParseKeys)}
+                  icon={SlidersHorizontal}
                   variant="well"
                   onChange={(value) => void handleChoice(field.key, value)}
                   disabled={!canUpdate || savingFlag === field.key}

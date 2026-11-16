@@ -45,16 +45,14 @@ class RetryRecurringPaymentUseCase(UseCase[RecurringAdminActionDto, None]):
         overdue = terms is not None and locked.subscription.expire_at < datetime_now() - timedelta(
             hours=terms.max_overdue_hours
         )
-        if (
-            terms is None
-            or overdue
-            or not admin_may_retry(
-                last_error=mandate.last_error,
-                customer_disabled=mandate.customer_disabled,
-                pending=mandate.pending_transaction_id is not None,
-                submitted=mandate.submitted_at is not None,
-                has_method=bool(mandate.payment_method_id),
-            )
+        if not admin_may_retry(
+            last_error=mandate.last_error,
+            customer_disabled=mandate.customer_disabled,
+            pending=mandate.pending_transaction_id is not None,
+            submitted=mandate.submitted_at is not None,
+            has_method=bool(mandate.payment_method_id),
+            authorized=terms is not None,
+            overdue=overdue,
         ):
             raise ValidationError(
                 "Renewal cannot be retried under the current consent",

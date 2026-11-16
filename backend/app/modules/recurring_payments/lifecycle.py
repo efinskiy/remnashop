@@ -1,6 +1,6 @@
 from dataclasses import replace
 from datetime import datetime
-from typing import Optional
+from typing import Final, Optional
 
 from loguru import logger
 
@@ -35,10 +35,10 @@ from app.modules.recurring_payments.transitions import (
 )
 from app.modules.transactions import TransactionDto, TransactionRepository
 
-_UNRESOLVED: frozenset[TransactionStatus] = frozenset(
+_UNRESOLVED: Final[frozenset[TransactionStatus]] = frozenset(
     {TransactionStatus.PENDING, TransactionStatus.FAILED, TransactionStatus.CANCELED}
 )
-_FAILED: frozenset[TransactionStatus] = frozenset(
+_FAILED: Final[frozenset[TransactionStatus]] = frozenset(
     {TransactionStatus.FAILED, TransactionStatus.CANCELED}
 )
 

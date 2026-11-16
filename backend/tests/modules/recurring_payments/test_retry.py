@@ -759,3 +759,18 @@ async def test_overdue_terminal_failure_does_not_send_another_final_notice(case,
     assert await notice_types(session) == before
     after = await case.repository.get(case.subscription.id)
     assert not after.enabled and after.last_error == "card_expired"
+
+
+async def test_an_unknown_stored_reason_keeps_the_mandate_out_of_the_debit_queue(
+    case, session, uow
+):
+    async with uow:
+        await session.execute(
+            update(RecurringPayment)
+            .where(RecurringPayment.subscription_id == case.subscription.id)
+            .values(last_error="renamed_in_a_later_version", next_attempt_at=datetime_now())
+        )
+    future = datetime_now() + timedelta(days=60)
+    assert case.subscription.id not in await case.repository.list_due(
+        datetime_now(), due_before=future, limit=100
+    )

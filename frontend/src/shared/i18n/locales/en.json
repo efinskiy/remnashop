@@ -1705,10 +1705,12 @@
         "recurring_max_overdue_hours": "Auto-renewal: stop retrying after expiry, h",
         "recurring_notice_lead_minutes": "Auto-renewal: notice before charge, min"
       },
-      "paymentModes": {
-        "single": "Single payments only",
-        "recurring": "Recurring payments only",
-        "both": "Single + recurring payments"
+      "choices": {
+        "payment_mode": {
+          "single": "Single payments only",
+          "recurring": "Recurring payments only",
+          "both": "Single + recurring payments"
+        }
       }
     },
     "webPush": {
@@ -3706,13 +3708,13 @@
       "kpi": {
         "enabled": "Switched on",
         "ofTotal": "of {{total}}",
-        "disabled_one": "{{count}} switched off by customers",
-        "disabled_other": "{{count}} switched off by customers",
+        "disabled_one": "{{count, number}} switched off by customers",
+        "disabled_other": "{{count, number}} switched off by customers",
         "attention": "Need attention",
         "inProgress": "{{pending}} awaiting payment, {{retrying}} retrying",
         "paid": "Paid renewals",
-        "failed_one": "{{count}} failed attempt",
-        "failed_other": "{{count}} failed attempts",
+        "failed_one": "{{count, number}} failed attempt",
+        "failed_other": "{{count, number}} failed attempts",
         "revenue": "Auto-renewal revenue",
         "allTime": "all time"
       },
@@ -3726,8 +3728,8 @@
           "payment": "Payment",
           "consent": "Customer consent"
         },
-        "firstFailure_one": "First failure {{date}}, {{count}} retry",
-        "firstFailure_other": "First failure {{date}}, {{count}} retries",
+        "firstFailure_one": "First failure {{date}}, {{count, number}} retry",
+        "firstFailure_other": "First failure {{date}}, {{count, number}} retries",
         "order": "Order",
         "openOrder": "Open",
         "providerId": "YooKassa ID",
@@ -3747,7 +3749,7 @@
         "provider_unavailable": "The payment provider is unavailable",
         "merchant_unavailable": "The shop cannot process payments",
         "provider_configuration_error": "The payment or receipt configuration requires correction",
-        "provider_request_rejected": "YooKassa refused the payment request",
+        "provider_request_rejected": "YooKassa refused the charge to the saved card",
         "provider_rejected": "The payment provider rejected the request",
         "permission_revoked": "The payment provider mandate was revoked",
         "payment_method_restricted": "The saved payment method is no longer valid",
@@ -3772,7 +3774,7 @@
       "hints": {
         "merchant_unavailable": "Check the shop ID and secret key in the YooKassa settings, then retry.",
         "provider_configuration_error": "Check the VAT rate and receipt settings in YooKassa, then retry.",
-        "provider_request_rejected": "Check the shop’s YooKassa settings; if they are fine, the customer’s card was refused and they need to pay by hand.",
+        "provider_request_rejected": "Check the shop’s YooKassa settings (VAT, receipts, payment methods) and retry. If the retry is refused again, YooKassa is declining the card itself: the customer has to pay by hand and switch auto-renewal on again.",
         "provider_unavailable": "YooKassa didn’t answer; the next attempt is scheduled automatically.",
         "shop_changed": "The card was saved for another YooKassa shop; the customer has to pay once by hand to save it again.",
         "price_changed": "The renewal now costs more than the customer agreed to; they have to accept the new terms.",

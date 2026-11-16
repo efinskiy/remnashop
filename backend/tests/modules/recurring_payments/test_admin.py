@@ -36,6 +36,9 @@ from app.modules.recurring_payments.usecases.check_recurring_payment import (
 from app.modules.recurring_payments.usecases.close_recurring_payment import (
     CloseRecurringPaymentUseCase,
 )
+from app.modules.recurring_payments.usecases.list_recurring_payments import (
+    ListRecurringPaymentsUseCase,
+)
 from app.modules.recurring_payments.usecases.retry_recurring_payment import (
     RetryRecurringPaymentUseCase,
 )
@@ -255,7 +258,9 @@ async def test_admin_summary_counts_only_real_recurring_orders(
     assert summary.total == 1 and summary.enabled == 1
     assert summary.paid_renewals == 1 and summary.failed_renewals == 1
     assert summary.revenue == Decimal("400") and summary.currency is Currency.RUB
-    items, total = await repository.list_page(ListRecurringPaymentsDto(), roles=STAFF_ROLES)
+    items, total = await repository.list_page(
+        ListRecurringPaymentsDto(), roles=STAFF_ROLES, now=datetime_now()
+    )
     assert total == 1 and items[0].subscription_id == case.subscription.id
     assert items[0].amount_limit == Decimal("500")
     assert "method-token" not in repr(items[0])
@@ -274,7 +279,7 @@ async def test_admin_sees_stopped_pending_payments_as_attention(
         )
     repository = RecurringPaymentAdminRepository(session)
     items, total = await repository.list_page(
-        ListRecurringPaymentsDto(state="attention"), roles=STAFF_ROLES
+        ListRecurringPaymentsDto(state="attention"), roles=STAFF_ROLES, now=datetime_now()
     )
     assert total == 1 and items[0].state == "attention"
     assert items[0].pending_transaction_id == order.id and items[0].next_attempt_at is not None
@@ -296,7 +301,7 @@ async def test_staff_rows_are_hidden_without_admins_manage(case, session, uow):
         )
     repository = RecurringPaymentAdminRepository(session)
     items, total = await repository.list_page(
-        ListRecurringPaymentsDto(state="retrying"), roles=STAFF_ROLES
+        ListRecurringPaymentsDto(state="retrying"), roles=STAFF_ROLES, now=datetime_now()
     )
     assert total == 1 and items[0].state == "retrying" and items[0].retry_count == 2
     for data in (
@@ -304,7 +309,7 @@ async def test_staff_rows_are_hidden_without_admins_manage(case, session, uow):
         ListRecurringPaymentsDto(search=case.user.name),
         ListRecurringPaymentsDto(search=str(case.user.id)),
     ):
-        assert await repository.list_page(data, roles=ALLOWED_ROLES) == ([], 0)
+        assert await repository.list_page(data, roles=ALLOWED_ROLES, now=datetime_now()) == ([], 0)
 
 
 @pytest.mark.usefixtures("production_session_mode")
@@ -337,10 +342,33 @@ async def test_admin_filters_and_totals_use_the_same_state_as_customer_policy(
     repository = RecurringPaymentAdminRepository(session)
     for state in RecurringState:
         rows, total = await repository.list_page(
-            ListRecurringPaymentsDto(state=state), roles=STAFF_ROLES
+            ListRecurringPaymentsDto(state=state), roles=STAFF_ROLES, now=datetime_now()
         )
         assert total == int(state is expected)
         assert all(row.state is expected for row in rows)
     totals = await repository.summary()
     assert sum(getattr(totals, state.value) for state in RecurringState) == totals.total == 1
     assert getattr(totals, expected.value) == 1
+
+
+@pytest.mark.usefixtures("production_session_mode")
+async def test_the_list_offers_retry_exactly_when_the_retry_is_allowed(case, manager, session, uow):
+    action, operator = manager
+    listing = ListRecurringPaymentsUseCase(RecurringPaymentAdminRepository(session), uow)
+    case.provider.reject = True
+    await case.worker.system()
+    [item], _ = await listing(operator, ListRecurringPaymentsDto())
+    assert item.can_retry and not item.can_check and not item.can_close
+    await case.set_state(
+        case.user,
+        SetRecurringPaymentDto(
+            subscription_id=case.subscription.id, enabled=False, channel=PurchaseChannel.CABINET
+        ),
+    )
+    [withdrawn], _ = await listing(operator, ListRecurringPaymentsDto())
+    assert not withdrawn.can_retry and withdrawn.next_attempt_at is None
+    with pytest.raises(ValidationError):
+        await action[RecurringAction.RETRY](
+            operator,
+            RecurringAdminActionDto(subscription_id=case.subscription.id, client_ip="127.0.0.1"),
+        )

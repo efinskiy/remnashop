@@ -6,6 +6,7 @@ import httpx
 import pytest
 from dishka import AsyncContainer
 from fastapi import FastAPI
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import AppConfig
@@ -221,5 +222,17 @@ async def test_the_consent_route_shows_what_the_customer_accepted_even_after_wit
 async def test_the_consent_route_answers_404_without_any_consent(client, owner_auth_headers):
     response = await client.get(
         f"{API_V1}/transactions/recurring/999999/consent", headers=owner_auth_headers
+    )
+    assert response.status_code == 404
+
+
+async def test_the_consent_of_a_hidden_staff_member_answers_404(
+    client, admin_auth_headers, case, session, uow
+):
+    async with uow:
+        await session.execute(update(User).where(User.id == case.user.id).values(role=Role.ADMIN))
+    response = await client.get(
+        f"{API_V1}/transactions/recurring/{case.subscription.id}/consent",
+        headers=admin_auth_headers,
     )
     assert response.status_code == 404

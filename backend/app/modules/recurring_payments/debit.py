@@ -10,7 +10,11 @@ from app.modules.recurring_payments.lifecycle import RecurringLifecycle
 from app.modules.recurring_payments.policy import RecurringReason
 from app.modules.recurring_payments.poller import RecurringPoller, pending_expired
 from app.modules.recurring_payments.repository import RecurringPaymentRepository
-from app.modules.recurring_payments.submission import RecurringSubmission, submit_recurring
+from app.modules.recurring_payments.submission import (
+    RecurringSubmission,
+    SubmissionOutcome,
+    submit_recurring,
+)
 from app.modules.subscriptions import SubscriptionDto, SubscriptionRepository
 from app.modules.transactions import (
     PaymentTexts,
@@ -218,12 +222,12 @@ class RecurringDebit:
         result: RecurringSubmission,
     ) -> None:
         # The caller owns the order and current mandate until this entire outcome commits.
-        if result.outcome == "ambiguous":
+        if result.outcome is SubmissionOutcome.AMBIGUOUS:
             await self._checks.defer(
                 subscription_id, result.reason or RecurringReason.PROVIDER_UNAVAILABLE
             )
             return
-        if result.outcome == "accepted":
+        if result.outcome is SubmissionOutcome.ACCEPTED:
             moved = await self._transactions.mark_status_if(
                 order.id,
                 TransactionStatus.PENDING,

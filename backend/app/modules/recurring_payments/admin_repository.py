@@ -1,3 +1,6 @@
+from datetime import datetime
+from typing import Any
+
 from sqlalchemy import ColumnElement, and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -6,16 +9,13 @@ from app.core.constants import INT32_MAX, ZERO_AMOUNT
 from app.core.db.models import RecurringConsent, RecurringPayment, Subscription, Transaction, User
 from app.core.db.user_search import user_search_filter
 from app.core.enums import Currency, Role, TransactionStatus
-from app.core.utils.time import datetime_now
 from app.modules.recurring_payments.dto import (
     ListRecurringPaymentsDto,
-    RecurringPaymentAdminItemDto,
+    RecurringPaymentAdminRowDto,
     RecurringPaymentSummaryDto,
 )
 from app.modules.recurring_payments.policy import (
     RecurringState,
-    RetryKind,
-    admin_may_retry,
     stored_reason,
 )
 from app.modules.recurring_payments.queries import (
@@ -33,7 +33,8 @@ class RecurringPaymentAdminRepository:
         data: ListRecurringPaymentsDto,
         *,
         roles: list[Role],
-    ) -> tuple[list[RecurringPaymentAdminItemDto], int]:
+        now: datetime,
+    ) -> tuple[list[RecurringPaymentAdminRowDto], int]:
         source = aliased(Transaction)
         pending = aliased(Transaction)
         state = recurring_state_expression()
@@ -51,12 +52,12 @@ class RecurringPaymentAdminRepository:
                 RecurringPayment.submitted_at,
                 RecurringPayment.pending_transaction_id,
                 pending.external_payment_id,
-                pending.status.label("_pending_status"),
-                RecurringPayment.payment_method_id.is_not(None).label("_has_method"),
+                pending.status.label("pending_status"),
+                RecurringPayment.payment_method_id.is_not(None).label("has_saved_method"),
                 and_(
                     RecurringPayment.consent_id.is_not(None), RecurringConsent.revoked_at.is_(None)
-                ).label("_authorized"),
-                renewal_window_expired(datetime_now()).label("_expired"),
+                ).label("authorized"),
+                renewal_window_expired(now).label("overdue"),
                 RecurringPayment.retry_count,
                 RecurringPayment.first_failure_at,
                 source.base_price.label("amount_limit"),
@@ -87,35 +88,19 @@ class RecurringPaymentAdminRepository:
                 .limit(data.page_size)
             )
         ).mappings()
-        items = []
-        for row in rows:
-            values = dict(row)
-            reason = stored_reason(values["last_error"])
-            pending_status = values.pop("_pending_status")
-            has_method = values.pop("_has_method")
-            values["has_saved_method"] = bool(has_method)
-            authorized = values.pop("_authorized")
-            expired = values.pop("_expired")
-            values["can_check"] = bool(values["external_payment_id"])
-            values["can_close"] = pending_status is TransactionStatus.PENDING
-            values["can_retry"] = bool(
-                authorized
-                and not expired
-                and admin_may_retry(
-                    last_error=reason,
-                    customer_disabled=values["customer_disabled"],
-                    pending=values["pending_transaction_id"] is not None,
-                    submitted=values["submitted_at"] is not None,
-                    has_method=has_method,
-                )
-            )
-            if values["pending_transaction_id"] is None and (
-                values["customer_disabled"] or reason and reason.policy.retry is RetryKind.NONE
-            ):
-                values["next_attempt_at"] = None
-            values["state"] = RecurringState(values["state"])
-            items.append(RecurringPaymentAdminItemDto(**values))
-        return items, total
+        return [self._to_row_dto(dict(row)) for row in rows], total
+
+    def _to_row_dto(self, values: dict[str, Any]) -> RecurringPaymentAdminRowDto:
+        return RecurringPaymentAdminRowDto(
+            **{
+                **values,
+                "state": RecurringState(values["state"]),
+                "last_error": stored_reason(values["last_error"]),
+                "has_saved_method": bool(values["has_saved_method"]),
+                "authorized": bool(values["authorized"]),
+                "overdue": bool(values["overdue"]),
+            }
+        )
 
     async def summary(self) -> RecurringPaymentSummaryDto:
         mandate = (
