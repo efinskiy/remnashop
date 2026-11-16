@@ -16,7 +16,7 @@ from app.modules.recurring_payments.policy import (
     RecurringState,
     RetryKind,
     admin_may_retry,
-    recurring_reason,
+    stored_reason,
 )
 from app.modules.recurring_payments.queries import (
     recurring_state_expression,
@@ -89,7 +89,7 @@ class RecurringPaymentAdminRepository:
         items = []
         for row in rows:
             values = dict(row)
-            reason = recurring_reason(values["last_error"])
+            reason = stored_reason(values["last_error"])
             pending_status = values.pop("_pending_status")
             has_method = values.pop("_has_method")
             authorized = values.pop("_authorized")
@@ -100,7 +100,7 @@ class RecurringPaymentAdminRepository:
                 authorized
                 and not expired
                 and admin_may_retry(
-                    last_error=values["last_error"],
+                    last_error=reason,
                     customer_disabled=values["customer_disabled"],
                     pending=values["pending_transaction_id"] is not None,
                     submitted=values["submitted_at"] is not None,

@@ -46,7 +46,7 @@ def reset_cycle(mandate: RecurringPaymentDto, now: datetime) -> None:
 
 def pause_notice(
     mandate: RecurringPaymentDto,
-    reason: str,
+    reason: RecurringReason,
     user_id: Optional[int],
     until: Optional[datetime] = None,
 ) -> Optional[RecurringPaymentPausedEvent]:
@@ -62,7 +62,10 @@ def pause_notice(
 
 
 def apply_defer(
-    mandate: RecurringPaymentDto, until: datetime, error: Optional[str], user_id: Optional[int]
+    mandate: RecurringPaymentDto,
+    until: datetime,
+    error: Optional[RecurringReason],
+    user_id: Optional[int],
 ) -> MandateEffects:
     effects = MandateEffects()
     if mandate.customer_disabled:
@@ -76,7 +79,7 @@ def apply_defer(
 
 
 def apply_disable(
-    mandate: RecurringPaymentDto, reason: str, user_id: Optional[int], now: datetime
+    mandate: RecurringPaymentDto, reason: RecurringReason, user_id: Optional[int], now: datetime
 ) -> MandateEffects:
     effects = MandateEffects()
     effects.notice(pause_notice(mandate, reason, user_id))
@@ -197,7 +200,7 @@ def next_retry_at(
 
 
 def reject_method(
-    mandate: RecurringPaymentDto, reason: str, now: datetime, effects: MandateEffects
+    mandate: RecurringPaymentDto, reason: RecurringReason, now: datetime, effects: MandateEffects
 ) -> None:
     mandate.enabled = False
     if not mandate.customer_disabled:
@@ -209,7 +212,7 @@ def reject_method(
 
 def _failure_while_closed(
     mandate: RecurringPaymentDto,
-    reason: str,
+    reason: RecurringReason,
     permanent: bool,
     now: datetime,
     effects: MandateEffects,
@@ -230,7 +233,7 @@ def apply_failed_order(
     order_id: int,
     amount: Decimal,
     currency: Currency,
-    reason: str,
+    reason: RecurringReason,
     permanent: bool,
     terms: Optional[RecurringTerms],
     subscription_expire_at: Optional[datetime],
@@ -296,7 +299,7 @@ def apply_failed_order(
 
 def apply_release_pending(
     mandate: RecurringPaymentDto,
-    reason: Optional[str],
+    reason: Optional[RecurringReason],
     retry_minutes: int,
     user_id: Optional[int],
     now: datetime,

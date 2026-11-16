@@ -81,7 +81,9 @@ def _terms() -> RecurringTerms:
 
 
 def test_manual_renewal_keeps_enabled_mandate() -> None:
-    mandate = _mandate(first_failure_at=NOW, retry_count=2, last_error="insufficient_funds")
+    mandate = _mandate(
+        first_failure_at=NOW, retry_count=2, last_error=RecurringReason.INSUFFICIENT_FUNDS
+    )
     effects = adopt_paid_order(
         mandate,
         _order(gateway_type=PaymentGatewayType.TELEGRAM_STARS, currency=Currency.XTR),
@@ -146,7 +148,7 @@ def test_failure_after_customer_disable_keeps_customer_disabled_and_no_notice() 
     mandate = _mandate(
         enabled=False,
         customer_disabled=True,
-        last_error="customer_disabled",
+        last_error=RecurringReason.CUSTOMER_DISABLED,
         pending_transaction_id=10,
     )
     effects = apply_failed_order(

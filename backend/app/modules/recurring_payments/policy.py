@@ -147,13 +147,31 @@ _REASON_POLICIES: Final[dict[RecurringReason, ReasonPolicy]] = {
 }
 
 
-def recurring_reason(value: Optional[str]) -> Optional[RecurringReason]:
+# codes YooKassa may put in cancellation_details.reason that we track by name
+_PROVIDER_REASONS: Final[frozenset[RecurringReason]] = frozenset(
+    reason
+    for reason in RecurringReason
+    if _REASON_POLICIES[reason] in (_BANK, _CARD_ENDED)
+    and reason is not RecurringReason.RETRIES_EXHAUSTED
+)
+
+
+def provider_cancellation_reason(value: Optional[str]) -> RecurringReason:
+    # any other provider code is a bank refusal; never one of our own stop reasons
+    for reason in _PROVIDER_REASONS:
+        if reason.value == value:
+            return reason
+    return RecurringReason.BANK_DECLINED
+
+
+def stored_reason(value: Optional[str]) -> Optional[RecurringReason]:
     if value is None:
         return None
     try:
         return RecurringReason(value)
     except ValueError:
-        return RecurringReason.BANK_DECLINED
+        # a code this version no longer knows stops debits and reaches an admin
+        return RecurringReason.PROVIDER_CONFIGURATION_ERROR
 
 
 class RecurringState(StrEnum):
@@ -198,13 +216,13 @@ class MandateState(Protocol):
     @property
     def first_failure_at(self) -> Optional[datetime]: ...
     @property
-    def last_error(self) -> Optional[str]: ...
+    def last_error(self) -> Optional[RecurringReason]: ...
     @property
     def submitted_at(self) -> Optional[datetime]: ...
 
 
 def classify(mandate: MandateState) -> RecurringState:
-    reason = recurring_reason(mandate.last_error)
+    reason = mandate.last_error
     for matches, state in classification_rules(
         enabled=mandate.enabled,
         customer_disabled=mandate.customer_disabled,
@@ -234,14 +252,14 @@ class ConsentChannel(UpperStrEnum):
 
 def admin_may_retry(
     *,
-    last_error: Optional[str],
+    last_error: Optional[RecurringReason],
     customer_disabled: bool,
     pending: bool,
     submitted: bool,
     has_method: bool,
 ) -> bool:
     # a technical stop the shop fixed; never a bank refusal or the customer's own choice
-    reason = recurring_reason(last_error)
+    reason = last_error
     return bool(
         reason is not None
         and (

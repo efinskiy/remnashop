@@ -13,7 +13,7 @@ from app.core.db.models.transaction import Transaction
 from app.core.enums import PurchaseChannel, TransactionStatus
 from app.core.utils.time import datetime_now
 from app.modules.recurring_payments.dto import ConsentFacts, RecurringPaymentDto, RecurringTerms
-from app.modules.recurring_payments.policy import ConsentChannel, RecurringReason
+from app.modules.recurring_payments.policy import ConsentChannel, RecurringReason, stored_reason
 from app.modules.recurring_payments.queries import renewal_window_expired
 
 
@@ -35,7 +35,7 @@ class RecurringPaymentRepository:
             shop_id=row.shop_id,
             enabled=row.enabled,
             customer_disabled=row.customer_disabled,
-            last_error=row.last_error,
+            last_error=stored_reason(row.last_error),
             pending_transaction_id=row.pending_transaction_id,
             submitted_at=row.submitted_at,
             disabled_at=row.disabled_at,

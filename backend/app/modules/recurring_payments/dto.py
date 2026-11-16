@@ -15,7 +15,7 @@ from app.core.enums import (
     PurchaseType,
     TransactionStatus,
 )
-from app.modules.recurring_payments.policy import RecurringState
+from app.modules.recurring_payments.policy import RecurringReason, RecurringState
 
 
 # stored as the consent's JSONB snapshot: the exact amounts, timings and text shown
@@ -66,7 +66,7 @@ class RecurringPaymentDto:
     shop_id: str
     enabled: bool
     customer_disabled: bool
-    last_error: Optional[str]
+    last_error: Optional[RecurringReason]
     pending_transaction_id: Optional[int]
     submitted_at: Optional[datetime] = None
     disabled_at: Optional[datetime] = None

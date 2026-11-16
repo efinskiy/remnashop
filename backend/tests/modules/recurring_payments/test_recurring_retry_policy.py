@@ -9,6 +9,8 @@ from app.modules.recurring_payments.policy import (
     RecurringReason,
     RecurringState,
     classify,
+    provider_cancellation_reason,
+    stored_reason,
 )
 
 
@@ -39,7 +41,7 @@ def test_mandate_state_follows_one_ordered_policy(
         customer_disabled=customer_disabled,
         pending_transaction_id=pending,
         first_failure_at=failed,
-        last_error=reason,
+        last_error=stored_reason(reason),
         submitted_at=None,
     )
     assert classify(mandate) is expected
@@ -47,3 +49,25 @@ def test_mandate_state_follows_one_ordered_policy(
 
 def test_bank_retry_schedule_has_the_agreed_absolute_offsets():
     assert RETRY_OFFSETS_HOURS == (1, 3, 6, 12, 24, 36, 48, 72)
+
+
+@pytest.mark.parametrize(
+    ("provider", "expected"),
+    [
+        ("insufficient_funds", RecurringReason.INSUFFICIENT_FUNDS),
+        ("permission_revoked", RecurringReason.PERMISSION_REVOKED),
+        ("general_decline", RecurringReason.BANK_DECLINED),
+        # our own stop reasons never come from a webhook
+        ("admin_closed", RecurringReason.BANK_DECLINED),
+        ("retries_exhausted", RecurringReason.BANK_DECLINED),
+        (None, RecurringReason.BANK_DECLINED),
+    ],
+)
+def test_a_provider_code_maps_only_to_bank_and_card_reasons(provider, expected):
+    assert provider_cancellation_reason(provider) is expected
+
+
+def test_an_unknown_stored_reason_stops_debits_and_reaches_an_admin():
+    reason = stored_reason("renamed_in_a_later_version")
+    assert reason is RecurringReason.PROVIDER_CONFIGURATION_ERROR
+    assert not reason.policy.allows_debit and reason.policy.admin_notice

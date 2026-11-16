@@ -12,7 +12,6 @@ from app.modules.recurring_payments.policy import (
     RetryKind,
     classify,
     recurring_policy,
-    recurring_reason,
 )
 from app.modules.recurring_payments.ports import RecurringTermsTexts
 from app.modules.recurring_payments.repository import RecurringPaymentRepository
@@ -57,7 +56,7 @@ class GetOwnRecurringPaymentUseCase(UseCase[int, RecurringPaymentStateDto, UserD
                 if mandate and mandate.source_transaction_id is not None
                 else None
             )
-        reason = recurring_reason(mandate.last_error) if mandate else None
+        reason = mandate.last_error if mandate else None
         available = bool(
             mandate
             and mandate.payment_method_id

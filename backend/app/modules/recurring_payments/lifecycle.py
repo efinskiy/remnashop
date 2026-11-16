@@ -13,7 +13,7 @@ from app.modules.recurring_payments.policy import (
     SAFE_REPOST_WINDOW,
     ConsentChannel,
     RecurringReason,
-    recurring_reason,
+    provider_cancellation_reason,
 )
 from app.modules.recurring_payments.repository import RecurringPaymentRepository
 from app.modules.recurring_payments.transitions import (
@@ -137,7 +137,7 @@ class RecurringLifecycle:
         )
 
     async def defer(
-        self, subscription_id: int, until: datetime, error: Optional[str] = None
+        self, subscription_id: int, until: datetime, error: Optional[RecurringReason] = None
     ) -> None:
         before = await self._locked(subscription_id)
         if before is None:
@@ -147,11 +147,15 @@ class RecurringLifecycle:
         await self._commit(before, after, effects)
 
     async def pause(
-        self, subscription_id: int, reason: str, *, until: Optional[datetime] = None
+        self,
+        subscription_id: int,
+        reason: RecurringReason,
+        *,
+        until: Optional[datetime] = None,
     ) -> None:
         await self.defer(subscription_id, until or datetime_now() + POLICY_RECHECK_DELAY, reason)
 
-    async def disable(self, subscription_id: int, reason: str) -> None:
+    async def disable(self, subscription_id: int, reason: RecurringReason) -> None:
         before = await self._locked(subscription_id)
         if before is None:
             return
@@ -203,7 +207,7 @@ class RecurringLifecycle:
     async def close_overdue(self, now: datetime, *, limit: int) -> None:
         for subscription_id in await self._repository.overdue_ids(now, limit=limit):
             current = await self._repository.get(subscription_id)
-            reason = recurring_reason(current.last_error) if current else None
+            reason = current.last_error if current else None
             await self.disable(
                 subscription_id,
                 reason
@@ -226,7 +230,7 @@ class RecurringLifecycle:
         subscription_id: int,
         transaction_id: int,
         *,
-        reason: Optional[str],
+        reason: Optional[RecurringReason],
         retry_minutes: int = 5,
     ) -> None:
         order = await self._transactions.get_by_id_for_update(transaction_id)
@@ -244,7 +248,7 @@ class RecurringLifecycle:
     async def fail_pending(
         self,
         subscription_id: int,
-        reason: str,
+        reason: RecurringReason,
         *,
         transaction_id: Optional[int] = None,
         permanent: bool = False,
@@ -266,7 +270,7 @@ class RecurringLifecycle:
         self,
         before: RecurringPaymentDto,
         order: TransactionDto,
-        reason: str,
+        reason: RecurringReason,
         permanent: bool,
         *,
         start: Optional[RecurringPaymentDto] = None,
@@ -371,7 +375,7 @@ class RecurringLifecycle:
         before = await self._locked(subscription_id)
         if before is None:
             return
-        resolved = recurring_reason(provider_reason) or RecurringReason.BANK_DECLINED
+        resolved = provider_cancellation_reason(provider_reason)
         if before.pending_transaction_id != order.id:
             if (
                 before.pending_transaction_id is not None
