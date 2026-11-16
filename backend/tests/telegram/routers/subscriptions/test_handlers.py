@@ -7,6 +7,7 @@ from aiogram_dialog.widgets.kbd import Button
 from aiogram_dialog.widgets.text import Format
 from dishka.integrations.aiogram_dialog import CONTAINER_NAME
 
+import app.telegram.routers.subscriptions.handlers as handlers
 from app.core.constants import USER_KEY
 from app.core.enums import Locale
 from app.core.error_codes import ErrorCode
@@ -63,6 +64,28 @@ async def test_repeated_taps_on_disable_never_reenable_auto_renewal() -> None:
         )
     assert set_recurring.await_count == 2
     assert all(call.args[1].enabled is False for call in set_recurring.await_args_list)
+
+
+async def test_enabling_against_changed_terms_says_so(monkeypatch) -> None:
+    notices: list[str] = []
+
+    async def notice(callback: object, text: str) -> None:
+        notices.append(text)
+
+    monkeypatch.setattr(handlers, "answer_notice", notice)
+    manager = _manager({"auto_renew_terms_id": "a" * 64}, {SELECTED_SUBSCRIPTION_KEY: 7})
+    manager.item_id = "a" * 16
+    set_recurring = AsyncMock(
+        side_effect=ValidationError("x", code=ErrorCode.RECURRING_TERMS_CHANGED)
+    )
+    await on_auto_renew.__dishka_orig_func__(
+        AsyncMock(),
+        Button(Format("Enable"), id="auto_renew_on"),
+        manager,
+        set_recurring=set_recurring,
+        i18n=_i18n(),
+    )
+    assert notices == ["ntf-recurring.terms-changed"]
 
 
 async def test_open_subscriptions_with_the_only_one_allowed_goes_straight_to_the_card() -> None:

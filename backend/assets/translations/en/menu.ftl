@@ -338,6 +338,7 @@ ntf-purchase =
     .limit-reached = ❌ You've reached the subscription limit.
     .method-unavailable = ❌ This payment method is unavailable right now.
     .discount-used = ⚠️ The discount has already been used — check the new price.
+    .price-changed = ⚠️ The price has changed — pick the duration again to see the new total.
     .failed = ❌ Couldn't create the payment. Please try again later.
     .no-plans = ❌ No plans are available.
     .no-methods = ❌ No payment methods are available.

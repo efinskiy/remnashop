@@ -65,7 +65,7 @@ _ERROR_KEYS: Final[dict[ErrorCode, str]] = {
     ErrorCode.GATEWAY_NOT_AVAILABLE: "ntf-purchase.method-unavailable",
     ErrorCode.GATEWAY_EMAIL_REQUIRED: "ntf-purchase.method-unavailable",
     ErrorCode.PURCHASE_DISCOUNT_USED: "ntf-purchase.discount-used",
-    ErrorCode.PRICE_CHANGED: "ntf-recurring.terms-changed",
+    ErrorCode.PRICE_CHANGED: "ntf-purchase.price-changed",
     ErrorCode.RECURRING_TERMS_CHANGED: "ntf-recurring.terms-changed",
     ErrorCode.RECURRING_CONSENT_REQUIRED: "ntf-recurring.consent-required",
     ErrorCode.RECURRING_PAYMENT_IN_PROGRESS: "ntf-recurring.payment-in-progress",

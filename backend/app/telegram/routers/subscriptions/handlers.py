@@ -77,8 +77,15 @@ async def on_auto_renew(
                 event_id=callback.id,
             ),
         )
-    except AppError:
-        await answer_notice(callback, runner.get("ntf-recurring.unavailable"))
+    except AppError as error:
+        await answer_notice(
+            callback,
+            runner.get(
+                "ntf-recurring.terms-changed"
+                if error.code is ErrorCode.RECURRING_TERMS_CHANGED
+                else "ntf-recurring.unavailable"
+            ),
+        )
         return
     await answer_notice(
         callback,
