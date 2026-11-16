@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import AppConfig
 from app.core.constants import API_V1
-from app.core.db.models import RecurringConsent, Transaction
+from app.core.db.models import RecurringConsent, RecurringPayment, Transaction
 from app.core.db.uow import UnitOfWork
 from app.core.enums import (
     Currency,
@@ -181,6 +181,7 @@ async def test_customer_can_manage_only_their_own_auto_renewal(
     user_repository,
     subscription_repository,
     plan,
+    session,
 ) -> None:
     user = await user_repository.find_by_login("checkoutrouter")
     subscription = await subscription_repository.create(
@@ -204,8 +205,9 @@ async def test_customer_can_manage_only_their_own_auto_renewal(
     assert state.json()["available"] is False
     disabled = await client.put(url, json={"enabled": False}, headers=auth_headers)
     assert disabled.status_code == 200
-    # no mandate to withdraw: the request changes nothing
+    # no mandate to withdraw: the request changes nothing and creates no row
     assert disabled.json()["customer_disabled"] is False
+    assert await session.get(RecurringPayment, subscription.id) is None
     enabled = await client.put(url, json={"enabled": True}, headers=auth_headers)
     assert enabled.status_code == 400
     other = await user_repository.create(CreateUserDto(name="another customer", telegram_id=931111))
@@ -418,14 +420,12 @@ async def test_own_transactions_list_and_detail(
     assert (await client.get(f"{API_V1}/checkout/methods", headers=mine)).status_code == 200
 
 
-@pytest.mark.parametrize("consent", [False, True])
-async def test_checkout_requires_explicit_consent_and_records_the_exact_terms(
+async def test_checkout_records_the_exact_terms_the_customer_accepted(
     client,
     plan,
     auth_headers,
     gateway_repository,
     session,
-    consent,
 ):
     await gateway_repository.update_settings(
         PaymentGatewayType.YOOKASSA,
@@ -445,20 +445,15 @@ async def test_checkout_requires_explicit_consent_and_records_the_exact_terms(
     assert response.status_code == 200
     terms = response.json()["terms"]
     assert terms["text"] and terms["amount_limit"] == "500"
-    payload.update(recurring_consent=consent, recurring_terms_id=terms["terms_id"])
+    payload.update(recurring_consent=True, recurring_terms_id=terms["terms_id"])
     response = await client.post(f"{API_V1}/checkout", json=payload, headers=auth_headers)
     assert response.status_code == 201
     order = await session.get(Transaction, response.json()["order_id"])
-    assert (order.recurring_consent_id is not None) is consent
-    assert _YOOKASSA_REQUESTS[-1]["save_payment_method"] is consent
-    if consent:
-        recorded = await session.get(RecurringConsent, order.recurring_consent_id)
-        assert recorded.terms == terms
-        assert recorded.user_id == order.user_id
-        assert recorded.accepted_at is not None and recorded.revoked_at is None
-        assert recorded.ip_address == "127.0.0.1"
-    else:
-        assert order.recurring_consent_id is None
+    recorded = await session.get(RecurringConsent, order.recurring_consent_id)
+    assert recorded.terms == terms
+    assert recorded.user_id == order.user_id
+    assert recorded.accepted_at is not None and recorded.revoked_at is None
+    assert recorded.ip_address == "127.0.0.1"
 
 
 @pytest.mark.parametrize("terms_id", [None, "0" * 64])

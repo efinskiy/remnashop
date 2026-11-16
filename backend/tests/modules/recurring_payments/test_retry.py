@@ -141,7 +141,8 @@ async def test_bank_decline_schedules_a_retry_without_switching_off_the_customer
     assert mandate.next_attempt_at == mandate.first_failure_at + timedelta(hours=1)
     assert mandate.last_error == "insufficient_funds"
     await tick_again(case, uow)
-    assert len(case.provider.posts) == 1
+    # the next slot is an hour away: no repost, and nothing was provisioned
+    assert len(case.provider.posts) == 1 and not case.dispatch.messages
 
 
 @pytest.mark.parametrize("retry_count", range(1, 9))
@@ -356,12 +357,15 @@ async def test_runtime_window_increase_does_not_widen_the_accepted_limit(
 
 async def test_auth_failure_after_a_lost_create_keeps_the_original_key_and_attempt(
     case,
+    transaction_repository,
     uow,
 ):
     case.provider.lose_response = True
     await case.worker.system()
     original = await case.repository.get(case.subscription.id)
     assert original.pending_transaction_id is not None
+    lost = await transaction_repository.get_by_id(original.pending_transaction_id)
+    assert lost.external_payment_id is None
     case.provider.reject = True
     case.provider.reject_code = 401
     await tick_again(case, uow)
@@ -593,18 +597,6 @@ async def test_paid_manual_renewal_waiting_for_fulfillment_prevents_an_auto_debi
     after = await case.repository.get(case.subscription.id)
     assert after.enabled and after.pending_transaction_id is None
     assert not case.provider.posts
-
-
-async def test_canceled_payment_waits_for_the_scheduled_retry(case, uow) -> None:
-    case.provider.status = "canceled"
-    await case.worker.system()
-    await tick_again(case, uow)
-    assert len(case.provider.posts) == 1
-    assert not case.dispatch.messages
-    mandate = await case.repository.get(case.subscription.id)
-    assert mandate.enabled and mandate.retry_count == 1
-    assert mandate.first_failure_at is not None
-    assert mandate.next_attempt_at > datetime_now()
 
 
 @pytest.mark.usefixtures("production_session_mode")

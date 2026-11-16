@@ -9,7 +9,6 @@ from app.core.db.models import RecurringConsent, RecurringPayment
 from app.core.enums import (
     PaymentGatewayType,
     PurchaseChannel,
-    SubscriptionStatus,
 )
 from app.core.exceptions import ValidationError
 from app.core.utils.time import datetime_now
@@ -19,7 +18,6 @@ from app.modules.recurring_payments.dto import (
 from app.modules.recurring_payments.usecases import (
     GetOwnRecurringPaymentUseCase,
 )
-from app.modules.subscriptions.dto import CreateSubscriptionDto
 from app.modules.users.dto import CreateUserDto
 from tests.fakes.recurring import ShippedRecurringTermsTexts
 from tests.modules.recurring_payments.harness import (
@@ -64,32 +62,6 @@ async def test_other_customers_cannot_read_or_disable_auto_renew(case, user_repo
             ),
         )
     assert (await case.get_state(case.user, case.subscription.id)).enabled
-
-
-async def test_disabling_without_a_mandate_creates_none(
-    case, session, subscription_repository, uow
-) -> None:
-    async with uow:
-        other = await subscription_repository.create(
-            CreateSubscriptionDto(
-                user_id=case.user.id,
-                remnawave_user_id=931002,
-                status=SubscriptionStatus.ACTIVE,
-                traffic_limit=100,
-                device_limit=3,
-                expire_at=datetime_now() + timedelta(days=10),
-                url="https://example.com/no-mandate",
-                plan_snapshot=case.subscription.plan_snapshot,
-            )
-        )
-    state = await case.set_state(
-        case.user,
-        SetRecurringPaymentDto(
-            subscription_id=other.id, enabled=False, channel=PurchaseChannel.CABINET
-        ),
-    )
-    assert not state.enabled and not state.customer_disabled
-    assert await case.repository.get(other.id) is None
 
 
 async def test_customer_can_withdraw_after_the_shop_switched_auto_renewal_off(

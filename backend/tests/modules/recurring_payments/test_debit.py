@@ -79,21 +79,6 @@ async def test_due_subscription_is_charged_once_and_dispatched_as_a_renewal(
     assert json.loads(case.provider.posts[0].content)["payment_method_id"] == "method-token"
 
 
-async def test_lost_response_reuses_the_durable_key_after_restart(
-    case, transaction_repository, uow
-) -> None:
-    case.provider.lose_response = True
-    await case.worker.system()
-    pending = await case.repository.get(case.subscription.id)
-    first = await transaction_repository.get_by_id(pending.pending_transaction_id)
-    assert first.external_payment_id is None
-    await tick_again(case, uow)
-    assert len(case.provider.posts) == 2
-    assert len(case.provider.keys) == 1
-    assert len({request.headers["Idempotence-Key"] for request in case.provider.posts}) == 1
-    assert len(case.dispatch.messages) == 1
-
-
 async def test_an_expired_idempotency_key_is_never_sent_again(case, session, uow) -> None:
     case.provider.lose_response = True
     await case.worker.system()

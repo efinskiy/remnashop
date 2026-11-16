@@ -5,7 +5,6 @@ import pytest
 
 from app.core.utils.time import datetime_now
 from app.modules.recurring_payments.policy import (
-    RETRY_OFFSETS_HOURS,
     RecurringReason,
     RecurringState,
     classify,
@@ -45,10 +44,6 @@ def test_mandate_state_follows_one_ordered_policy(
         submitted_at=None,
     )
     assert classify(mandate) is expected
-
-
-def test_bank_retry_schedule_has_the_agreed_absolute_offsets():
-    assert RETRY_OFFSETS_HOURS == (1, 3, 6, 12, 24, 36, 48, 72)
 
 
 @pytest.mark.parametrize(

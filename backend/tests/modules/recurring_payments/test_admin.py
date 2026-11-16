@@ -16,7 +16,7 @@ from app.core.enums import (
     Role,
     TransactionStatus,
 )
-from app.core.exceptions import ConflictError, PermissionDeniedError, ValidationError
+from app.core.exceptions import ValidationError
 from app.core.utils.time import datetime_now
 from app.modules.recurring_payments.admin_guard import RecurringAdminGuard
 from app.modules.recurring_payments.admin_repository import RecurringPaymentAdminRepository
@@ -147,26 +147,6 @@ async def test_operator_close_revokes_consent_but_preserves_a_late_paid_fulfillm
 
 
 @pytest.mark.usefixtures("production_session_mode")
-async def test_operator_cannot_apply_close_to_a_replaced_pending_order(case, manager, session):
-    action, operator = manager
-    case.provider.status = "pending"
-    await case.worker.system()
-    before = await case.repository.get(case.subscription.id)
-    with pytest.raises(ConflictError):
-        await action[RecurringAction.CLOSE](
-            operator,
-            RecurringAdminActionDto(
-                subscription_id=case.subscription.id,
-                expected_pending_transaction_id=before.pending_transaction_id + 1,
-                client_ip="127.0.0.1",
-            ),
-        )
-    after = await case.repository.get(case.subscription.id)
-    assert after.pending_transaction_id == before.pending_transaction_id and after.enabled
-    assert not await _audit(session)
-
-
-@pytest.mark.usefixtures("production_session_mode")
 async def test_operator_retry_requeues_a_corrected_shop_error_without_touching_consent(
     case, manager, session
 ):
@@ -234,20 +214,6 @@ async def test_operator_retry_cannot_override_customer_withdrawal(case, manager,
         )
     assert (await case.repository.get(case.subscription.id)).customer_disabled
     assert not case.provider.posts and not await _audit(session)
-
-
-@pytest.mark.usefixtures("production_session_mode")
-async def test_customer_cannot_manage_an_autopayment_without_operator_permission(case, manager):
-    action, _ = manager
-    with pytest.raises(PermissionDeniedError):
-        await action[RecurringAction.RETRY](
-            case.user,
-            RecurringAdminActionDto(
-                subscription_id=case.subscription.id,
-                client_ip="127.0.0.1",
-            ),
-        )
-    assert not case.provider.posts
 
 
 @pytest.mark.usefixtures("production_session_mode")

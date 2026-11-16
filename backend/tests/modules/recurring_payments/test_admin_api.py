@@ -180,6 +180,7 @@ async def test_recurring_close_uses_the_pending_order_confirmed_by_the_operator(
     assert (
         await transaction_repository.get_by_id(before.pending_transaction_id)
     ).status is TransactionStatus.PENDING
+    assert (await case.repository.get(case.subscription.id)).enabled
     closed = await client.post(
         path,
         headers=owner_auth_headers,
