@@ -75,6 +75,8 @@ class RecurringReason(StrEnum):
     PROVIDER_UNAVAILABLE = "provider_unavailable"
     MERCHANT_UNAVAILABLE = "merchant_unavailable"
     PROVIDER_CONFIGURATION_ERROR = "provider_configuration_error"
+    # YooKassa refused the request itself (HTTP 400/404): the shop or the card, we can't tell
+    PROVIDER_REQUEST_REJECTED = "provider_request_rejected"
     PROVIDER_REJECTED = "provider_rejected"
     PERMISSION_REVOKED = "permission_revoked"
     PAYMENT_METHOD_RESTRICTED = "payment_method_restricted"
@@ -124,6 +126,8 @@ _REASON_POLICIES: Final[dict[RecurringReason, ReasonPolicy]] = {
     RecurringReason.PROVIDER_CONFIGURATION_ERROR: ReasonPolicy(
         RetryKind.NONE, customer_notice=False, terminal=True
     ),
+    # both sides hear of it: the customer can pay by hand, an admin can fix and retry
+    RecurringReason.PROVIDER_REQUEST_REJECTED: ReasonPolicy(RetryKind.NONE, terminal=True),
     RecurringReason.PERMISSION_REVOKED: _CARD_ENDED,
     RecurringReason.PAYMENT_METHOD_RESTRICTED: _CARD_ENDED,
     RecurringReason.CARD_EXPIRED: _CARD_ENDED,
@@ -264,7 +268,11 @@ def admin_may_retry(
         reason is not None
         and (
             reason.policy.retry is RetryKind.TECHNICAL
-            or reason is RecurringReason.PROVIDER_CONFIGURATION_ERROR
+            or reason
+            in (
+                RecurringReason.PROVIDER_CONFIGURATION_ERROR,
+                RecurringReason.PROVIDER_REQUEST_REJECTED,
+            )
         )
         and not customer_disabled
         and not pending

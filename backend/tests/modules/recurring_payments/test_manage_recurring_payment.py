@@ -154,7 +154,7 @@ async def test_operator_retry_requeues_a_corrected_shop_error_without_touching_c
     case.provider.reject = True
     await case.worker.system()
     before = await case.repository.get(case.subscription.id)
-    assert before.last_error == "provider_configuration_error"
+    assert before.last_error == "provider_request_rejected"
     await action[RecurringAction.RETRY](
         operator,
         RecurringAdminActionDto(

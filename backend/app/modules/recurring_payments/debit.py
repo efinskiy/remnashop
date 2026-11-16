@@ -238,20 +238,13 @@ class RecurringDebit:
         )
         if not moved:
             return
-        if result.outcome in {"merchant", "configuration"}:
-            await self._lifecycle.release_pending(
-                subscription_id,
-                order.id,
-                reason=result.reason or RecurringReason.MERCHANT_UNAVAILABLE,
-                retry_minutes=terms.retry_minutes,
-            )
-        else:
-            await self._lifecycle.fail_pending(
-                subscription_id,
-                result.reason or RecurringReason.PAYMENT_METHOD_RESTRICTED,
-                transaction_id=order.id,
-                permanent=True,
-            )
+        # refused before any charge: the method stays, the reason decides whether to retry
+        await self._lifecycle.release_pending(
+            subscription_id,
+            order.id,
+            reason=result.reason or RecurringReason.MERCHANT_UNAVAILABLE,
+            retry_minutes=terms.retry_minutes,
+        )
 
 
 def _cycle_superseded(mandate: RecurringPaymentDto, subscription: SubscriptionDto) -> bool:

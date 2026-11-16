@@ -36,7 +36,12 @@ from app.modules.plans.dto import (
 )
 from app.modules.recurring_payments.admin_repository import RecurringPaymentAdminRepository
 from app.modules.recurring_payments.dto import ListRecurringPaymentsDto, SetRecurringPaymentDto
-from app.modules.recurring_payments.policy import RecurringState, classify, recurring_policy
+from app.modules.recurring_payments.policy import (
+    RecurringReason,
+    RecurringState,
+    classify,
+    recurring_policy,
+)
 from app.modules.recurring_payments.terms import build_recurring_terms
 from app.modules.subscriptions.dto import (
     ChangeSubscriptionPlanDto,
@@ -526,43 +531,37 @@ async def test_poll_of_already_paid_order_does_not_touch_revenue_timestamp_or_re
 
 
 @pytest.mark.parametrize(
-    ("body", "reason", "enabled"),
+    "body",
     [
-        (
-            {"type": "error", "code": "invalid_request", "parameter": "receipt.items"},
-            "provider_configuration_error",
-            True,
-        ),
-        (
-            {
-                "type": "error",
-                "code": "invalid_request",
-                "parameter": "payment_method_id",
-                "description": "Payment method not found",
-            },
-            "payment_method_restricted",
-            False,
-        ),
-        (
-            {
-                "type": "error",
-                "code": "invalid_request",
-                "parameter": "payment_method_id",
-                "description": "Payment method is not available",
-            },
-            "merchant_unavailable",
-            True,
-        ),
+        {"type": "error", "code": "invalid_request", "parameter": "receipt.items"},
+        {
+            "type": "error",
+            "code": "invalid_request",
+            "parameter": "payment_method_id",
+            "description": "Payment method not found",
+        },
+        {
+            "type": "error",
+            "code": "invalid_request",
+            "parameter": "payment_method_id",
+            "description": "Payment method is not available",
+        },
+        {"type": "error", "code": "invalid_request", "description": "Новая формулировка"},
     ],
 )
-async def test_http400_is_classified_without_bank_dunning(case, session, body, reason, enabled):
+async def test_http400_stops_the_debit_whatever_its_wording(case, session, body):
     case.provider.reject = True
     case.provider.reject_body = body
     await case.worker.system()
     current = await case.repository.get(case.subscription.id)
-    assert current.last_error == reason and current.enabled is enabled
+    assert current.last_error == "provider_request_rejected" and current.enabled
+    # the method stays, so an admin can retry once the shop side is fixed
+    assert current.payment_method_id is not None
     assert current.bank_retry_at is None and current.first_failure_at is None
     assert len(await _notice_types(session)) == 1
+    reason = RecurringReason.PROVIDER_REQUEST_REJECTED
+    assert reason.policy.customer_notice and reason.policy.admin_notice
+    assert not reason.policy.allows_debit
 
 
 async def test_first_enrollment_without_saved_method_is_reported(

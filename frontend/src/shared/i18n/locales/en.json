@@ -3724,6 +3724,7 @@
         "provider_unavailable": "The payment provider is unavailable",
         "merchant_unavailable": "The shop cannot process payments",
         "provider_configuration_error": "The payment or receipt configuration requires correction",
+        "provider_request_rejected": "YooKassa refused the payment request",
         "provider_rejected": "The payment provider rejected the request",
         "permission_revoked": "The payment provider mandate was revoked",
         "payment_method_restricted": "The saved payment method is no longer valid",

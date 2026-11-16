@@ -511,6 +511,7 @@ ntf-recurring-reason = { $reason ->
     [provider_unavailable] the payment provider is unavailable
     [merchant_unavailable] the shop cannot process payments
     [provider_configuration_error] the payment or receipt configuration requires correction
+    [provider_request_rejected] the payment service didn’t accept the automatic payment
     [provider_rejected] the payment provider rejected the request
     [permission_revoked] the payment provider mandate was revoked
     [payment_method_restricted] the saved payment method is no longer valid

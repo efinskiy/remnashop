@@ -523,6 +523,7 @@ ntf-recurring-reason = { $reason ->
     [provider_unavailable] нет связи с платёжным сервисом
     [merchant_unavailable] магазину недоступно проведение платежей
     [provider_configuration_error] требуется исправить настройки платежа или чека
+    [provider_request_rejected] платёжный сервис не принял автоматический платёж
     [provider_rejected] платёжный сервис отклонил запрос
     [permission_revoked] разрешение на списания отозвано в платёжном сервисе
     [payment_method_restricted] сохранённый способ оплаты больше не действует

@@ -109,7 +109,7 @@ async def test_request_configuration_error_never_consumes_bank_retries(case, uow
     initial = await case.repository.get(case.subscription.id)
     assert initial.enabled and initial.retry_count == 0
     assert initial.pending_transaction_id is None and initial.first_failure_at is None
-    assert initial.last_error == "provider_configuration_error"
+    assert initial.last_error == "provider_request_rejected"
     await _tick_again(case, uow)
     assert len(case.provider.posts) == 1
 

@@ -10,43 +10,9 @@ from app.modules.transactions import PaymentTextDto, TransactionDto, YooKassaGat
 
 @dataclass(frozen=True)
 class RecurringSubmission:
-    outcome: Literal["accepted", "merchant", "configuration", "rejected", "ambiguous"]
+    outcome: Literal["accepted", "merchant", "configuration", "ambiguous"]
     payment_id: Optional[str] = None
     reason: Optional[RecurringReason] = None
-
-
-def _refusal(response: httpx.Response) -> RecurringSubmission:
-    try:
-        body = response.json()
-    except ValueError:
-        body = None
-    if not isinstance(body, dict):
-        return RecurringSubmission(
-            "configuration", reason=RecurringReason.PROVIDER_CONFIGURATION_ERROR
-        )
-    # YooKassa's stable error code/parameter identify request failures. A generic
-    # "method is not available" can be a shop/currency issue, not a revoked card.
-    if body.get("code") == "invalid_request" and body.get("parameter") == "payment_method_id":
-        description = body.get("description")
-        if isinstance(description, str):
-            description = description.casefold()
-            if any(
-                word in description
-                for word in (
-                    "revoked",
-                    "does not exist",
-                    "doesn't exist",
-                    "not found",
-                    "invalid payment_method_id",
-                    "incorrect payment_method_id",
-                )
-            ):
-                return RecurringSubmission(
-                    "rejected", reason=RecurringReason.PAYMENT_METHOD_RESTRICTED
-                )
-            if "not available" in description:
-                return RecurringSubmission("merchant", reason=RecurringReason.MERCHANT_UNAVAILABLE)
-    return RecurringSubmission("configuration", reason=RecurringReason.PROVIDER_CONFIGURATION_ERROR)
 
 
 async def submit_recurring(
@@ -68,5 +34,8 @@ async def submit_recurring(
             return RecurringSubmission("ambiguous", reason=RecurringReason.MERCHANT_UNAVAILABLE)
         if code in {401, 403}:
             return RecurringSubmission("merchant", reason=RecurringReason.MERCHANT_UNAVAILABLE)
-        return _refusal(error.response)
+        # the error body's wording isn't a contract, so it never decides whose problem this is
+        return RecurringSubmission(
+            "configuration", reason=RecurringReason.PROVIDER_REQUEST_REJECTED
+        )
     return RecurringSubmission("accepted", intent.provider_payment_id)

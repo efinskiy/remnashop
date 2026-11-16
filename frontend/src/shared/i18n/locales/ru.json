@@ -3830,6 +3830,7 @@
         "provider_unavailable": "Нет связи с платёжным сервисом",
         "merchant_unavailable": "Магазину недоступно проведение платежей",
         "provider_configuration_error": "Требуется исправить настройки платежа или чека",
+        "provider_request_rejected": "ЮKassa не приняла запрос на платёж",
         "provider_rejected": "Платёжный сервис отклонил запрос",
         "permission_revoked": "Разрешение на списания отозвано в платёжном сервисе",
         "payment_method_restricted": "Сохранённый способ оплаты больше не действует",

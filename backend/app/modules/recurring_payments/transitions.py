@@ -307,7 +307,10 @@ def apply_release_pending(
     effects = MandateEffects()
     until = now + timedelta(minutes=retry_minutes)
     if reason is not None:
-        effects.notice(pause_notice(mandate, reason, user_id, until))
+        # a reason that never retries promises no next check
+        effects.notice(
+            pause_notice(mandate, reason, user_id, until if reason.policy.allows_debit else None)
+        )
     mandate.pending_transaction_id = None
     mandate.pending_since = None
     mandate.submitted_at = None
