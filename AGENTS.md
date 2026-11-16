@@ -149,6 +149,11 @@ Alembic with a **version chain** (since 2026-11-06), numbered revisions: `1000_i
 
 Search the module and `app/core` first. Often re-implemented: `subscriptions.get_owned_target` (a customer's own subscription), `users.get_visible_target`/`visible_user`/`assert_manageable` (another user, hidden staff), `users.detail_roles` (which roles an actor may see — never a hand-written `Role.in_([...])`), `core.events.changed_fields`, `core.db.filters.in_ids`, `core.constants` page/search limits, `telegram.i18n.format_datetime`/`format_date`, `core.telegram_api.bot_client`.
 
+### Permissions
+
+- Every new admin action decides whether an API token may hold its permission. An action that is irreversible, moves or charges money, or withdraws a customer's consent goes in `_TOKEN_EXCLUDED_PERMISSIONS`.
+- When one permission would cover both a harmless operation (a read, a status check) and such an action, split it in two, so a token keeps the harmless one.
+
 ### Opt-in features
 
 - Work a feature adds to hot paths (bot screens, checkout, fulfillment, webhooks) runs only after checking its flag.
