@@ -7,9 +7,10 @@ from app.core.db.uow import UnitOfWork
 from app.core.enums import Locale
 from app.core.outbox_event_publisher import OutboxEventPublisher
 from app.modules.notifications import NotificationRenderer
-from app.modules.transactions.dto import RecurringTermsTextDto
-from app.modules.transactions.recurring_lifecycle import RecurringLifecycle
-from app.modules.transactions.recurring_repository import RecurringPaymentRepository
+from app.modules.recurring_payments.checkout import RecurringCheckoutConsent
+from app.modules.recurring_payments.dto import RecurringTermsTextDto
+from app.modules.recurring_payments.lifecycle import RecurringLifecycle
+from app.modules.recurring_payments.repository import RecurringPaymentRepository
 from app.modules.transactions.repository import TransactionRepository
 from tests.fakes.dispatch import RecordingDispatch
 
@@ -48,3 +49,11 @@ class ShippedRecurringTermsTexts:
             summary=renderer.render_message(locale, "recurring-terms-summary", args).strip(),
             text=renderer.render_message(locale, "recurring-terms-text", args).strip(),
         )
+
+
+def make_recurring_checkout(session: AsyncSession) -> RecurringCheckoutConsent:
+    return RecurringCheckoutConsent(
+        RecurringPaymentRepository(session),
+        make_recurring_lifecycle(session),
+        ShippedRecurringTermsTexts(),
+    )

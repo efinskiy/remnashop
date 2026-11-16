@@ -44,6 +44,13 @@ from app.modules.plans.usecases import (
     SetPlanDurationBasePriceUseCase,
 )
 from app.modules.promocodes.usecases import GetPromocodeUseCase
+from app.modules.recurring_payments.usecases import (
+    CheckRecurringPaymentUseCase,
+    CloseRecurringPaymentUseCase,
+    GetRecurringPaymentSummaryUseCase,
+    ListRecurringPaymentsUseCase,
+    RetryRecurringPaymentUseCase,
+)
 from app.modules.settings.usecases import GetBotCommandsUseCase
 from app.modules.subscriptions.usecases import GetSubscriptionUseCase
 from app.modules.transactions.usecases import (
@@ -55,8 +62,6 @@ from app.modules.transactions.usecases import (
     ListTransactionGatewaysUseCase,
     ListTransactionsUseCase,
 )
-from app.modules.transactions.usecases.list_recurring_payments import ListRecurringPaymentsUseCase
-from app.modules.transactions.usecases.manage_recurring_payment import ManageRecurringPaymentUseCase
 from app.modules.translations.usecases import (
     AddLocaleUseCase,
     RemoveLocaleUseCase,
@@ -102,7 +107,10 @@ from app.modules.users.usecases import GetUserUseCase, SetUserDiscountUseCase
         (SetUserDiscountUseCase, Permission.USERS_DISCOUNT_MANAGE),
         (ListTransactionsUseCase, Permission.TRANSACTIONS_VIEW),
         (ListRecurringPaymentsUseCase, Permission.TRANSACTIONS_RECURRING_VIEW),
-        (ManageRecurringPaymentUseCase, Permission.TRANSACTIONS_RECURRING_MANAGE),
+        (GetRecurringPaymentSummaryUseCase, Permission.TRANSACTIONS_RECURRING_SUMMARY_VIEW),
+        (CheckRecurringPaymentUseCase, Permission.TRANSACTIONS_RECURRING_CHECK),
+        (CloseRecurringPaymentUseCase, Permission.TRANSACTIONS_RECURRING_CLOSE),
+        (RetryRecurringPaymentUseCase, Permission.TRANSACTIONS_RECURRING_RETRY),
         (ListTransactionGatewaysUseCase, Permission.TRANSACTIONS_GATEWAYS_VIEW),
         (GetTransactionUseCase, Permission.TRANSACTIONS_DETAIL_VIEW),
         (FulfillTransactionUseCase, Permission.TRANSACTIONS_FULFILL),

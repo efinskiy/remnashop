@@ -11,6 +11,10 @@ from app.core.constants import USER_KEY
 from app.core.enums import PurchaseChannel
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import AppError, CooldownError, NotFoundError, ValidationError
+from app.modules.recurring_payments import (
+    SetOwnRecurringPaymentUseCase,
+    SetRecurringPaymentDto,
+)
 from app.modules.settings import GetShopSettingsUseCase
 from app.modules.subscriptions import (
     DeleteAllDevicesUseCase,
@@ -21,10 +25,6 @@ from app.modules.subscriptions import (
     ReissueSubscriptionUseCase,
     SubscriptionDto,
     SubscriptionRefDto,
-)
-from app.modules.transactions import (
-    SetOwnRecurringPaymentUseCase,
-    SetRecurringPaymentDto,
 )
 from app.modules.users import UserDto
 from app.telegram.dialogs.context import SELECTED_SUBSCRIPTION_KEY, selected_subscription_id

@@ -55,11 +55,7 @@ from app.modules.transactions.fulfillment import dispatch_fulfillment
 from app.modules.transactions.gateways.factory import PaymentGatewayFactory
 from app.modules.transactions.gateways.registry import GATEWAY_REGISTRY, gateway_currency
 from app.modules.transactions.gateways.telegram_stars import with_bot_settings
-from app.modules.transactions.ports import PaymentTexts, RecurringTermsTexts
-from app.modules.transactions.recurring_lifecycle import RecurringLifecycle
-from app.modules.transactions.recurring_policy import recurring_policy
-from app.modules.transactions.recurring_repository import RecurringPaymentRepository
-from app.modules.transactions.recurring_terms import build_recurring_terms
+from app.modules.transactions.ports import PaymentTexts, RecurringCheckout
 from app.modules.transactions.repository import TransactionRepository
 from app.modules.transactions.unpaid_orders import give_back_purchase_discount
 from app.modules.transactions.waitlist_repository import WaitlistRepository
@@ -89,13 +85,9 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
         event_publisher: EventPublisher,
         legal_recorder: LegalAcceptanceRecorder,
         payment_texts: PaymentTexts,
-        recurring_repository: RecurringPaymentRepository,
-        recurring_terms_texts: RecurringTermsTexts,
-        recurring_lifecycle: RecurringLifecycle,
+        recurring_checkout: RecurringCheckout,
     ) -> None:
-        self._recurring_lifecycle = recurring_lifecycle
-        self._recurring_terms_texts = recurring_terms_texts
-        self._recurring_repository = recurring_repository
+        self._recurring_checkout = recurring_checkout
         self._pricer = pricer
         self._user_repository = user_repository
         self._gateway_repository = gateway_repository
@@ -174,9 +166,7 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
             if replaced is None:
                 return None
             await give_back_purchase_discount(self._user_repository, replaced)
-            await self._recurring_repository.revoke_consent_id(
-                replaced.recurring_consent_id, channel=channel.value
-            )
+            await self._recurring_checkout.revoke_consent(replaced.recurring_consent_id, channel)
         logger.info(f"Order '{order_id}' of user '{user_id}' canceled, replaced by a new checkout")
         return order_id
 
@@ -192,7 +182,7 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
         )
 
         async with self._uow:
-            await self._hold_recurring_attempt(actor.id, data)
+            await self._recurring_checkout.hold(actor.id, data)
             gateway_settings = await self._load_gateway_settings(actor.id, data)
             plan, user = await self._pricer.load_purchasable_plan(
                 actor.id,
@@ -247,7 +237,7 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
             # the one-shot discount is spent in the same transaction as the
             # order, so a racing checkout finds it gone and re-quotes
             await self._spend_purchase_discount(quote, user)
-            consent_id = await self._record_recurring_consent(
+            consent_id = await self._recurring_checkout.record_consent(
                 actor, data, plan, quote, gateway_settings
             )
             order = await self._create_order(
@@ -327,81 +317,6 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
             )
 
         return CheckoutResultDto(order_id=order.id, confirmation_url=intent.confirmation_url)
-
-    async def _hold_recurring_attempt(self, user_id: int, data: CreateCheckoutDto) -> None:
-        # one period, one payment: an unsent automatic attempt gives way, a sent one refuses;
-        # the mandate stays locked until this order commits
-        subscription_id = data.target_subscription_id
-        if subscription_id is None or data.purchase_type is PurchaseType.NEW:
-            return
-        current = await self._recurring_repository.get(subscription_id)
-        facts = await self._recurring_repository.subscription_facts(subscription_id)
-        if current is None or facts is None or facts.user_id != user_id:
-            return
-        if current.pending_transaction_id is not None and current.submitted_at is None:
-            await self._recurring_lifecycle.cancel_unsent(
-                subscription_id, current.pending_transaction_id
-            )
-        mandate = await self._recurring_repository.get(subscription_id, for_update=True)
-        if (
-            mandate is not None
-            and mandate.pending_transaction_id is not None
-            and mandate.submitted_at is not None
-        ):
-            raise ConflictError(
-                "An automatic renewal payment is already in progress",
-                code=ErrorCode.RECURRING_PAYMENT_IN_PROGRESS,
-            )
-
-    async def _record_recurring_consent(
-        self,
-        actor: UserDto,
-        data: CreateCheckoutDto,
-        plan: PlanDto,
-        quote: PriceQuote,
-        gateway_settings: dict[str, str],
-    ) -> Optional[int]:
-        flags = gateway_flags(data.gateway_type, gateway_settings)
-        if flags.get("recurring_required", False) and quote.final_price > 0:
-            if not data.recurring_consent or plan.is_trial or data.duration_days <= 0:
-                raise ValidationError(
-                    "This payment method requires explicit consent to auto-renewal",
-                    code=ErrorCode.RECURRING_CONSENT_REQUIRED,
-                )
-        recurring_allowed = (
-            data.gateway_type is PaymentGatewayType.YOOKASSA
-            and gateway_flags(data.gateway_type, gateway_settings).get("recurring_enabled", False)
-            and not plan.is_trial
-            and data.duration_days > 0
-            and quote.final_price > 0
-        )
-        consent_id = None
-        if data.recurring_consent:
-            terms = await build_recurring_terms(
-                texts=self._recurring_terms_texts,
-                policy=recurring_policy(gateway_settings),
-                user_id=actor.id,
-                plan_id=plan.id,
-                target_subscription_id=data.target_subscription_id,
-                purchase_type=data.purchase_type,
-                initial_amount=quote.final_price,
-                amount_limit=quote.base_price,
-                currency=data.currency,
-                duration_days=data.duration_days,
-                locale=data.legal_locale or actor.language,
-            )
-            if not recurring_allowed or data.recurring_terms_id != terms.terms_id:
-                raise ConflictError(
-                    "Auto-renewal terms changed; confirm them again", code=ErrorCode.PRICE_CHANGED
-                )
-            consent_id = await self._recurring_repository.record_consent(
-                terms,
-                channel=data.channel,
-                telegram_id=actor.telegram_id,
-                event_id=data.consent_event_id,
-                ip_address=data.client_ip,
-            )
-        return consent_id
 
     async def _load_gateway_settings(self, user_id: int, data: CreateCheckoutDto) -> dict[str, str]:
         if data.gateway_type not in GATEWAY_REGISTRY:

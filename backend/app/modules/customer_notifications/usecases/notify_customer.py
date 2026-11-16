@@ -56,6 +56,12 @@ from app.modules.notifications import (
     plan_summary_block,
     telegram_card,
 )
+from app.modules.recurring_payments import (
+    RecurringPaymentExhaustedEvent,
+    RecurringPaymentFailedEvent,
+    RecurringPaymentPausedEvent,
+    RecurringPaymentRepository,
+)
 from app.modules.settings import SettingsRepository, push_icon_path
 from app.modules.subscriptions import (
     SubscriptionChangedEvent,
@@ -74,10 +80,6 @@ from app.modules.subscriptions import (
 )
 from app.modules.transactions import (
     PaidOrderNotFulfilledEvent,
-    RecurringPaymentExhaustedEvent,
-    RecurringPaymentFailedEvent,
-    RecurringPaymentPausedEvent,
-    RecurringPaymentRepository,
     TransactionRepository,
 )
 from app.modules.users import UserDto, UserRepository

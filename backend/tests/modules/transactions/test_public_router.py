@@ -204,7 +204,8 @@ async def test_customer_can_manage_only_their_own_auto_renewal(
     assert state.json()["available"] is False
     disabled = await client.put(url, json={"enabled": False}, headers=auth_headers)
     assert disabled.status_code == 200
-    assert disabled.json()["customer_disabled"] is True
+    # no mandate to withdraw: the request changes nothing
+    assert disabled.json()["customer_disabled"] is False
     enabled = await client.put(url, json={"enabled": True}, headers=auth_headers)
     assert enabled.status_code == 400
     other = await user_repository.create(CreateUserDto(name="another customer", telegram_id=931111))

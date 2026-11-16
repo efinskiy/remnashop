@@ -11,6 +11,10 @@ from app.core.constants import USER_KEY
 from app.core.enums import Currency, DiscountSource, PurchaseChannel, PurchaseType
 from app.core.exceptions import AppError
 from app.modules.legal import ListVisibleLegalDocumentsUseCase
+from app.modules.recurring_payments import (
+    GetCheckoutRecurringTermsUseCase,
+    GetOwnRecurringPaymentUseCase,
+)
 from app.modules.subscriptions import (
     CatalogPlanDto,
     ListActivePlansUseCase,
@@ -18,8 +22,6 @@ from app.modules.subscriptions import (
     SubscriptionDto,
 )
 from app.modules.transactions import (
-    GetCheckoutRecurringTermsUseCase,
-    GetOwnRecurringPaymentUseCase,
     QuoteCheckoutUseCase,
 )
 from app.modules.users import UserDto
@@ -352,7 +354,7 @@ async def confirm_getter(
     terms = None
     if data.get("recurring_available") and plan is not None:
         try:
-            terms = await get_recurring_terms(user, checkout_data(dialog_manager))
+            terms = (await get_recurring_terms(user, checkout_data(dialog_manager))).terms
         except AppError:
             terms = None
     previous = data.get(RECURRING_TERMS_KEY, {})

@@ -10,6 +10,7 @@ from app.core.constants import ICON_ID_KEY_SUFFIX, USER_KEY
 from app.core.enums import Currency, DiscountSource, Locale
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ValidationError
+from app.modules.recurring_payments.dto import CheckoutRecurringTermsDto
 from app.modules.subscriptions import PlanCatalogDto, SubscriptionDto
 from app.telegram.dialogs.context import SELECTED_SUBSCRIPTION_KEY
 from app.telegram.routers.purchase.getters import (
@@ -213,7 +214,7 @@ async def _confirm(dialog_data: dict, owned: Optional[list[SubscriptionDto]] = N
         list_own_subscriptions=AsyncMock(return_value=owned or []),
         list_visible_legal_documents=MagicMock(execute=AsyncMock(return_value=[])),
         get_own_recurring_payment=AsyncMock(),
-        get_recurring_terms=AsyncMock(return_value=None),
+        get_recurring_terms=AsyncMock(return_value=CheckoutRecurringTermsDto(terms=None)),
         i18n=_i18n(),
     )
 

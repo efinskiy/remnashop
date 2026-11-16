@@ -199,7 +199,10 @@ class Permission(UpperStrEnum):
     TRANSACTIONS_VIEW = auto()
     TRANSACTIONS_SUMMARY_VIEW = auto()
     TRANSACTIONS_RECURRING_VIEW = auto()
-    TRANSACTIONS_RECURRING_MANAGE = auto()
+    TRANSACTIONS_RECURRING_SUMMARY_VIEW = auto()
+    TRANSACTIONS_RECURRING_CHECK = auto()
+    TRANSACTIONS_RECURRING_CLOSE = auto()
+    TRANSACTIONS_RECURRING_RETRY = auto()
     TRANSACTIONS_DETAIL_VIEW = auto()
     TRANSACTIONS_GATEWAYS_VIEW = auto()
     TRANSACTIONS_FULFILL = auto()
@@ -460,7 +463,12 @@ PERMISSION_METADATA: Final[dict[Permission, PermissionMeta]] = {
     Permission.TRANSACTIONS_VIEW: PermissionMeta(resource="transactions", kind="read"),
     Permission.TRANSACTIONS_SUMMARY_VIEW: PermissionMeta(resource="transactions", kind="read"),
     Permission.TRANSACTIONS_RECURRING_VIEW: PermissionMeta(resource="transactions", kind="read"),
-    Permission.TRANSACTIONS_RECURRING_MANAGE: PermissionMeta(resource="transactions", kind="write"),
+    Permission.TRANSACTIONS_RECURRING_SUMMARY_VIEW: PermissionMeta(
+        resource="transactions", kind="read"
+    ),
+    Permission.TRANSACTIONS_RECURRING_CHECK: PermissionMeta(resource="transactions", kind="write"),
+    Permission.TRANSACTIONS_RECURRING_CLOSE: PermissionMeta(resource="transactions", kind="write"),
+    Permission.TRANSACTIONS_RECURRING_RETRY: PermissionMeta(resource="transactions", kind="write"),
     Permission.TRANSACTIONS_DETAIL_VIEW: PermissionMeta(resource="transactions", kind="read"),
     Permission.TRANSACTIONS_GATEWAYS_VIEW: PermissionMeta(resource="transactions", kind="read"),
     Permission.TRANSACTIONS_FULFILL: PermissionMeta(resource="transactions", kind="write"),
@@ -560,6 +568,9 @@ _TOKEN_EXCLUDED_PERMISSIONS: Final[frozenset[Permission]] = frozenset(
         # sends money back
         Permission.TRANSACTIONS_REFUND,
         Permission.TRANSACTIONS_REFUND_PREVIEW,
+        # withdraws the customer's consent / charges their saved card again
+        Permission.TRANSACTIONS_RECURRING_CLOSE,
+        Permission.TRANSACTIONS_RECURRING_RETRY,
         # who gets alerted, and from where
         Permission.NOTIFICATION_SETTINGS_MANAGE,
         # irreversible or bulk
@@ -788,7 +799,10 @@ ROLE_PERMISSIONS: Final[dict[Role, frozenset[Permission]]] = {
             Permission.TRANSACTIONS_VIEW,
             Permission.TRANSACTIONS_SUMMARY_VIEW,
             Permission.TRANSACTIONS_RECURRING_VIEW,
-            Permission.TRANSACTIONS_RECURRING_MANAGE,
+            Permission.TRANSACTIONS_RECURRING_SUMMARY_VIEW,
+            Permission.TRANSACTIONS_RECURRING_CHECK,
+            Permission.TRANSACTIONS_RECURRING_CLOSE,
+            Permission.TRANSACTIONS_RECURRING_RETRY,
             Permission.TRANSACTIONS_DETAIL_VIEW,
             Permission.TRANSACTIONS_GATEWAYS_VIEW,
             Permission.TRANSACTIONS_FULFILL,

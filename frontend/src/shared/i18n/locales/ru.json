@@ -2523,8 +2523,11 @@
     "BOT_REQUIREMENTS_VIEW": "Просмотр требований бота",
     "BOT_REQUIREMENTS_MANAGE": "Изменение требований бота",
     "PAYMENT_WAITLIST_VIEW": "Просмотр листа ожидания оплаты",
-    "TRANSACTIONS_RECURRING_VIEW": "Просмотр автоплатежей и их статистики",
-    "TRANSACTIONS_RECURRING_MANAGE": "Управление автоплатежами"
+    "TRANSACTIONS_RECURRING_VIEW": "Просмотр автоплатежей",
+    "TRANSACTIONS_RECURRING_SUMMARY_VIEW": "Просмотр сводки по автоплатежам",
+    "TRANSACTIONS_RECURRING_CHECK": "Проверка ожидающего автоплатежа в ЮKassa",
+    "TRANSACTIONS_RECURRING_CLOSE": "Закрытие ожидающего автоплатежа с отзывом согласия клиента",
+    "TRANSACTIONS_RECURRING_RETRY": "Повтор автоплатежа после исправления"
   },
   "permissionCategories": {
     "botSettings": "Telegram-бот",
@@ -4813,7 +4816,11 @@
     "RECURRING_CONSENT_REQUIRED": "Для этого способа оплаты требуется отдельное согласие на автопродление.",
     "GATEWAY_FIELD_INVALID_CHOICE": "Выберите доступный режим оплаты.",
     "GATEWAY_FIELD_OUT_OF_RANGE": "Значение вне допустимого диапазона.",
-    "RECURRING_PAYMENT_IN_PROGRESS": "Автопродление этой подписки уже оплачивается."
+    "RECURRING_PAYMENT_IN_PROGRESS": "Автопродление этой подписки уже оплачивается.",
+    "RECURRING_TERMS_CHANGED": "Условия автопродления изменились. Проверьте их и подтвердите снова.",
+    "RECURRING_NOT_AVAILABLE": "Автопродление для этой подписки недоступно.",
+    "RECURRING_RETRY_NOT_ALLOWED": "Этот автоплатёж нельзя повторить при текущем согласии.",
+    "RECURRING_PAYMENT_STATE_CHANGED": "Автоплатёж изменился. Обновите список и попробуйте снова."
   },
   "loyalty": {
     "settings": {

@@ -7,7 +7,9 @@ from app.modules.customer_notifications.routing import (
     channels_for,
     should_notify_customer,
 )
-from app.modules.transactions import RecurringReason
+from app.modules.recurring_payments import (
+    RecurringReason,
+)
 
 T, E = CustomerChannel.TELEGRAM, CustomerChannel.EMAIL
 

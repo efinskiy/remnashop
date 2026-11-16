@@ -2439,8 +2439,11 @@
     "BOT_REQUIREMENTS_VIEW": "View bot requirements",
     "BOT_REQUIREMENTS_MANAGE": "Edit bot requirements",
     "PAYMENT_WAITLIST_VIEW": "View the payment waitlist",
-    "TRANSACTIONS_RECURRING_VIEW": "View recurring payments and their statistics",
-    "TRANSACTIONS_RECURRING_MANAGE": "Manage recurring payments"
+    "TRANSACTIONS_RECURRING_VIEW": "View recurring payments",
+    "TRANSACTIONS_RECURRING_SUMMARY_VIEW": "View recurring payment totals",
+    "TRANSACTIONS_RECURRING_CHECK": "Check a pending recurring payment with YooKassa",
+    "TRANSACTIONS_RECURRING_CLOSE": "Close a pending recurring payment and withdraw the customer’s consent",
+    "TRANSACTIONS_RECURRING_RETRY": "Retry a recurring payment after a fix"
   },
   "permissionCategories": {
     "botSettings": "Telegram bot",
@@ -4697,7 +4700,11 @@
     "RECURRING_CONSENT_REQUIRED": "This payment method requires separate consent to auto-renewal.",
     "GATEWAY_FIELD_INVALID_CHOICE": "Select an available payment mode.",
     "GATEWAY_FIELD_OUT_OF_RANGE": "The value is outside the allowed range.",
-    "RECURRING_PAYMENT_IN_PROGRESS": "An automatic renewal payment for this subscription is already in progress."
+    "RECURRING_PAYMENT_IN_PROGRESS": "An automatic renewal payment for this subscription is already in progress.",
+    "RECURRING_TERMS_CHANGED": "The auto-renewal terms changed. Review and confirm them again.",
+    "RECURRING_NOT_AVAILABLE": "Auto-renewal isn’t available for this subscription.",
+    "RECURRING_RETRY_NOT_ALLOWED": "This recurring payment can’t be retried under the current consent.",
+    "RECURRING_PAYMENT_STATE_CHANGED": "The recurring payment changed. Refresh the list and try again."
   },
   "loyalty": {
     "settings": {

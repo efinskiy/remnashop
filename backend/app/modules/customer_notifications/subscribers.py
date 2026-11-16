@@ -16,6 +16,12 @@ from app.modules.customer_notifications.tasks import (
     show_payment_canceled_task,
 )
 from app.modules.promocodes import PromocodeDiscountExpiringEvent
+from app.modules.recurring_payments import (
+    RecurringPaymentExhaustedEvent,
+    RecurringPaymentFailedEvent,
+    RecurringPaymentPausedEvent,
+    RecurringPaymentUpcomingEvent,
+)
 from app.modules.referrals import (
     InviteeRewardIssuedEvent,
     ReferralAttachedEvent,
@@ -37,10 +43,6 @@ from app.modules.subscriptions import (
 )
 from app.modules.transactions import (
     PaidOrderNotFulfilledEvent,
-    RecurringPaymentExhaustedEvent,
-    RecurringPaymentFailedEvent,
-    RecurringPaymentPausedEvent,
-    RecurringPaymentUpcomingEvent,
     TransactionCanceledEvent,
     TransactionExpiredEvent,
     TransactionPartiallyRefundedEvent,

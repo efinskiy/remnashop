@@ -11,47 +11,18 @@ from app.core.utils.lock import cron_lock
 from app.modules.transactions.dto import (
     MarkOrderFulfilledDto,
     NotifyPaymentWaitlistDto,
-    ProcessRecurringPaymentDto,
     ReconcilePaidTransactionsDto,
     StarsPaymentDto,
 )
 from app.modules.transactions.usecases import (
     ConfirmStarsPaymentUseCase,
-    EnqueueRecurringPaymentsUseCase,
     MarkOrderFulfilledUseCase,
     NotifyPaymentWaitlistUseCase,
-    ProcessRecurringPaymentUseCase,
     PruneExpiredTransactionsUseCase,
     ReconcilePaidTransactionsUseCase,
-    WipeStalePaymentMethodsUseCase,
 )
 
 _RECONCILE_LOCK_TTL_S: Final[int] = 14 * 60
-
-
-@broker.task(schedule=[{"cron": "*/5 * * * *"}])
-@inject(patch_module=True)
-async def process_recurring_payments_task(
-    use_case: FromDishka[EnqueueRecurringPaymentsUseCase],
-) -> None:
-    await use_case.system()
-
-
-@broker.task(retry_on_error=True, max_retries=3)
-@inject(patch_module=True)
-async def process_one_recurring_payment_task(
-    subscription_id: int,
-    use_case: FromDishka[ProcessRecurringPaymentUseCase],
-) -> None:
-    await use_case.system(ProcessRecurringPaymentDto(subscription_id=subscription_id))
-
-
-@broker.task(schedule=[{"cron": "30 4 * * *"}])
-@inject(patch_module=True)
-async def wipe_stale_payment_methods_task(
-    use_case: FromDishka[WipeStalePaymentMethodsUseCase],
-) -> None:
-    await use_case.system()
 
 
 @broker.task(schedule=[{"cron": "*/10 * * * *"}])

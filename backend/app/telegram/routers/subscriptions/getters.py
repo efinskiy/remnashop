@@ -12,6 +12,11 @@ from app.core.constants import USER_KEY
 from app.core.enums import SubscriptionStatus
 from app.core.exceptions import NotFoundError, ValidationError
 from app.modules.banners import GetBannerForDisplayUseCase
+from app.modules.recurring_payments import (
+    GetOwnRecurringPaymentUseCase,
+    RecurringPaymentStateDto,
+    RecurringReason,
+)
 from app.modules.referrals import GetReferralSettingsUseCase
 from app.modules.settings import GetCabinetAuthSettingsUseCase, GetShopSettingsUseCase
 from app.modules.subscriptions import (
@@ -21,11 +26,6 @@ from app.modules.subscriptions import (
     ListOwnSubscriptionsUseCase,
     SubscriptionDto,
     SubscriptionRefDto,
-)
-from app.modules.transactions import (
-    GetOwnRecurringPaymentUseCase,
-    RecurringPaymentState,
-    RecurringReason,
 )
 from app.modules.users import UserDto
 from app.telegram.banners import window_banner
@@ -111,7 +111,7 @@ async def subscriptions_list_getter(
     return data
 
 
-def _auto_renew_state_key(recurring: RecurringPaymentState) -> str:
+def _auto_renew_state_key(recurring: RecurringPaymentStateDto) -> str:
     # a payment already sent may still complete, even after the customer withdrew
     if recurring.payment_in_flight:
         return "frg-subscription-recurring-in-flight"
@@ -128,7 +128,7 @@ def _auto_renew_state_key(recurring: RecurringPaymentState) -> str:
     return "frg-subscription-recurring-off"
 
 
-def _auto_renew_block(recurring: RecurringPaymentState, runner: TranslatorRunner) -> str:
+def _auto_renew_block(recurring: RecurringPaymentStateDto, runner: TranslatorRunner) -> str:
     if not (
         recurring.enabled or recurring.available or recurring.paused or recurring.payment_in_flight
     ):

@@ -8,7 +8,7 @@ import { ChevronDown, Filter, RefreshCw, Repeat } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { listRecurringPayments, manageRecurringPayment, type RecurringAction, type RecurringPaymentItem, type RecurringState } from "@entities/transactions/recurring-api";
+import { getRecurringPaymentSummary, listRecurringPayments, manageRecurringPayment, RECURRING_PAGE_SIZE, type RecurringAction, type RecurringPaymentItem, type RecurringState } from "@entities/transactions/recurring-api";
 import { useAsyncResource } from "@shared/lib/use-async-resource";
 import { formatMoney } from "@shared/lib/format";
 import { Badge, type BadgeTone } from "@shared/ui/Badge";
@@ -27,7 +27,9 @@ function RecurringPaymentsContent() {
   const { t, i18n } = useTranslation();
   const permissions = usePermissions();
   const canViewOrder = permissions.includes("TRANSACTIONS_DETAIL_VIEW");
-  const canManage = permissions.includes("TRANSACTIONS_RECURRING_MANAGE");
+  const canCheck = permissions.includes("TRANSACTIONS_RECURRING_CHECK");
+  const canClose = permissions.includes("TRANSACTIONS_RECURRING_CLOSE");
+  const canRetry = permissions.includes("TRANSACTIONS_RECURRING_RETRY");
   const [acting, setActing] = useState<number | null>(null);
   const [closing, setClosing] = useState<RecurringPaymentItem | null>(null);
   const [detailsOrder, setDetailsOrder] = useState<TransactionItem | null>(null);
@@ -36,7 +38,13 @@ function RecurringPaymentsContent() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
-  const [resource, reload] = useAsyncResource((signal) => listRecurringPayments(filter, page, appliedSearch, signal), {
+  const [resource, reload] = useAsyncResource(async (signal) => {
+    const [list, summary] = await Promise.all([
+      listRecurringPayments(filter, page, appliedSearch, signal),
+      permissions.includes("TRANSACTIONS_RECURRING_SUMMARY_VIEW") ? getRecurringPaymentSummary(signal) : Promise.resolve(null),
+    ]);
+    return { ...list, summary };
+  }, {
     deps: [filter, page, appliedSearch], keepData: true,
   });
   const performAction = async (item: RecurringPaymentItem, action: RecurringAction) => {
@@ -127,12 +135,12 @@ function RecurringPaymentsContent() {
             <td className="whitespace-nowrap p-2 tabular-nums">{date(item.next_attempt_at)}</td>
             <td className="max-w-64 p-2 text-xs"><div>{item.last_error ? t(`transactions.recurring.reasons.${item.last_error}` as ParseKeys, { defaultValue: item.last_error }) : "—"}</div>
               {item.last_error && <code className="mt-1 block break-all text-muted-foreground">{item.last_error}</code>}
-              {canManage && <div className="mt-2 flex flex-wrap gap-2">
-                {item.can_check && <Button size="sm" variant="glass" disabled={acting !== null}
+              {(canCheck || canClose || canRetry) && <div className="mt-2 flex flex-wrap gap-2">
+                {canCheck && item.can_check && <Button size="sm" variant="glass" disabled={acting !== null}
                   onClick={() => void performAction(item, "check")}>{t("transactions.recurring.actions.check")}</Button>}
-                {item.can_close && <Button size="sm" variant="glassDanger" disabled={acting !== null}
+                {canClose && item.can_close && <Button size="sm" variant="glassDanger" disabled={acting !== null}
                   onClick={() => setClosing(item)}>{t("transactions.recurring.actions.close")}</Button>}
-                {item.can_retry && <Button size="sm" variant="glass" disabled={acting !== null}
+                {canRetry && item.can_retry && <Button size="sm" variant="glass" disabled={acting !== null}
                   onClick={() => void performAction(item, "retry")}>{t("transactions.recurring.actions.retry")}</Button>}
               </div>}
             </td>
@@ -142,7 +150,7 @@ function RecurringPaymentsContent() {
         <span className="text-muted-foreground">{t("transactions.recurring.total", { count: data.total })}</span>
         <button type="button" disabled={page <= 1} onClick={() => setPage((value) => value - 1)} className="text-primary disabled:opacity-40">{t("transactions.recurring.previous")}</button>
         <span className="tabular-nums">{page}</span>
-        <button type="button" disabled={page * data.page_size >= data.total} onClick={() => setPage((value) => value + 1)} className="text-primary disabled:opacity-40">{t("transactions.recurring.nextPage")}</button>
+        <button type="button" disabled={page * RECURRING_PAGE_SIZE >= data.total} onClick={() => setPage((value) => value + 1)} className="text-primary disabled:opacity-40">{t("transactions.recurring.nextPage")}</button>
       </div>
     </>}
     {closing && <ConfirmDialog title={t("transactions.recurring.actions.closeTitle")}

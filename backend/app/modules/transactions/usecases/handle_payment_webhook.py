@@ -25,7 +25,7 @@ from app.modules.transactions.gateways.base import (
     WebhookSignal,
 )
 from app.modules.transactions.gateways.factory import PaymentGatewayFactory
-from app.modules.transactions.recurring_lifecycle import RecurringLifecycle
+from app.modules.transactions.ports import RecurringOrderHooks
 from app.modules.transactions.repository import TransactionRepository
 from app.modules.transactions.unpaid_orders import UNPAID_FINAL, give_back_purchase_discount
 from app.modules.users import UserRepository
@@ -61,9 +61,9 @@ class HandlePaymentWebhookUseCase(UseCase[HandleWebhookDto, WebhookAck]):
         event_publisher: EventPublisher,
         uow: UnitOfWork,
         purchase_dispatch: PurchaseSubscriptionDispatch,
-        recurring_lifecycle: RecurringLifecycle,
+        recurring_hooks: RecurringOrderHooks,
     ) -> None:
-        self._recurring_lifecycle = recurring_lifecycle
+        self._recurring_hooks = recurring_hooks
         self._user_repository = user_repository
         self._transaction_repository = transaction_repository
         self._gateway_repository = gateway_repository
@@ -203,7 +203,7 @@ class HandlePaymentWebhookUseCase(UseCase[HandleWebhookDto, WebhookAck]):
                 f"reported for order '{order.id}' by {gateway_type.value}; status kept"
             )
             async with self._uow:
-                await self._recurring_lifecycle.on_refunded(order)
+                await self._recurring_hooks.on_refunded(order)
                 await self._event_publisher.publish(
                     TransactionPartiallyRefundedEvent(
                         order_id=order.id,
@@ -245,9 +245,7 @@ class HandlePaymentWebhookUseCase(UseCase[HandleWebhookDto, WebhookAck]):
                 ),
             )
             if changed and order.is_recurring and status is TransactionStatus.CANCELED:
-                await self._recurring_lifecycle.on_canceled(
-                    order.id, signal.cancellation_reason or "bank_declined"
-                )
+                await self._recurring_hooks.on_canceled(order.id, signal.cancellation_reason)
             if changed and restores_discount:
                 await give_back_purchase_discount(self._user_repository, order)
             if changed and from_pending:
@@ -255,7 +253,7 @@ class HandlePaymentWebhookUseCase(UseCase[HandleWebhookDto, WebhookAck]):
                     TransactionCanceledEvent(order_id=order.id, user_id=order.user_id)
                 )
             if changed and status is TransactionStatus.REFUNDED:
-                await self._recurring_lifecycle.on_refunded(order)
+                await self._recurring_hooks.on_refunded(order)
                 await self._event_publisher.publish(
                     TransactionRefundedEvent(
                         order_id=order.id,

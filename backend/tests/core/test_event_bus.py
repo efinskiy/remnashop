@@ -40,6 +40,13 @@ from app.modules.oauth.events import (
     OAuthLoginSucceededEvent,
 )
 from app.modules.promocodes.events import PromocodeDiscountExpiringEvent
+from app.modules.recurring_payments.events import (
+    RecurringPaymentExhaustedEvent,
+    RecurringPaymentFailedEvent,
+    RecurringPaymentManagedEvent,
+    RecurringPaymentPausedEvent,
+    RecurringPaymentUpcomingEvent,
+)
 from app.modules.referrals.events import (
     InviteeRewardIssuedEvent,
     ReferralAttachedEvent,
@@ -67,17 +74,10 @@ from app.modules.subscriptions.events import (
 )
 from app.modules.transactions.events import (
     PaidOrderNotFulfilledEvent,
-    RecurringPaymentManagedEvent,
     TransactionCanceledEvent,
     TransactionExpiredEvent,
     TransactionPartiallyRefundedEvent,
     TransactionRefundedEvent,
-)
-from app.modules.transactions.recurring_events import (
-    RecurringPaymentExhaustedEvent,
-    RecurringPaymentFailedEvent,
-    RecurringPaymentPausedEvent,
-    RecurringPaymentUpcomingEvent,
 )
 from app.modules.transactions.tasks import notify_payment_waitlist_task
 from app.modules.users.dto import UserDto

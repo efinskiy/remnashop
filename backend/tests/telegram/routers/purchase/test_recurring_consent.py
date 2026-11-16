@@ -5,8 +5,9 @@ from aiogram_dialog.widgets.kbd import Button
 from aiogram_dialog.widgets.text import Format
 
 from app.core.enums import Currency, Locale, PurchaseType
-from app.modules.transactions.recurring_policy import recurring_policy
-from app.modules.transactions.recurring_terms import build_recurring_terms
+from app.modules.recurring_payments.dto import CheckoutRecurringTermsDto
+from app.modules.recurring_payments.policy import recurring_policy
+from app.modules.recurring_payments.terms import build_recurring_terms
 from app.telegram.routers.purchase.dialog import confirm, recurring_terms
 from app.telegram.routers.purchase.getters import confirm_getter, recurring_terms_getter
 from app.telegram.routers.purchase.handlers import (
@@ -59,7 +60,7 @@ async def _render(manager, terms):
         list_own_subscriptions=AsyncMock(return_value=[]),
         list_visible_legal_documents=MagicMock(execute=AsyncMock(return_value=[])),
         get_own_recurring_payment=AsyncMock(),
-        get_recurring_terms=AsyncMock(return_value=terms),
+        get_recurring_terms=AsyncMock(return_value=CheckoutRecurringTermsDto(terms=terms)),
         i18n=_i18n(),
     )
 

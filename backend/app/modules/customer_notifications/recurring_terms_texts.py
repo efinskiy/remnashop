@@ -3,7 +3,9 @@ from typing import Final, Union
 from app.core.config import AppConfig
 from app.core.enums import Locale
 from app.modules.notifications import NotificationRenderer, NotificationRendererFactory
-from app.modules.transactions import RecurringTermsTextDto
+from app.modules.recurring_payments import (
+    RecurringTermsTextDto,
+)
 
 _SUMMARY_KEY: Final[str] = "recurring-terms-summary"
 _TEXT_KEY: Final[str] = "recurring-terms-text"

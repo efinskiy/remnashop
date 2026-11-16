@@ -32,7 +32,7 @@ from app.modules.transactions.usecases import GetTransactionUseCase, ListTransac
 from app.modules.users.dto import CreateUserDto
 from app.modules.users.repository import UserRepository
 from tests.fakes.container import make_test_container
-from tests.modules.transactions import test_recurring_payments as recurring_cases
+from tests.modules.recurring_payments import test_recurring_payments as recurring_cases
 from tests.modules.transactions.test_repository import _order_dto
 
 case = recurring_cases.case
@@ -304,9 +304,12 @@ async def test_owner_previews_and_refunds_a_stars_order(
 async def test_recurring_dashboard_is_available_to_an_owner(client, owner_auth_headers):
     response = await client.get(f"{API_V1}/transactions/recurring", headers=owner_auth_headers)
     assert response.status_code == 200
-    assert response.json()["summary"]["total"] == 0
-    assert response.json()["items"] == []
-    assert response.json()["summary"]["revenue"] == "0"
+    assert response.json() == {"items": [], "total": 0}
+    summary = await client.get(
+        f"{API_V1}/transactions/recurring/summary", headers=owner_auth_headers
+    )
+    assert summary.status_code == 200
+    assert summary.json()["total"] == 0 and summary.json()["revenue"] == "0"
 
 
 async def test_recurring_dashboard_requires_recurring_permission(
@@ -361,7 +364,7 @@ async def test_recurring_management_has_a_separate_permission(
     admin = await user_repository.find_by_login("transactionsadmin")
     async with uow:
         row = await session.get(User, admin.id)
-        row.permission_revokes = ["TRANSACTIONS_RECURRING_MANAGE"]
+        row.permission_revokes = [f"TRANSACTIONS_RECURRING_{action.upper()}"]
         await session.flush()
     response = await client.post(
         f"{API_V1}/transactions/recurring/1/actions/{action}",

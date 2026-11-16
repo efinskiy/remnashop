@@ -4,6 +4,13 @@ from typing import Final, Mapping, Optional
 from app.core.enums import UpperStrEnum
 from app.modules.account_merge import AccountsMergedEvent
 from app.modules.cabinet_auth import CabinetNewDeviceSignInEvent
+from app.modules.recurring_payments import (
+    RecurringPaymentExhaustedEvent,
+    RecurringPaymentFailedEvent,
+    RecurringPaymentPausedEvent,
+    RecurringPaymentUpcomingEvent,
+    RecurringReason,
+)
 from app.modules.subscriptions import (
     SubscriptionAddOnGrantedEvent,
     SubscriptionChangedEvent,
@@ -13,11 +20,6 @@ from app.modules.subscriptions import (
 )
 from app.modules.transactions import (
     PaidOrderNotFulfilledEvent,
-    RecurringPaymentExhaustedEvent,
-    RecurringPaymentFailedEvent,
-    RecurringPaymentPausedEvent,
-    RecurringPaymentUpcomingEvent,
-    RecurringReason,
     TransactionPartiallyRefundedEvent,
     TransactionRefundedEvent,
 )

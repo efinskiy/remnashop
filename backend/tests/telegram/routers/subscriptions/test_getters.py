@@ -11,7 +11,9 @@ from app.core.constants import USER_KEY
 from app.core.enums import Locale, SubscriptionStatus
 from app.modules.dialogs import catalog
 from app.modules.dialogs.flows.menu import register_menu_metadata
-from app.modules.transactions import RecurringPaymentState
+from app.modules.recurring_payments import (
+    RecurringPaymentStateDto,
+)
 from app.telegram.dialogs.context import (
     SELECTED_SUBSCRIPTION_KEY,
     build_condition_data,
@@ -241,7 +243,7 @@ async def test_subscription_terms_can_be_read_before_enabling_and_while_paused(
 
 def test_retry_notice_shows_the_reason_and_actual_next_attempt():
     hub = build_translator_hub([Locale.RU], {Locale.RU: seeded_fluent_source(Locale.RU)}, Locale.RU)
-    state = RecurringPaymentState(
+    state = RecurringPaymentStateDto(
         subscription_id=1,
         enabled=True,
         available=True,
@@ -266,7 +268,7 @@ async def test_paused_subscription_keeps_the_withdrawal_button(monkeypatch):
     manager.middleware_data = {USER_KEY: user}
     manager.dialog_data = {SELECTED_SUBSCRIPTION_KEY: subscription.id}
     manager.start_data = {}
-    state = RecurringPaymentState(
+    state = RecurringPaymentStateDto(
         subscription_id=subscription.id,
         enabled=False,
         available=False,
@@ -300,7 +302,7 @@ async def test_paused_subscription_keeps_the_withdrawal_button(monkeypatch):
 
 def test_withdrawal_during_a_sent_payment_says_the_payment_may_complete() -> None:
     hub = build_translator_hub([Locale.EN], {Locale.EN: seeded_fluent_source(Locale.EN)}, Locale.EN)
-    state = RecurringPaymentState(
+    state = RecurringPaymentStateDto(
         subscription_id=7,
         enabled=False,
         available=True,

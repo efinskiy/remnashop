@@ -86,7 +86,6 @@ from app.modules.transactions.dto import CreateCheckoutDto, PaymentTextDto, Tran
 from app.modules.transactions.gateways.base import PaymentIntent
 from app.modules.transactions.gateways.factory import PaymentGatewayFactory
 from app.modules.transactions.gateways.registry import GATEWAY_REGISTRY
-from app.modules.transactions.recurring_repository import RecurringPaymentRepository
 from app.modules.transactions.repository import TransactionRepository
 from app.modules.transactions.usecases import CreateCheckoutUseCase, CreateTestPaymentUseCase
 from app.modules.transactions.waitlist_repository import WaitlistRepository
@@ -96,7 +95,7 @@ from app.modules.users.dto import CreateUserDto, UpdateUserDto, UserDto
 from tests.fakes.dispatch import RecordingDispatch
 from tests.fakes.events import RecordingEventPublisher
 from tests.fakes.payment_texts import FixedPaymentTexts
-from tests.fakes.recurring import ShippedRecurringTermsTexts, make_recurring_lifecycle
+from tests.fakes.recurring import make_recurring_checkout
 from tests.fakes.telegram_bot import FakeBotSession, use_fake_bot
 from tests.modules.settings.factories import SHOP_SETTINGS_FIELDS
 from tests.modules.subscriptions.factories import make_eligibility, make_plan_snapshot
@@ -195,9 +194,7 @@ def create_checkout_use_case(
         event_publisher,
         LegalAcceptanceRecorder(legal_repository, translation_repository),
         FixedPaymentTexts(),
-        RecurringPaymentRepository(plan_repository.session),
-        ShippedRecurringTermsTexts(),
-        make_recurring_lifecycle(plan_repository.session),
+        make_recurring_checkout(plan_repository.session),
     )
 
 
@@ -466,9 +463,7 @@ async def test_concurrent_free_checkouts_stop_at_the_cap(
             RecordingEventPublisher(),
             LegalAcceptanceRecorder(LegalRepository(session), TranslationRepository(session)),
             FixedPaymentTexts(),
-            RecurringPaymentRepository(session),
-            ShippedRecurringTermsTexts(),
-            make_recurring_lifecycle(session),
+            make_recurring_checkout(session),
         )
         try:
             await use_case(

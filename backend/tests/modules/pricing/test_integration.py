@@ -45,7 +45,6 @@ from app.modules.transactions.checkout_pricing import CheckoutPricer
 from app.modules.transactions.dto import CreateCheckoutDto, PaymentTextDto, TransactionDto
 from app.modules.transactions.gateways.base import PaymentIntent
 from app.modules.transactions.gateways.factory import PaymentGatewayFactory
-from app.modules.transactions.recurring_repository import RecurringPaymentRepository
 from app.modules.transactions.repository import TransactionRepository
 from app.modules.transactions.usecases import CreateCheckoutUseCase
 from app.modules.transactions.waitlist_repository import WaitlistRepository
@@ -55,7 +54,7 @@ from app.modules.users.repository import UserRepository
 from tests.fakes.dispatch import RecordingDispatch
 from tests.fakes.events import RecordingEventPublisher
 from tests.fakes.payment_texts import FixedPaymentTexts
-from tests.fakes.recurring import ShippedRecurringTermsTexts, make_recurring_lifecycle
+from tests.fakes.recurring import make_recurring_checkout
 from tests.modules.subscriptions.factories import make_eligibility
 
 OWNER = UserDto(name="owner", role=Role.OWNER)
@@ -187,9 +186,7 @@ async def test_rate_change_moves_catalog_but_not_existing_order(
             TranslationRepository(plan_repository.session),
         ),
         FixedPaymentTexts(),
-        RecurringPaymentRepository(plan_repository.session),
-        ShippedRecurringTermsTexts(),
-        make_recurring_lifecycle(plan_repository.session),
+        make_recurring_checkout(plan_repository.session),
     )
     result = await create_checkout(
         user,

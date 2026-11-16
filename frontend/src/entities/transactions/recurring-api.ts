@@ -38,19 +38,22 @@ export interface RecurringPaymentSummary {
   currency: string;
 }
 
+export const RECURRING_PAGE_SIZE = 25;
+
 export interface RecurringPaymentPage {
   items: RecurringPaymentItem[];
   total: number;
-  page: number;
-  page_size: number;
-  summary: RecurringPaymentSummary;
 }
 
 export function listRecurringPayments(state: string, page: number, search: string, signal?: AbortSignal): Promise<RecurringPaymentPage> {
-  const query = new URLSearchParams({ page: String(page), page_size: "25" });
+  const query = new URLSearchParams({ page: String(page), page_size: String(RECURRING_PAGE_SIZE) });
   if (state) query.set("state", state);
   if (search) query.set("search", search);
   return apiGet<RecurringPaymentPage>(`/transactions/recurring?${query.toString()}`, signal);
+}
+
+export function getRecurringPaymentSummary(signal?: AbortSignal): Promise<RecurringPaymentSummary> {
+  return apiGet<RecurringPaymentSummary>("/transactions/recurring/summary", signal);
 }
 
 export type RecurringAction = "check" | "close" | "retry";

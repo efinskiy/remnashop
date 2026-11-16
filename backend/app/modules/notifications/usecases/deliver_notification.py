@@ -25,7 +25,9 @@ from app.modules.notifications.telegram import send_telegram_message
 from app.modules.notifications.telegram_data import CardData, TelegramCardDataLoader
 from app.modules.notifications.telegram_layout import LAYOUTS, build_telegram_card
 from app.modules.notifications.webpush import WebPushSender
-from app.modules.transactions import RecurringReason
+from app.modules.recurring_payments import (
+    RecurringReason,
+)
 from app.modules.users import UserDto, UserRepository
 
 _RECIPIENT_ROLES: Final[tuple[Role, ...]] = (Role.ADMIN, Role.OWNER)

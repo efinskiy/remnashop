@@ -38,11 +38,16 @@ from app.modules.notifications.render import NotificationRenderer
 from app.modules.notifications.repository import NotificationRepository
 from app.modules.plans.dto import CreatePlanDto
 from app.modules.plans.repository import PlanRepository
+from app.modules.recurring_payments import (
+    RecurringPaymentRepository,
+)
 from app.modules.settings import SettingsRepository
 from app.modules.settings.dto import UpdateShopSettingsDto
 from app.modules.subscriptions import SubscriptionRepository
 from app.modules.subscriptions.dto import CreateSubscriptionDto
-from app.modules.transactions import RecurringPaymentRepository, TransactionRepository
+from app.modules.transactions import (
+    TransactionRepository,
+)
 from app.modules.users.dto import CreateUserDto, UserDto
 from app.modules.users.repository import UserRepository
 from tests.fakes.dispatch import RecordingDispatch

@@ -23,10 +23,12 @@ from app.modules.customer_notifications.usecases import (
     ShowPaymentCanceledUseCase,
 )
 from app.modules.customer_notifications.waitlist import PaymentsRestoredNotices
+from app.modules.recurring_payments import (
+    RecurringTermsTexts,
+)
 from app.modules.transactions import (
     PaymentsRestoredNotifier,
     PaymentTexts,
-    RecurringTermsTexts,
 )
 
 

@@ -66,6 +66,7 @@ _ERROR_KEYS: Final[dict[ErrorCode, str]] = {
     ErrorCode.GATEWAY_EMAIL_REQUIRED: "ntf-purchase.method-unavailable",
     ErrorCode.PURCHASE_DISCOUNT_USED: "ntf-purchase.discount-used",
     ErrorCode.PRICE_CHANGED: "ntf-recurring.terms-changed",
+    ErrorCode.RECURRING_TERMS_CHANGED: "ntf-recurring.terms-changed",
     ErrorCode.RECURRING_CONSENT_REQUIRED: "ntf-recurring.consent-required",
     ErrorCode.RECURRING_PAYMENT_IN_PROGRESS: "ntf-recurring.payment-in-progress",
 }
@@ -547,7 +548,7 @@ async def on_confirm(
             data["recurring_available"] = True
             data["recurring_required"] = True
             clear_recurring_choice(data)
-        if error.code is ErrorCode.PRICE_CHANGED:
+        if error.code in {ErrorCode.PRICE_CHANGED, ErrorCode.RECURRING_TERMS_CHANGED}:
             clear_recurring_choice(data)
             await dialog_manager.switch_to(Purchase.DURATION)
         if error.code is ErrorCode.PURCHASE_DISCOUNT_USED:

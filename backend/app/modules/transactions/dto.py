@@ -385,20 +385,3 @@ class UnratedAnchorCountDto:
 @dataclass(frozen=True, kw_only=True)
 class RateUnratedAnchorAmountsDto:
     client_ip: str
-
-
-@dataclass(frozen=True, kw_only=True)
-class ProcessRecurringPaymentDto:
-    subscription_id: int
-
-
-@dataclass(frozen=True, kw_only=True)
-class CheckRecurringPaymentDto:
-    subscription_id: int
-    transaction_id: int
-
-
-@dataclass(frozen=True, kw_only=True)
-class RecurringTermsTextDto:
-    summary: str
-    text: str
