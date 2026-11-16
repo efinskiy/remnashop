@@ -4705,7 +4705,8 @@
     "RECURRING_TERMS_CHANGED": "The auto-renewal terms changed. Review and confirm them again.",
     "RECURRING_NOT_AVAILABLE": "Auto-renewal isn’t available for this subscription.",
     "RECURRING_RETRY_NOT_ALLOWED": "This recurring payment can’t be retried under the current consent.",
-    "RECURRING_PAYMENT_STATE_CHANGED": "The recurring payment changed. Refresh the list and try again."
+    "RECURRING_PAYMENT_STATE_CHANGED": "The recurring payment changed. Refresh the list and try again.",
+    "TRANSLATION_TOO_LONG": "The text is too long: the bot can’t show it in one message."
   },
   "loyalty": {
     "settings": {
