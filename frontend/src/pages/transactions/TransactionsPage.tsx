@@ -1,6 +1,4 @@
 import type { ParseKeys } from "i18next";
-
-import { RecurringPaymentsPanel } from "./RecurringPaymentsPanel";
 import {
   ArrowLeftRight,
   Calculator,
@@ -17,7 +15,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState, type ComponentType } from "react";
 import { useTranslation } from "react-i18next";
-import { useSearchParams } from "react-router-dom";
+import { Navigate, useSearchParams } from "react-router-dom";
 
 import { DEFAULT_PAGE_SIZE, getTransactionSummary, hasDiscount, totalDiscountPercent, PAYMENT_STATUS_BADGE_TONE, PAYMENT_STATUS_DOT_CLASSNAME, PURCHASE_TYPES, listTransactionGateways, listTransactionsAfter, UNFULFILLED_STATUS, type TransactionItem, type TransactionListFilters, type TransactionStatus, type TransactionSummary, type PurchaseType } from "@entities/transactions/api";
 import { userName } from "@entities/user/display";
@@ -45,6 +43,7 @@ import { Badge } from "@shared/ui/Badge";
 import { IconCircle } from "@shared/ui/glass/IconCircle";
 import { GLASS_LIST_HEAD_CLASS, LIST_BODY_CLASS, LIST_SCROLL_X_CLASS, PAGE_CLASS, PAGE_SCROLL_UNDER_BAR_CLASS, PAGE_TOOLBAR_CLASS } from "@shared/ui/classes";
 import { ListRow } from "@shared/ui/ListRow";
+import { TransactionsTabs } from "@pages/transactions/TransactionsTabs";
 
 const STATUSES: TransactionStatus[] = ["PENDING", "PAID", "FAILED", "CANCELED", "REFUNDED"];
 
@@ -165,6 +164,7 @@ function TransactionsListPage() {
   return (
     <div data-fills-main className={PAGE_CLASS}>
       <div className={PAGE_TOOLBAR_CLASS}>
+        <TransactionsTabs active="orders" />
         <div className="min-w-40 flex-1 md:min-w-0">
           <SelectDropdown
             id="transactions-status"
@@ -243,7 +243,6 @@ function TransactionsListPage() {
       </div>
 
       <div className={`${PAGE_SCROLL_UNDER_BAR_CLASS} flex flex-col gap-5`}>
-      {permissions.includes("TRANSACTIONS_RECURRING_VIEW") && <RecurringPaymentsPanel />}
       <LoadGate>
       <LoadGateHold isLoading={state.kind === "loading" || summaryState.kind === "loading"} />
       <div className="flex flex-col gap-5">
@@ -445,15 +444,11 @@ function TransactionsListPage() {
   );
 }
 
-
 export function TransactionsPage() {
   const permissions = usePermissions();
+  // the sidebar links here for either permission
   if (!permissions.includes("TRANSACTIONS_VIEW") && permissions.includes("TRANSACTIONS_RECURRING_VIEW")) {
-    return <div data-fills-main className={PAGE_CLASS}>
-      <div className={`${PAGE_SCROLL_UNDER_BAR_CLASS} flex flex-col gap-5`}>
-        <RecurringPaymentsPanel initiallyOpen />
-      </div>
-    </div>;
+    return <Navigate to="/dashboard/transactions/recurring" replace />;
   }
   return <TransactionsListPage />;
 }

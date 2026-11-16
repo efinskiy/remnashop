@@ -3686,23 +3686,11 @@
       "name": "Name"
     },
     "recurring": {
-      "title": "YooKassa automatic payments",
-      "description": "Subscription states and all-time recurring payment totals. Pauses, errors and pending payments are shown separately. Payment credentials are never displayed.",
-      "all": "All states",
-      "refresh": "Refresh",
+      "all": "All",
+      "searchPlaceholder": "Customer or subscription ID",
       "error": "Could not load automatic payments. Try again.",
       "empty": "No automatic payments match this state.",
-      "subscription": "Subscription and customer",
-      "state": "State",
-      "limit": "Charge limit",
-      "next": "Next attempt",
-      "errorReason": "Reason",
-      "expiry": "Paid until",
-      "order": "Order",
-      "attempts": "Retries",
-      "total": "Found: {{count}}",
-      "previous": "Previous",
-      "nextPage": "Next",
+      "limit": "Limit",
       "states": {
         "enabled": "Enabled",
         "disabled": "Disabled",
@@ -3710,11 +3698,45 @@
         "retrying": "Retrying",
         "attention": "Needs attention"
       },
-      "stats": {
-        "total": "Total subscriptions",
-        "paid": "Successful renewals",
-        "failed": "Failed attempts",
-        "revenue": "Recurring revenue"
+      "next": {
+        "check": "Check",
+        "debit": "Next attempt",
+        "expiry": "Subscription until"
+      },
+      "kpi": {
+        "enabled": "Switched on",
+        "ofTotal": "of {{total}}",
+        "disabled_one": "{{count}} switched off by customers",
+        "disabled_other": "{{count}} switched off by customers",
+        "attention": "Need attention",
+        "inProgress": "{{pending}} awaiting payment, {{retrying}} retrying",
+        "paid": "Paid renewals",
+        "failed_one": "{{count}} failed attempt",
+        "failed_other": "{{count}} failed attempts",
+        "revenue": "Auto-renewal revenue",
+        "allTime": "all time"
+      },
+      "dialog": {
+        "title": "Auto-renewal of subscription #{{id}}",
+        "openSubscription": "To subscription",
+        "expiry": "Subscription until",
+        "expired": "already expired",
+        "sections": {
+          "state": "State",
+          "payment": "Payment",
+          "consent": "Customer consent"
+        },
+        "firstFailure_one": "First failure {{date}}, {{count}} retry",
+        "firstFailure_other": "First failure {{date}}, {{count}} retries",
+        "order": "Order",
+        "openOrder": "Open",
+        "providerId": "YooKassa ID",
+        "submitted": "Sent",
+        "nextAttempt": "Next attempt",
+        "savedCard": "Card saved",
+        "acceptedAt": "Accepted",
+        "revokedAt": "Withdrawn",
+        "termsText": "Text the customer accepted"
       },
       "reasons": {
         "customer_disabled": "Auto-renewal was disabled by the customer",
@@ -3747,8 +3769,23 @@
         "admin_closed": "Payment waiting was closed by an administrator",
         "refunded": "A payment was refunded"
       },
-      "search": "Search",
-      "searchPlaceholder": "Customer or subscription ID",
+      "hints": {
+        "merchant_unavailable": "Check the shop ID and secret key in the YooKassa settings, then retry.",
+        "provider_configuration_error": "Check the VAT rate and receipt settings in YooKassa, then retry.",
+        "provider_request_rejected": "Check the shop’s YooKassa settings; if they are fine, the customer’s card was refused and they need to pay by hand.",
+        "provider_unavailable": "YooKassa didn’t answer; the next attempt is scheduled automatically.",
+        "shop_changed": "The card was saved for another YooKassa shop; the customer has to pay once by hand to save it again.",
+        "price_changed": "The renewal now costs more than the customer agreed to; they have to accept the new terms.",
+        "plan_unavailable": "Make the plan available for purchase again or let the customer choose another one.",
+        "customer_email_required": "Receipts are on: set a shop payment email or ask the customer for one.",
+        "gateway_disabled": "Auto-renewal resumes once YooKassa and auto-renewal are switched on again.",
+        "payment_status_unknown": "Check the payment in YooKassa: if it went through, fulfil the order; otherwise close the wait.",
+        "pending_timeout": "Check the payment in YooKassa; the status is also polled every hour.",
+        "payment_method_not_saved": "YooKassa didn’t keep the card; the customer has to pay by hand once more with auto-renewal on.",
+        "consent_required": "The customer has to accept the auto-renewal terms again.",
+        "retries_exhausted": "The bank kept refusing; the customer has to renew by hand.",
+        "renewal_window_expired": "The agreed window for automatic charges has passed; the customer has to renew by hand."
+      },
       "actions": {
         "check": "Check with YooKassa",
         "close": "Close waiting",
@@ -3757,6 +3794,10 @@
         "closeTitle": "Close payment waiting?",
         "closeMessage": "Waiting will close and the existing renewal consent will be withdrawn. A payment already sent to YooKassa may still complete and renew the subscription. Future charges require fresh customer consent."
       }
+    },
+    "tabs": {
+      "orders": "Orders",
+      "recurring": "Auto-renewals"
     }
   },
   "subscriptions": {
