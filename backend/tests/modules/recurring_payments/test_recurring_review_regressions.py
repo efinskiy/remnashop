@@ -9,7 +9,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select, update
 
-import app.modules.recurring_payments.usecases.process_recurring_payment as worker_module
+import app.modules.recurring_payments.debit as worker_module
 from app.core.db.models import (
     EventOutboxEntry,
     RecurringConsent,
@@ -420,7 +420,7 @@ async def test_withdrawal_while_pending_survives_decline_and_can_be_reenabled(ca
 async def test_unsent_reserved_payment_is_canceled_without_unknown_outcome(
     case, customer, gateway_repository, transaction_repository, session, uow
 ):
-    await case.worker._reserve(await case.repository.get(case.subscription.id))
+    await case.worker.reservation.reserve(await case.repository.get(case.subscription.id))
     reserved = await case.repository.get(case.subscription.id)
     if customer:
         await case.set_state(
@@ -434,7 +434,7 @@ async def test_unsent_reserved_payment_is_canceled_without_unknown_outcome(
             await gateway_repository.update_settings(
                 PaymentGatewayType.YOOKASSA, {"payment_mode": "single"}
             )
-    await case.worker._charge_or_poll(case.subscription.id)
+    await case.worker.debit.charge_or_poll(case.subscription.id)
     current = await case.repository.get(case.subscription.id)
     assert current.pending_transaction_id is None and current.submitted_at is None
     assert (
@@ -446,13 +446,13 @@ async def test_unsent_reserved_payment_is_canceled_without_unknown_outcome(
 
 
 async def test_canceled_worker_keeps_durable_possible_submission(case, monkeypatch):
-    await case.worker._reserve(await case.repository.get(case.subscription.id))
-    mandate, order, _ = await case.worker._pending_context(case.subscription.id)
+    await case.worker.reservation.reserve(await case.repository.get(case.subscription.id))
+    mandate, order, _ = await case.worker.debit._pending_context(case.subscription.id)
     monkeypatch.setattr(
         worker_module, "submit_recurring", AsyncMock(side_effect=asyncio.CancelledError)
     )
     with pytest.raises(asyncio.CancelledError):
-        await case.worker._submit_if_authorized(case.subscription.id, order)
+        await case.worker.debit._submit(case.subscription.id, order)
     current = await case.repository.get(case.subscription.id)
     assert current.submitted_at is not None and current.pending_transaction_id == order.id
 

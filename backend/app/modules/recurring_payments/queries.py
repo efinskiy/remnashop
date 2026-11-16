@@ -40,3 +40,29 @@ def renewal_window_expired(now: datetime) -> ColumnElement[bool]:
     # A damaged authorization must not break the entire scheduler with a failed cast.
     hours = case((raw_hours.op("~")(r"^[0-9]{1,3}$"), raw_hours.cast(Integer)), else_=0)
     return Subscription.expire_at + hours * timedelta(hours=1) < now
+
+
+def due_for_work(now: datetime, *, due_before: datetime) -> ColumnElement[bool]:
+    # a payment in flight is always followed; a new debit only while the policy allows one
+    return and_(
+        RecurringPayment.next_attempt_at <= now,
+        or_(RecurringPayment.leased_until.is_(None), RecurringPayment.leased_until <= now),
+        or_(
+            RecurringPayment.pending_transaction_id.is_not(None),
+            and_(
+                RecurringPayment.enabled.is_(True),
+                Subscription.expire_at <= due_before,
+                ~renewal_window_expired(now),
+                or_(
+                    RecurringPayment.last_error.is_(None),
+                    RecurringPayment.last_error.not_in(
+                        [
+                            reason.value
+                            for reason in RecurringReason
+                            if not reason.policy.allows_debit
+                        ]
+                    ),
+                ),
+            ),
+        ),
+    )

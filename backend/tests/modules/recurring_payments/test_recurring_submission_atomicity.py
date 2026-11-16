@@ -16,8 +16,8 @@ case = test_recurring_payments.case
 
 async def _prepare(case):
     mandate = await case.repository.get(case.subscription.id)
-    await case.worker._reserve(mandate)
-    context = await case.worker._pending_context(case.subscription.id)
+    await case.worker.reservation.reserve(mandate)
+    context = await case.worker.debit._pending_context(case.subscription.id)
     assert context is not None
     return context
 
@@ -30,7 +30,7 @@ async def test_submission_persists_the_outcome_before_releasing_authorization(
     case.provider.reject = code != 200
     case.provider.reject_code = code
 
-    result = await case.worker._submit_if_authorized(
+    result = await case.worker.debit._submit(
         case.subscription.id,
         order,
     )
@@ -40,7 +40,7 @@ async def test_submission_persists_the_outcome_before_releasing_authorization(
     current = await case.repository.get(case.subscription.id)
     if code == 200:
         assert saved.status is TransactionStatus.PENDING
-        assert saved.external_payment_id == result[2].payment_id
+        assert saved.external_payment_id == result.payment_id
         assert current.pending_transaction_id == order.id
     else:
         assert saved.status is TransactionStatus.FAILED
@@ -50,7 +50,7 @@ async def test_submission_persists_the_outcome_before_releasing_authorization(
     case.provider.reject = False
 
     # The queued task may still carry the original, unsent order DTO and first flag.
-    replay = await case.worker._submit_if_authorized(
+    replay = await case.worker.debit._submit(
         case.subscription.id,
         order,
     )
@@ -67,14 +67,14 @@ async def test_delayed_first_preparation_cannot_retire_a_later_ambiguous_submiss
     case, transaction_repository, code
 ):
     initial, order, _ = await _prepare(case)
-    later = await case.worker._pending_context(case.subscription.id)
+    later = await case.worker.debit._pending_context(case.subscription.id)
     assert later is not None
     retry, retry_order, _ = later
     assert initial.submitted_at is None and retry.submitted_at is None
     case.provider.lose_response = True
 
     with pytest.raises(httpx.ReadTimeout):
-        await case.worker._submit_if_authorized(
+        await case.worker.debit._submit(
             case.subscription.id,
             retry_order,
         )
@@ -85,12 +85,12 @@ async def test_delayed_first_preparation_cannot_retire_a_later_ambiguous_submiss
     # first preparation cannot establish that this idempotency key was never charged.
     case.provider.reject = True
     case.provider.reject_code = code
-    result = await case.worker._submit_if_authorized(
+    result = await case.worker.debit._submit(
         case.subscription.id,
         order,
     )
 
-    assert result is not None and result[2].outcome == "ambiguous"
+    assert result is not None and result.outcome == "ambiguous"
     saved = await transaction_repository.get_by_id(order.id)
     current = await case.repository.get(case.subscription.id)
     assert saved.status is TransactionStatus.PENDING
@@ -111,13 +111,13 @@ async def test_submission_markers_advance_when_the_clock_is_frozen(case, monkeyp
     _, order, _ = await _prepare(case)
     case.provider.lose_response = True
     with pytest.raises(httpx.ReadTimeout):
-        await case.worker._submit_if_authorized(case.subscription.id, order)
+        await case.worker.debit._submit(case.subscription.id, order)
     assert (await case.repository.get(case.subscription.id)).submitted_at == frozen
-    result = await case.worker._submit_if_authorized(case.subscription.id, order)
-    assert result is not None and result[2].outcome == "accepted"
+    result = await case.worker.debit._submit(case.subscription.id, order)
+    assert result is not None and result.outcome == "accepted"
     current = await case.repository.get(case.subscription.id)
     assert current.submitted_at == frozen + timedelta(microseconds=1)
-    await case.worker._pending_context(case.subscription.id)
+    await case.worker.debit._pending_context(case.subscription.id)
     assert (await case.repository.get(case.subscription.id)).submitted_at == current.submitted_at
     assert len(case.provider.keys) == 1
 
@@ -129,7 +129,7 @@ async def test_stale_submission_cannot_change_a_replacement_attempt(
     _, old_order, _ = await _prepare(case)
     case.provider.reject = True
     case.provider.reject_code = code
-    await case.worker._charge(
+    await case.worker.debit._submit(
         case.subscription.id,
         old_order,
     )
@@ -149,7 +149,7 @@ async def test_stale_submission_cannot_change_a_replacement_attempt(
         )
     case.provider.reject = False
 
-    await case.worker._charge(
+    await case.worker.debit._submit(
         case.subscription.id,
         old_order,
     )

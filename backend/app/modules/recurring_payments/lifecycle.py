@@ -324,8 +324,11 @@ class RecurringLifecycle:
         ):
             return False
         unknown = before.submitted_at is not None or order.external_payment_id is not None
-        reconnected = unknown and await self._repository.has_manual_after(
-            subscription_id, created_at=order.created_at, plan_id=order.plan_id
+        reconnected = unknown and (
+            order.created_at is None
+            or await self._transactions.has_manual_renewal_since(
+                subscription_id, since=order.created_at, plan_id=order.plan_id
+            )
         )
         after = replace(before)
         status, effects = apply_retire(
@@ -380,7 +383,7 @@ class RecurringLifecycle:
             if (
                 before.pending_transaction_id is not None
                 or before.submitted_at is None
-                or await self._repository.latest_order_id(subscription_id) != order.id
+                or await self._transactions.latest_recurring_order_id(subscription_id) != order.id
             ):
                 return
             active = (
@@ -457,7 +460,8 @@ class RecurringLifecycle:
             after,
             order_id=order.id,
             order_consent_id=order.recurring_consent_id,
-            latest_is_order=await self._repository.latest_order_id(subscription_id) == order.id,
+            latest_is_order=await self._transactions.latest_recurring_order_id(subscription_id)
+            == order.id,
             consent_active=await self._repository.consent_terms(before.consent_id) is not None,
             now=now,
         )

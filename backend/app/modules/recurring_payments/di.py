@@ -5,10 +5,13 @@ from dishka import Provider, Scope, alias, provide, provide_all
 from app.modules.recurring_payments.admin_guard import RecurringAdminGuard
 from app.modules.recurring_payments.admin_repository import RecurringPaymentAdminRepository
 from app.modules.recurring_payments.checkout import RecurringCheckoutConsent
+from app.modules.recurring_payments.checks import RecurringDebitChecks
+from app.modules.recurring_payments.debit import RecurringDebit
 from app.modules.recurring_payments.dispatch import ProcessRecurringPaymentDispatch
 from app.modules.recurring_payments.lifecycle import RecurringLifecycle
 from app.modules.recurring_payments.poller import RecurringPoller
 from app.modules.recurring_payments.repository import RecurringPaymentRepository
+from app.modules.recurring_payments.reservation import RecurringReservation
 from app.modules.recurring_payments.tasks import process_one_recurring_payment_task
 from app.modules.recurring_payments.usecases import (
     CheckRecurringPaymentUseCase,
@@ -34,6 +37,9 @@ class RecurringPaymentsProvider(Provider):
     recurring_payment_admin_repository = provide(RecurringPaymentAdminRepository)
     recurring_lifecycle = provide(RecurringLifecycle)
     recurring_poller = provide(RecurringPoller)
+    recurring_debit_checks = provide(RecurringDebitChecks)
+    recurring_reservation = provide(RecurringReservation)
+    recurring_debit = provide(RecurringDebit)
     recurring_admin_guard = provide(RecurringAdminGuard)
     recurring_checkout_consent = provide(RecurringCheckoutConsent)
     recurring_checkout = alias(source=RecurringCheckoutConsent, provides=RecurringCheckout)

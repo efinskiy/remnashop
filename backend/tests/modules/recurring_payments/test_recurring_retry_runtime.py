@@ -276,7 +276,7 @@ async def test_manual_stars_renewal_keeps_authorization_and_supersedes_an_unsent
     uow,
 ):
     original = await case.repository.get(case.subscription.id)
-    await case.worker._reserve(original)
+    await case.worker.reservation.reserve(original)
     reserved = await case.repository.get(case.subscription.id)
     assert reserved.pending_transaction_id is not None and reserved.submitted_at is None
     await _manual_stars_renewal(case, transaction_repository, session, uow)
@@ -551,7 +551,7 @@ async def test_paid_manual_renewal_waiting_for_fulfillment_prevents_an_auto_debi
     reserved,
 ):
     if reserved:
-        await case.worker._reserve(await case.repository.get(case.subscription.id))
+        await case.worker.reservation.reserve(await case.repository.get(case.subscription.id))
     values = {
         field.name: getattr(case.source, field.name) for field in fields(CreateTransactionDto)
     }

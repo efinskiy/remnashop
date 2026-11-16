@@ -30,6 +30,8 @@ from app.modules.plans.dto import (
     UpdatePlanDto,
     UpdatePlanSquadsDto,
 )
+from app.modules.recurring_payments.checks import RecurringDebitChecks
+from app.modules.recurring_payments.debit import RecurringDebit
 from app.modules.recurring_payments.dto import (
     ProcessRecurringPaymentDto,
     SetRecurringPaymentDto,
@@ -38,6 +40,7 @@ from app.modules.recurring_payments.lifecycle import RecurringLifecycle
 from app.modules.recurring_payments.policy import recurring_policy
 from app.modules.recurring_payments.poller import RecurringPoller
 from app.modules.recurring_payments.repository import RecurringPaymentRepository
+from app.modules.recurring_payments.reservation import RecurringReservation
 from app.modules.recurring_payments.terms import build_recurring_terms
 from app.modules.recurring_payments.usecases import (
     GetOwnRecurringPaymentUseCase,
@@ -171,8 +174,17 @@ class _Worker:
         for due in ids:
             await self.use_case.system(ProcessRecurringPaymentDto(subscription_id=due))
 
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self.use_case, name)
+    @property
+    def reservation(self) -> RecurringReservation:
+        return self.use_case._reservation
+
+    @property
+    def debit(self) -> RecurringDebit:
+        return self.use_case._debit
+
+    @property
+    def _poller(self) -> RecurringPoller:
+        return self.use_case._debit._poller
 
 
 @dataclass
@@ -325,14 +337,17 @@ async def case(
             dispatch,
             uow,
         )
-        use_case = ProcessRecurringPaymentUseCase(
+        checks = RecurringDebitChecks(
+            repository, lifecycle, gateway_repository, settings_repository
+        )
+        reservation = RecurringReservation(
+            checks,
             repository,
             lifecycle,
             poller,
             transaction_repository,
             subscription_repository,
             user_repository,
-            gateway_repository,
             settings_repository,
             CheckoutPricer(
                 plan_repository,
@@ -345,7 +360,20 @@ async def case(
                 settings_repository,
             ),
             uow,
+        )
+        debit = RecurringDebit(
+            checks,
+            repository,
+            lifecycle,
+            poller,
+            transaction_repository,
+            subscription_repository,
+            user_repository,
             FixedPaymentTexts(),
+            uow,
+        )
+        use_case = ProcessRecurringPaymentUseCase(
+            checks, reservation, debit, repository, lifecycle, transaction_repository, uow
         )
         yield _Case(
             _Worker(use_case, lifecycle, repository, uow, gateway_repository),

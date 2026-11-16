@@ -769,6 +769,61 @@ class TransactionRepository:
             for day, amount, count in (await self.session.execute(stmt)).tuples()
         }
 
+    async def has_open_manual_order(self, subscription_id: int, now: datetime) -> bool:
+        return (
+            await self.session.scalar(
+                select(Transaction.id)
+                .where(
+                    Transaction.target_subscription_id == subscription_id,
+                    Transaction.is_recurring.is_(False),
+                    Transaction.is_test.is_(False),
+                    or_(
+                        and_(
+                            Transaction.status == TransactionStatus.PENDING,
+                            Transaction.expires_at > now,
+                        ),
+                        and_(
+                            Transaction.status == TransactionStatus.PAID,
+                            Transaction.fulfilled_at.is_(None),
+                        ),
+                    ),
+                )
+                .limit(1)
+            )
+            is not None
+        )
+
+    async def has_manual_renewal_since(
+        self, subscription_id: int, *, since: datetime, plan_id: Optional[int]
+    ) -> bool:
+        return (
+            await self.session.scalar(
+                select(Transaction.id)
+                .where(
+                    Transaction.fulfilled_subscription_id == subscription_id,
+                    Transaction.is_recurring.is_(False),
+                    Transaction.status == TransactionStatus.PAID,
+                    Transaction.fulfilled_at >= since,
+                    Transaction.plan_id == plan_id,
+                )
+                .limit(1)
+            )
+            is not None
+        )
+
+    async def latest_recurring_order_id(self, subscription_id: int) -> Optional[int]:
+        latest: Optional[int] = await self.session.scalar(
+            select(Transaction.id)
+            .where(
+                Transaction.target_subscription_id == subscription_id,
+                Transaction.is_recurring.is_(True),
+                Transaction.is_test.is_(False),
+            )
+            .order_by(Transaction.id.desc())
+            .limit(1)
+        )
+        return latest
+
 
 def _exact(factor: Decimal) -> ColumnElement[Decimal]:
     # bound as the column type, Numeric(10, 2), the factor would be cut to cents

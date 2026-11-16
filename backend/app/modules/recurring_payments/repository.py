@@ -2,19 +2,19 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
-from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.db.filters import in_ids
 from app.core.db.models.recurring_consent import RecurringConsent
 from app.core.db.models.recurring_payment import RecurringPayment
 from app.core.db.models.subscription import Subscription
-from app.core.db.models.transaction import Transaction
-from app.core.enums import PurchaseChannel, TransactionStatus
+from app.core.enums import PurchaseChannel
 from app.core.utils.time import datetime_now
 from app.modules.recurring_payments.dto import ConsentFacts, RecurringPaymentDto, RecurringTerms
-from app.modules.recurring_payments.policy import ConsentChannel, RecurringReason, stored_reason
-from app.modules.recurring_payments.queries import renewal_window_expired
+from app.modules.recurring_payments.policy import ConsentChannel, stored_reason
+from app.modules.recurring_payments.queries import due_for_work, renewal_window_expired
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -101,28 +101,7 @@ class RecurringPaymentRepository:
             select(RecurringPayment.subscription_id)
             .join(Subscription, Subscription.id == RecurringPayment.subscription_id)
             .outerjoin(RecurringConsent, RecurringConsent.id == RecurringPayment.consent_id)
-            .where(
-                RecurringPayment.next_attempt_at <= now,
-                or_(RecurringPayment.leased_until.is_(None), RecurringPayment.leased_until <= now),
-                or_(
-                    RecurringPayment.pending_transaction_id.is_not(None),
-                    and_(
-                        RecurringPayment.enabled.is_(True),
-                        Subscription.expire_at <= due_before,
-                        ~renewal_window_expired(now),
-                        or_(
-                            RecurringPayment.last_error.is_(None),
-                            RecurringPayment.last_error.not_in(
-                                [
-                                    reason.value
-                                    for reason in RecurringReason
-                                    if not reason.policy.allows_debit
-                                ]
-                            ),
-                        ),
-                    ),
-                ),
-            )
+            .where(due_for_work(now, due_before=due_before))
             .order_by(RecurringPayment.next_attempt_at, RecurringPayment.subscription_id)
             .limit(limit)
         )
@@ -138,7 +117,7 @@ class RecurringPaymentRepository:
         if ids and claim_until is not None:
             await self.session.execute(
                 update(RecurringPayment)
-                .where(RecurringPayment.subscription_id.in_(ids))
+                .where(in_ids(RecurringPayment.subscription_id, ids))
                 .values(leased_until=claim_until)
             )
         return ids
@@ -274,60 +253,3 @@ class RecurringPaymentRepository:
             .where(RecurringPayment.subscription_id == subscription_id)
             .values(submitted_at=None)
         )
-
-    async def has_live_manual_order(self, subscription_id: int, now: datetime) -> bool:
-        return (
-            await self.session.scalar(
-                select(Transaction.id)
-                .where(
-                    Transaction.target_subscription_id == subscription_id,
-                    Transaction.is_recurring.is_(False),
-                    Transaction.is_test.is_(False),
-                    or_(
-                        and_(
-                            Transaction.status == TransactionStatus.PENDING,
-                            Transaction.expires_at > now,
-                        ),
-                        and_(
-                            Transaction.status == TransactionStatus.PAID,
-                            Transaction.fulfilled_at.is_(None),
-                        ),
-                    ),
-                )
-                .limit(1)
-            )
-            is not None
-        )
-
-    async def has_manual_after(
-        self, subscription_id: int, *, created_at: Optional[datetime], plan_id: Optional[int]
-    ) -> bool:
-        if created_at is None:
-            return True
-        return (
-            await self.session.scalar(
-                select(Transaction.id)
-                .where(
-                    Transaction.fulfilled_subscription_id == subscription_id,
-                    Transaction.is_recurring.is_(False),
-                    Transaction.status == TransactionStatus.PAID,
-                    Transaction.fulfilled_at >= created_at,
-                    Transaction.plan_id == plan_id,
-                )
-                .limit(1)
-            )
-            is not None
-        )
-
-    async def latest_order_id(self, subscription_id: int) -> Optional[int]:
-        latest: Optional[int] = await self.session.scalar(
-            select(Transaction.id)
-            .where(
-                Transaction.target_subscription_id == subscription_id,
-                Transaction.is_recurring.is_(True),
-                Transaction.is_test.is_(False),
-            )
-            .order_by(Transaction.id.desc())
-            .limit(1)
-        )
-        return latest
