@@ -182,7 +182,19 @@ class RecurringPaymentAdminItemDto:
     first_failure_at: Optional[datetime]
     amount_limit: Optional[Decimal]
     currency: Optional[Currency]
+    duration_days: Optional[int]
+    has_saved_method: bool
     expire_at: datetime
+
+
+@dataclass(frozen=True, kw_only=True)
+class RecurringConsentDto:
+    # the latest consent of the mandate, withdrawn or not, with the exact terms shown
+    terms: RecurringTerms
+    channel: PurchaseChannel
+    accepted_at: datetime
+    revoked_at: Optional[datetime]
+    revoked_channel: Optional[str]
 
 
 @dataclass(frozen=True, kw_only=True)

@@ -2443,7 +2443,8 @@
     "TRANSACTIONS_RECURRING_SUMMARY_VIEW": "View recurring payment totals",
     "TRANSACTIONS_RECURRING_CHECK": "Check a pending recurring payment with YooKassa",
     "TRANSACTIONS_RECURRING_CLOSE": "Close a pending recurring payment and withdraw the customer’s consent",
-    "TRANSACTIONS_RECURRING_RETRY": "Retry a recurring payment after a fix"
+    "TRANSACTIONS_RECURRING_RETRY": "Retry a recurring payment after a fix",
+    "TRANSACTIONS_RECURRING_CONSENT_VIEW": "View the auto-renewal consent a customer accepted"
   },
   "permissionCategories": {
     "botSettings": "Telegram bot",

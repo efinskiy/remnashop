@@ -2527,7 +2527,8 @@
     "TRANSACTIONS_RECURRING_SUMMARY_VIEW": "Просмотр сводки по автоплатежам",
     "TRANSACTIONS_RECURRING_CHECK": "Проверка ожидающего автоплатежа в ЮKassa",
     "TRANSACTIONS_RECURRING_CLOSE": "Закрытие ожидающего автоплатежа с отзывом согласия клиента",
-    "TRANSACTIONS_RECURRING_RETRY": "Повтор автоплатежа после исправления"
+    "TRANSACTIONS_RECURRING_RETRY": "Повтор автоплатежа после исправления",
+    "TRANSACTIONS_RECURRING_CONSENT_VIEW": "Просмотр согласия клиента на автопродление"
   },
   "permissionCategories": {
     "botSettings": "Telegram-бот",

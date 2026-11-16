@@ -5,7 +5,7 @@ from typing import Optional
 from pydantic import BaseModel, Field, field_validator
 
 from app.core.constants import INT32_MAX, RECURRING_TERMS_ID_PATTERN
-from app.core.enums import Currency, Locale, PaymentGatewayType, PurchaseType
+from app.core.enums import Currency, Locale, PaymentGatewayType, PurchaseChannel, PurchaseType
 from app.core.utils.validators import known_locale
 from app.modules.recurring_payments.policy import RecurringState
 
@@ -98,7 +98,17 @@ class RecurringPaymentAdminItemResponse(BaseModel):
     first_failure_at: Optional[datetime]
     amount_limit: Optional[Decimal]
     currency: Optional[Currency]
+    duration_days: Optional[int]
+    has_saved_method: bool
     expire_at: datetime
+
+
+class RecurringConsentResponse(BaseModel):
+    terms: RecurringTermsResponse
+    channel: PurchaseChannel
+    accepted_at: datetime
+    revoked_at: Optional[datetime]
+    revoked_channel: Optional[str]
 
 
 class RecurringPaymentPageResponse(BaseModel):

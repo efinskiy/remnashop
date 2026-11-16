@@ -47,6 +47,7 @@ from app.modules.promocodes.usecases import GetPromocodeUseCase
 from app.modules.recurring_payments.usecases import (
     CheckRecurringPaymentUseCase,
     CloseRecurringPaymentUseCase,
+    GetRecurringConsentUseCase,
     GetRecurringPaymentSummaryUseCase,
     ListRecurringPaymentsUseCase,
     RetryRecurringPaymentUseCase,
@@ -108,6 +109,7 @@ from app.modules.users.usecases import GetUserUseCase, SetUserDiscountUseCase
         (ListTransactionsUseCase, Permission.TRANSACTIONS_VIEW),
         (ListRecurringPaymentsUseCase, Permission.TRANSACTIONS_RECURRING_VIEW),
         (GetRecurringPaymentSummaryUseCase, Permission.TRANSACTIONS_RECURRING_SUMMARY_VIEW),
+        (GetRecurringConsentUseCase, Permission.TRANSACTIONS_RECURRING_CONSENT_VIEW),
         (CheckRecurringPaymentUseCase, Permission.TRANSACTIONS_RECURRING_CHECK),
         (CloseRecurringPaymentUseCase, Permission.TRANSACTIONS_RECURRING_CLOSE),
         (RetryRecurringPaymentUseCase, Permission.TRANSACTIONS_RECURRING_RETRY),

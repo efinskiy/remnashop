@@ -13,6 +13,9 @@ from app.modules.recurring_payments.usecases.get_checkout_recurring_terms import
 from app.modules.recurring_payments.usecases.get_own_recurring_payment import (
     GetOwnRecurringPaymentUseCase,
 )
+from app.modules.recurring_payments.usecases.get_recurring_consent import (
+    GetRecurringConsentUseCase,
+)
 from app.modules.recurring_payments.usecases.get_recurring_payment_summary import (
     GetRecurringPaymentSummaryUseCase,
 )
@@ -38,6 +41,7 @@ __all__ = [
     "EnqueueRecurringPaymentsUseCase",
     "GetCheckoutRecurringTermsUseCase",
     "GetOwnRecurringPaymentUseCase",
+    "GetRecurringConsentUseCase",
     "GetRecurringPaymentSummaryUseCase",
     "ListRecurringPaymentsUseCase",
     "ProcessRecurringPaymentUseCase",

@@ -11,6 +11,7 @@ from app.core.constants import DEFAULT_PAGE_SIZE, INT32_MAX, MAX_PAGE_SIZE, SEAR
 from app.core.utils.http import resolve_client_ip
 from app.modules.recurring_payments.api.schemas import (
     RecurringAdminActionRequest,
+    RecurringConsentResponse,
     RecurringPaymentAdminItemResponse,
     RecurringPaymentPageResponse,
     RecurringPaymentSummaryResponse,
@@ -20,6 +21,7 @@ from app.modules.recurring_payments.policy import RecurringState
 from app.modules.recurring_payments.usecases import (
     CheckRecurringPaymentUseCase,
     CloseRecurringPaymentUseCase,
+    GetRecurringConsentUseCase,
     GetRecurringPaymentSummaryUseCase,
     ListRecurringPaymentsUseCase,
     RetryRecurringPaymentUseCase,
@@ -59,6 +61,21 @@ async def get_recurring_payment_summary(
     return RecurringPaymentSummaryResponse.model_validate(
         await use_case(actor), from_attributes=True
     )
+
+
+@router.get(
+    "/{subscription_id:int}/consent",
+    response_model=RecurringConsentResponse,
+    responses=error_responses(404),
+)
+@inject
+async def get_recurring_consent(
+    use_case: FromDishka[GetRecurringConsentUseCase],
+    subscription_id: int = Path(ge=1, le=INT32_MAX),
+    actor: Actor = Depends(require_admin),
+) -> RecurringConsentResponse:
+    consent = await use_case(actor, subscription_id)
+    return RecurringConsentResponse.model_validate(consent, from_attributes=True)
 
 
 def _action(

@@ -12,10 +12,11 @@ from app.core.config import AppConfig
 from app.core.constants import API_V1
 from app.core.db.models import User
 from app.core.db.uow import UnitOfWork
-from app.core.enums import Locale, Role, SessionAudience, TransactionStatus
+from app.core.enums import Locale, PurchaseChannel, Role, SessionAudience, TransactionStatus
 from app.core.security import create_access_token, hash_password, hash_refresh_token
 from app.modules.auth.dto import CreateSessionDto
 from app.modules.auth.repository import SessionRepository
+from app.modules.recurring_payments.dto import SetRecurringPaymentDto
 from app.modules.users.dto import CreateUserDto
 from app.modules.users.repository import UserRepository
 from tests.fakes.container import make_test_container
@@ -193,3 +194,31 @@ async def test_recurring_close_uses_the_pending_order_confirmed_by_the_operator(
     )
     assert await case.repository.consent_terms(before.consent_id) is None
     assert len(case.provider.posts) == 1
+
+
+async def test_the_consent_route_shows_what_the_customer_accepted_even_after_withdrawal(
+    client, owner_auth_headers, case, session, uow
+):
+    path = f"{API_V1}/transactions/recurring/{case.subscription.id}/consent"
+    accepted = await client.get(path, headers=owner_auth_headers)
+    assert accepted.status_code == 200
+    assert accepted.json()["channel"] == "BOT" and accepted.json()["revoked_at"] is None
+    assert accepted.json()["terms"]["text"]
+    await case.set_state(
+        case.user,
+        SetRecurringPaymentDto(
+            subscription_id=case.subscription.id,
+            enabled=False,
+            channel=PurchaseChannel.CABINET,
+        ),
+    )
+    withdrawn = await client.get(path, headers=owner_auth_headers)
+    assert withdrawn.json()["revoked_at"] is not None
+    assert withdrawn.json()["terms"]["text"] == accepted.json()["terms"]["text"]
+
+
+async def test_the_consent_route_answers_404_without_any_consent(client, owner_auth_headers):
+    response = await client.get(
+        f"{API_V1}/transactions/recurring/999999/consent", headers=owner_auth_headers
+    )
+    assert response.status_code == 404

@@ -12,7 +12,12 @@ from app.core.db.models.recurring_payment import RecurringPayment
 from app.core.db.models.subscription import Subscription
 from app.core.enums import PurchaseChannel
 from app.core.utils.time import datetime_now
-from app.modules.recurring_payments.dto import ConsentFacts, RecurringPaymentDto, RecurringTerms
+from app.modules.recurring_payments.dto import (
+    ConsentFacts,
+    RecurringConsentDto,
+    RecurringPaymentDto,
+    RecurringTerms,
+)
 from app.modules.recurring_payments.policy import ConsentChannel, stored_reason
 from app.modules.recurring_payments.queries import due_for_work, renewal_window_expired
 
@@ -177,6 +182,23 @@ class RecurringPaymentRepository:
             )
         except ValueError:
             return None
+
+    async def latest_consent(self, subscription_id: int) -> Optional[RecurringConsentDto]:
+        consent = await self.session.scalar(
+            select(RecurringConsent)
+            .where(RecurringConsent.subscription_id == subscription_id)
+            .order_by(RecurringConsent.accepted_at.desc(), RecurringConsent.id.desc())
+            .limit(1)
+        )
+        if consent is None:
+            return None
+        return RecurringConsentDto(
+            terms=RecurringTerms.model_validate(consent.terms),
+            channel=PurchaseChannel(consent.channel),
+            accepted_at=consent.accepted_at,
+            revoked_at=consent.revoked_at,
+            revoked_channel=consent.revoked_channel,
+        )
 
     async def consent_facts(self, consent_id: Optional[int]) -> Optional[ConsentFacts]:
         if consent_id is None:

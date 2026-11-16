@@ -61,6 +61,7 @@ class RecurringPaymentAdminRepository:
                 RecurringPayment.first_failure_at,
                 source.base_price.label("amount_limit"),
                 source.currency,
+                source.duration_days,
                 Subscription.expire_at,
             )
             .join(Subscription, Subscription.id == RecurringPayment.subscription_id)
@@ -92,6 +93,7 @@ class RecurringPaymentAdminRepository:
             reason = stored_reason(values["last_error"])
             pending_status = values.pop("_pending_status")
             has_method = values.pop("_has_method")
+            values["has_saved_method"] = bool(has_method)
             authorized = values.pop("_authorized")
             expired = values.pop("_expired")
             values["can_check"] = bool(values["external_payment_id"])

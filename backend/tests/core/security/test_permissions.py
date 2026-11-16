@@ -302,6 +302,7 @@ def test_role_permissions_admin_matches_expected_defaults() -> None:
         Permission.TRANSACTIONS_SUMMARY_VIEW,
         Permission.TRANSACTIONS_RECURRING_VIEW,
         Permission.TRANSACTIONS_RECURRING_SUMMARY_VIEW,
+        Permission.TRANSACTIONS_RECURRING_CONSENT_VIEW,
         Permission.TRANSACTIONS_RECURRING_CHECK,
         Permission.TRANSACTIONS_RECURRING_CLOSE,
         Permission.TRANSACTIONS_RECURRING_RETRY,
