@@ -70,7 +70,7 @@ UNTOUCHED_USER_FKS: Final[frozenset[tuple[str, str]]] = frozenset(
         ("broadcasts", "created_by"),
         ("legal_document_revisions", "created_by"),
         ("user_sessions", "user_id"),
-        # The author stays immutable; only the separate current-owner link is reassigned.
+        # the author stays; owner_user_id moves
         ("recurring_consents", "user_id"),
     }
 )

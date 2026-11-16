@@ -19,7 +19,6 @@ class PaymentTexts(Protocol):
 
 
 class RecurringTermsTexts(Protocol):
-    # the auto-renewal terms in the customer's language, from the shop's translations
     async def render(
         self, locale: Locale, args: dict[str, Union[str, int]]
     ) -> RecurringTermsTextDto: ...

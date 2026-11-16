@@ -329,9 +329,8 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
         return CheckoutResultDto(order_id=order.id, confirmation_url=intent.confirmation_url)
 
     async def _hold_recurring_attempt(self, user_id: int, data: CreateCheckoutDto) -> None:
-        """Keeps a manual renewal and an automatic charge from paying the same period: an
-        unsent automatic attempt gives way, a sent one refuses the checkout. The mandate stays
-        locked until this checkout's order commits, so the worker then sees it."""
+        # one period, one payment: an unsent automatic attempt gives way, a sent one refuses;
+        # the mandate stays locked until this order commits
         subscription_id = data.target_subscription_id
         if subscription_id is None or data.purchase_type is PurchaseType.NEW:
             return
@@ -340,7 +339,6 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
         if current is None or facts is None or facts.user_id != user_id:
             return
         if current.pending_transaction_id is not None and current.submitted_at is None:
-            # order before mandate, the worker's lock order
             await self._recurring_lifecycle.cancel_unsent(
                 subscription_id, current.pending_transaction_id
             )

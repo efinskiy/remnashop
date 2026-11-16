@@ -9,13 +9,10 @@ _SUMMARY_KEY: Final[str] = "recurring-terms-summary"
 _TEXT_KEY: Final[str] = "recurring-terms-text"
 _SHIPPED_LOCALES: Final[tuple[Locale, ...]] = (Locale.RU, Locale.EN)
 
-# compiled once: the shipped files change only with a release
 _SHIPPED: Final[dict[str, NotificationRenderer]] = {}
 
 
 class RecurringTermsTextRenderer:
-    """transactions' RecurringTermsTexts: the auto-renewal terms as the shop worded them."""
-
     def __init__(self, renderer_factory: NotificationRendererFactory, config: AppConfig) -> None:
         self._renderer_factory = renderer_factory
         self._config = config

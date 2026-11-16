@@ -26,8 +26,6 @@ class RecurringPolicy:
 
 
 def recurring_policy(settings: Mapping[str, Any]) -> RecurringPolicy:
-    """The shop's current timings from YooKassa's settings; an accepted consent keeps its own."""
-
     def value(key: str) -> int:
         default, low, high = RECURRING_TIMINGS[key]
         raw = settings.get(key)

@@ -12,11 +12,11 @@ class RecurringConsent(BaseSql):
     __tablename__ = "recurring_consents"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    # The immutable author snapshot survives a merged account's eventual deletion.
+    # the author; survives a merge and the merged account's deletion
     user_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), index=True
     )
-    # Current account owner may change through a verified merge; author/text stay immutable.
+    # moves with an account merge
     owner_user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
@@ -27,7 +27,7 @@ class RecurringConsent(BaseSql):
     telegram_id: Mapped[Optional[int]] = mapped_column(BigInteger())
     event_id: Mapped[Optional[str]] = mapped_column(String(128))
     ip_address: Mapped[Optional[str]] = mapped_column(String(45))
-    # Preserve the actual text, amounts and policy; a hash alone cannot reproduce consent.
+    # the exact text, amounts and timings shown; a hash can't reproduce them
     terms: Mapped[dict[str, Any]]
     accepted_at: Mapped[datetime] = mapped_column(server_default=NOW_FUNC)
     revoked_at: Mapped[Optional[datetime]]

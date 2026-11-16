@@ -101,8 +101,7 @@ async def _finish_restore(config: AppConfig) -> str:
 
 
 async def pause_auto_renewal(session: AsyncSession) -> bool:
-    """Charges made after the backup are missing from the restored database, so the
-    worker would charge those customers again; True when auto-renewal was on."""
+    # charges made after the backup aren't in the dump: the worker would repeat them
     gateways = GatewayRepository(session)
     settings = await gateways.get_raw_settings(PaymentGatewayType.YOOKASSA)
     if yookassa_payment_mode(settings) == "single":

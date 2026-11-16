@@ -185,5 +185,5 @@ class RecurringPaymentAdminRepository:
             .one()
         )
         return RecurringPaymentAdminSummary(
-            **dict(mandate), **{**dict(money), "revenue": money["revenue"] or ZERO_AMOUNT}
+            **mandate, **{**money, "revenue": money["revenue"] or ZERO_AMOUNT}
         )

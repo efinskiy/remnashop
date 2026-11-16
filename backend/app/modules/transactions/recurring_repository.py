@@ -194,7 +194,6 @@ class RecurringPaymentRepository:
         if consent is None or consent.revoked_at is not None:
             return None
         try:
-            # ownership follows a verified account merge; the stored author/text never change
             return RecurringTerms.model_validate(consent.terms).model_copy(
                 update={"user_id": consent.owner_user_id}
             )
@@ -278,8 +277,6 @@ class RecurringPaymentRepository:
         )
 
     async def has_live_manual_order(self, subscription_id: int, now: datetime) -> bool:
-        """A manual payment for this subscription a customer may still complete, or one paid
-        and not yet delivered."""
         return (
             await self.session.scalar(
                 select(Transaction.id)

@@ -193,7 +193,6 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
             if mandate is None or not mandate.enabled or mandate.last_error is not None:
                 return False
             gateway = await self._gateway_repository.get_by_type(PaymentGatewayType.YOOKASSA)
-        # a paused mandate or a shop that turned auto-renewal off will not charge
         return bool(gateway.is_active and gateway.flags.get("recurring_enabled", False))
 
     async def _notify(self, data: NotifyCustomerDto) -> None:

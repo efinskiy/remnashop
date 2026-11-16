@@ -45,8 +45,7 @@ _FAILED: frozenset[TransactionStatus] = frozenset(
 
 
 class RecurringLifecycle:
-    """Mandate state changes: loads and locks rows (order before mandate, as fulfillment
-    does), applies a pure transition, writes the change and publishes its notices."""
+    # lock order everywhere: order, then mandate
 
     def __init__(
         self,

@@ -11,9 +11,6 @@ from app.modules.transactions.recurring_repository import RecurringPaymentReposi
 
 
 class WipeStalePaymentMethodsUseCase(UseCase[None, None]):
-    """Forgets a saved payment method the stated number of days after the customer
-    withdrew auto-renewal."""
-
     required_permission = None
 
     def __init__(self, recurring_repository: RecurringPaymentRepository, uow: UnitOfWork) -> None:

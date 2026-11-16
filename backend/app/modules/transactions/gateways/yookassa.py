@@ -163,9 +163,7 @@ class YooKassaGateway(PaymentGateway[YooKassaSettings]):
         )
 
     async def fetch_payment(self, order: TransactionDto, signal: WebhookSignal) -> ProviderPayment:
-        # A callback may beat the create response, or the response may be lost.
-        # The callback ID is only a lookup hint: confirm still checks the API's
-        # order reference, amount, currency and paid status before crediting it.
+        # the callback's id covers a lost or late create response; confirm still verifies it
         payment_id = order.external_payment_id or signal.provider_payment_id
         if not payment_id:
             return NOT_PAID
