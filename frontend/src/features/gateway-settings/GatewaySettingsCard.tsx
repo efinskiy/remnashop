@@ -39,6 +39,7 @@ const CURRENCY_HINT_GATEWAYS = new Set([
   "SEVERPAY",
   "CLOUDPAYMENTS",
   "PAYPALYCH",
+  "CISPAY",
 ]);
 
 const TEST_PAYMENT_POLL_MS = 3000;
@@ -178,7 +179,7 @@ export function GatewaySettingsCard({
     <Row
       glyph={
         logoUrl ? (
-          <img src={logoUrl} alt="" className="size-[22px] rounded-[6px] object-contain" />
+          <img src={logoUrl} alt="" className="size-[22px] object-contain" />
         ) : (
           <span className="text-sm font-semibold">{label.charAt(0)}</span>
         )

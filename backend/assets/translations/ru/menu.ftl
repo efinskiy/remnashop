@@ -507,6 +507,7 @@ gateway-name =
     .LAVA = Lava
     .CLOUDPAYMENTS = CloudPayments
     .PAYPEAR = PayPear
+    .CISPAY = cisPay
 
 ntf-referrals =
     .no-subscription = ❌ У вас нет подписки, к которой можно добавить бонусные дни.
