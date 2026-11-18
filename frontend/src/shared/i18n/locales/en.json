@@ -1700,10 +1700,10 @@
         "wallet_id": "Wallet ID",
         "webhook_secret": "Webhook secret",
         "payment_mode": "Payment mode",
-        "recurring_lead_minutes": "Auto-renewal: charge before expiry, min",
-        "recurring_retry_minutes": "Auto-renewal: retry after a provider error, min",
-        "recurring_max_overdue_hours": "Auto-renewal: stop retrying after expiry, h",
-        "recurring_notice_lead_minutes": "Auto-renewal: notice before charge, min"
+        "recurring_lead_minutes": "Charge before expiry",
+        "recurring_retry_minutes": "Retry after a provider error",
+        "recurring_max_overdue_hours": "Stop retrying after expiry",
+        "recurring_notice_lead_minutes": "Notice before charge"
       },
       "choices": {
         "payment_mode": {
@@ -1711,6 +1711,15 @@
           "recurring": "Recurring payments only",
           "both": "Single + recurring payments"
         }
+      },
+      "dependentGroups": {
+        "payment_mode": "Auto-renewal"
+      },
+      "suffixes": {
+        "recurring_lead_minutes": "min",
+        "recurring_retry_minutes": "min",
+        "recurring_max_overdue_hours": "h",
+        "recurring_notice_lead_minutes": "min"
       }
     },
     "webPush": {
@@ -3688,7 +3697,6 @@
       "name": "Name"
     },
     "recurring": {
-      "all": "All",
       "searchPlaceholder": "Customer or subscription ID",
       "error": "Could not load automatic payments. Try again.",
       "empty": "No automatic payments match this state.",

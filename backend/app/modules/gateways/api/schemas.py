@@ -22,11 +22,17 @@ class ReorderGatewaysRequest(BaseModel):
     types: list[PaymentGatewayType]
 
 
+class GatewayFieldConditionResponse(BaseModel):
+    field: str
+    value: str
+
+
 class GatewayFieldSpecResponse(BaseModel):
     key: str
     kind: Literal["text", "secret", "number", "boolean", "choice"]
     options: list[str] = []
     required: bool
+    hidden_when: Optional[GatewayFieldConditionResponse] = None
 
 
 class GatewayCatalogEntryResponse(BaseModel):

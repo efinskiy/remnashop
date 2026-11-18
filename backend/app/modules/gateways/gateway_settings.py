@@ -1,12 +1,15 @@
 from typing import Any, Final, Literal, NewType, Optional, Self, cast
 
-from pydantic import BaseModel, ConfigDict, SecretStr, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError
 
 from app.core.enums import PaymentGatewayType
 from app.core.exceptions import PaymentGatewayError
 
 # digits as the admin typed them; a provider gets the exact text back
 NumericStr = NewType("NumericStr", str)
+
+# field metadata read by the dashboard catalog: hide the field while another one holds this value
+HIDDEN_WHEN_KEY: Final[str] = "hidden_when"
 
 
 class GatewaySettings(BaseModel):
@@ -60,16 +63,20 @@ RECURRING_TIMINGS: Final[dict[str, tuple[int, int, int]]] = {
 }
 
 
+def _recurring_timing() -> Any:
+    return Field(default=None, json_schema_extra={HIDDEN_WHEN_KEY: ("payment_mode", "single")})
+
+
 class YooKassaSettings(GatewaySettings):
     shop_id: str
     api_key: SecretStr
     vat_code: Optional[NumericStr] = None
     verify_ip: bool = True
     payment_mode: YooKassaPaymentMode = "single"
-    recurring_lead_minutes: Optional[NumericStr] = None
-    recurring_retry_minutes: Optional[NumericStr] = None
-    recurring_max_overdue_hours: Optional[NumericStr] = None
-    recurring_notice_lead_minutes: Optional[NumericStr] = None
+    recurring_lead_minutes: Optional[NumericStr] = _recurring_timing()
+    recurring_retry_minutes: Optional[NumericStr] = _recurring_timing()
+    recurring_max_overdue_hours: Optional[NumericStr] = _recurring_timing()
+    recurring_notice_lead_minutes: Optional[NumericStr] = _recurring_timing()
 
     @property
     def recurring_enabled(self) -> bool:

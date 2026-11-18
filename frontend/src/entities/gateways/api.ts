@@ -19,6 +19,8 @@ export interface GatewayFieldSpec {
   kind: GatewayFieldKind;
   required: boolean;
   options: string[];
+  /** hidden while another field holds this value */
+  hidden_when: { field: string; value: string } | null;
 }
 
 export interface GatewayCatalogEntry {

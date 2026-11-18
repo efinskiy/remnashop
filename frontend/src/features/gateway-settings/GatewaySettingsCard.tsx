@@ -22,6 +22,7 @@ import { CopyInput, Input, PasswordInput } from "@shared/ui/glass/Input";
 import { Row } from "@shared/ui/glass/Row";
 import { Switch } from "@shared/ui/glass/Switch";
 import { Pressable } from "@shared/ui/Pressable";
+import { LabeledDivider } from "@shared/ui/LabeledDivider";
 import { SaveFooter } from "@shared/ui/SaveFooter";
 import { SelectDropdown } from "@shared/ui/SelectDropdown";
 
@@ -57,7 +58,7 @@ export function GatewaySettingsCard({
   webhookUrl,
   onChanged,
 }: GatewaySettingsCardProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [values, setValues] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -70,11 +71,17 @@ export function GatewaySettingsCard({
   const label = t(`settings.gateways.types.${gateway.type}` as ParseKeys);
   const flagFields = fields.filter((field) => field.kind === "boolean");
   const choiceFields = fields.filter((field) => field.kind === "choice");
-  const valueFields = fields.filter((field) => field.kind !== "boolean" && field.kind !== "choice");
+  const plainValueFields = fields.filter((field) => field.kind !== "boolean" && field.kind !== "choice");
+  const stored = (key: string) => gateway.values[key] ?? "";
+  // conditional fields go under their own divider, named after the field they depend on
+  const valueFields = plainValueFields.filter((field) => field.hidden_when === null);
+  const dependentFields = plainValueFields.filter(
+    (field) => field.hidden_when !== null && stored(field.hidden_when.field) !== field.hidden_when.value,
+  );
+  const dependsOn = dependentFields[0]?.hidden_when?.field;
   const docsUrl = GATEWAY_DOCS_URLS[gateway.type];
   const logoUrl = GATEWAY_LOGOS[gateway.type];
   const canExpand = fields.length > 0 || webhookUrl !== null;
-  const stored = (key: string) => gateway.values[key] ?? "";
   const fieldByKey = new Map(fields.map((field) => [field.key, field]));
   // a blank secret or required field keeps what is stored; a blank optional one clears it
   const clearable = (key: string) => {
@@ -186,6 +193,49 @@ export function GatewaySettingsCard({
     </Button>
   );
 
+  const renderValueField = (field: GatewayFieldSpec) => {
+    // once configured, a blank field keeps the stored value
+    const mustFill = field.required && !gateway.is_configured;
+    const suffixKey = `settings.gateways.suffixes.${field.key}`;
+    const inputProps = {
+      id: `gateway-${gateway.type}-${field.key}`,
+      inputMode: inputModeFor(field),
+      // a secret is never sent back, so its field starts empty; the rest show what is stored
+      value: values[field.key] ?? (field.kind === "secret" ? "" : stored(field.key)),
+      onChange: (event: ChangeEvent<HTMLInputElement>) =>
+        setValues((prev) => ({
+          ...prev,
+          [field.key]: sanitizeFieldValue(field, event.target.value),
+        })),
+      placeholder: t("settings.gateways.placeholder"),
+      disabled: !canUpdate,
+  };
+  return (
+    <Field
+      key={field.key}
+      label={t(`settings.gateways.fields.${field.key}` as ParseKeys)}
+      htmlFor={inputProps.id}
+      required={mustFill}
+      info={
+        field.key === "currency" && CURRENCY_HINT_GATEWAYS.has(gateway.type)
+          ? t(`settings.gateways.currencyHints.${gateway.type}` as ParseKeys)
+          : undefined
+      }
+    >
+      {field.kind === "secret" ? (
+        // "off" is ignored on password fields: the browser would offer the admin's saved password
+        <PasswordInput {...inputProps} autoComplete="new-password" />
+      ) : (
+        <Input
+          {...inputProps}
+          autoComplete="off"
+          suffix={i18n.exists(suffixKey) ? t(suffixKey as ParseKeys) : undefined}
+        />
+      )}
+    </Field>
+  );
+  };
+
   return (
     <Row
       glyph={
@@ -253,45 +303,16 @@ export function GatewaySettingsCard({
                 />
               </Field>
             ))}
-            {valueFields.map((field) => {
-              // once configured, a blank field keeps the stored value
-              const mustFill = field.required && !gateway.is_configured;
-              const inputProps = {
-                id: `gateway-${gateway.type}-${field.key}`,
-                inputMode: inputModeFor(field),
-                // a secret is never sent back, so its field starts empty; the rest show what is stored
-                value: values[field.key] ?? (field.kind === "secret" ? "" : stored(field.key)),
-                onChange: (event: ChangeEvent<HTMLInputElement>) =>
-                  setValues((prev) => ({
-                    ...prev,
-                    [field.key]: sanitizeFieldValue(field, event.target.value),
-                  })),
-                placeholder: t("settings.gateways.placeholder"),
-                disabled: !canUpdate,
-              };
-              return (
-                <Field
-                  key={field.key}
-                  label={t(`settings.gateways.fields.${field.key}` as ParseKeys)}
-                  htmlFor={inputProps.id}
-                  required={mustFill}
-                  info={
-                    field.key === "currency" && CURRENCY_HINT_GATEWAYS.has(gateway.type)
-                      ? t(`settings.gateways.currencyHints.${gateway.type}` as ParseKeys)
-                      : undefined
-                  }
-                >
-                  {field.kind === "secret" ? (
-                    // "off" is ignored on password fields: the browser would offer the admin's saved password
-                    <PasswordInput {...inputProps} autoComplete="new-password" />
-                  ) : (
-                    <Input {...inputProps} autoComplete="off" />
-                  )}
-                </Field>
-              );
-            })}
-            {valueFields.length > 0 && canUpdate ? (
-              <SaveFooter flush dirty={dirty} saving={isSubmitting} beside={testButton} />
+            {valueFields.map(renderValueField)}
+            {dependsOn !== undefined && (
+              <LabeledDivider>{t(`settings.gateways.dependentGroups.${dependsOn}` as ParseKeys)}</LabeledDivider>
+            )}
+            {dependentFields.map(renderValueField)}
+            {plainValueFields.length > 0 && canUpdate ? (
+              // 4px on the fold-out's 12px gap: 16px above Save, as in a Section's footer
+              <div className="mt-1">
+                <SaveFooter flush dirty={dirty} saving={isSubmitting} beside={testButton} />
+              </div>
             ) : (
               testButton && <div className="flex items-center gap-3">{testButton}</div>
             )}

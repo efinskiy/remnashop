@@ -1,30 +1,27 @@
+import { Receipt, Repeat } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
 
 import { usePermissions } from "@entities/user/use-current-user";
-import { PillTabs } from "@shared/ui/PillTabs";
+import { TabBar } from "@shared/ui/glass/TabBar";
 
 type TransactionsTab = "orders" | "recurring";
 
-const TAB_PATHS: Record<TransactionsTab, string> = {
-  orders: "/dashboard/transactions",
-  recurring: "/dashboard/transactions/recurring",
-};
+const TABS = [
+  { key: "orders", to: "/dashboard/transactions", icon: Receipt },
+  { key: "recurring", to: "/dashboard/transactions/recurring", icon: Repeat },
+] as const;
 
 /** Orders | auto-renewals: shown only to someone who may open both. */
 export function TransactionsTabs({ active }: { active: TransactionsTab }) {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const permissions = usePermissions();
   if (!permissions.includes("TRANSACTIONS_VIEW") || !permissions.includes("TRANSACTIONS_RECURRING_VIEW")) {
     return null;
   }
   return (
-    <div className="shrink-0">
-      <PillTabs
-        items={(["orders", "recurring"] as const).map((key) => ({ key, label: t(`transactions.tabs.${key}`) }))}
-        activeKey={active}
-        onSelect={(key) => navigate(TAB_PATHS[key])}
+    <div className="min-w-0 shrink-0">
+      <TabBar
+        items={TABS.map((tab) => ({ ...tab, label: t(`transactions.tabs.${tab.key}`), isActive: tab.key === active }))}
       />
     </div>
   );

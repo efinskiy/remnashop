@@ -191,3 +191,15 @@ def test_gateway_values_read_back_settings_but_never_secrets() -> None:
     # an unset choice reads as its default, a boolean stays in flags
     assert values["payment_mode"] == "single" and "verify_ip" not in values
     assert "live-secret" not in values.values() and "api_key" not in values
+
+
+def test_yookassa_recurring_timings_are_hidden_in_single_payment_mode() -> None:
+    fields = {f.key: f for f in GATEWAY_FIELD_CATALOG[PaymentGatewayType.YOOKASSA]}
+    hidden = {key for key, f in fields.items() if f.hidden_when == ("payment_mode", "single")}
+    assert hidden == {
+        "recurring_lead_minutes",
+        "recurring_retry_minutes",
+        "recurring_max_overdue_hours",
+        "recurring_notice_lead_minutes",
+    }
+    assert fields["payment_mode"].hidden_when is None

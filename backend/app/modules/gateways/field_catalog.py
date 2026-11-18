@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import StrEnum, auto
-from typing import Final, Literal, Optional, get_args, get_origin
+from typing import Final, Literal, Optional, cast, get_args, get_origin
 
 from pydantic import SecretStr
 from pydantic.fields import FieldInfo
@@ -10,6 +10,7 @@ from app.core.error_codes import ErrorCode
 from app.core.exceptions import ValidationError
 from app.modules.gateways.gateway_settings import (
     GATEWAY_SETTINGS,
+    HIDDEN_WHEN_KEY,
     RECURRING_TIMINGS,
     NumericStr,
 )
@@ -38,6 +39,8 @@ class GatewayFieldSpec:
     required: bool = True
     default: str = ""
     options: tuple[str, ...] = ()
+    # (other field key, value): the dashboard hides this field while that one holds the value
+    hidden_when: Optional[tuple[str, str]] = None
 
 
 _KIND_BY_TYPE: Final[dict[object, GatewayFieldKind]] = {
@@ -49,6 +52,8 @@ _KIND_BY_TYPE: Final[dict[object, GatewayFieldKind]] = {
 
 
 def _field_spec(key: str, field: FieldInfo) -> GatewayFieldSpec:
+    extra = field.json_schema_extra if isinstance(field.json_schema_extra, dict) else {}
+    hidden_when = cast(Optional[tuple[str, str]], extra.get(HIDDEN_WHEN_KEY))
     if get_origin(field.annotation) is Literal:
         return GatewayFieldSpec(
             key=key,
@@ -56,11 +61,14 @@ def _field_spec(key: str, field: FieldInfo) -> GatewayFieldSpec:
             required=field.is_required(),
             default=str(field.default),
             options=get_args(field.annotation),
+            hidden_when=hidden_when,
         )
     declared = [arg for arg in get_args(field.annotation) if arg is not type(None)]
     kind = _KIND_BY_TYPE[declared[0] if declared else field.annotation]
     default = str(field.default).lower() if kind is GatewayFieldKind.BOOLEAN else ""
-    return GatewayFieldSpec(key=key, kind=kind, required=field.is_required(), default=default)
+    return GatewayFieldSpec(
+        key=key, kind=kind, required=field.is_required(), default=default, hidden_when=hidden_when
+    )
 
 
 GATEWAY_FIELD_CATALOG: Final[dict[PaymentGatewayType, tuple[GatewayFieldSpec, ...]]] = {
