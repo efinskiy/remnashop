@@ -70,6 +70,7 @@ async def test_fetch_panel_index_keeps_status_and_expiry() -> None:
 
     assert index.status == {1: SubscriptionStatus.EXPIRED}
     assert index.expire_at == {1: datetime(2030, 1, 1, tzinfo=timezone.utc)}
+    assert index.url == {1: store[1]["subscriptionUrl"]}
 
 
 def _index() -> PanelIndex:
@@ -106,7 +107,7 @@ def test_ambiguous_telegram_id_not_resolved() -> None:
 
 async def test_assert_panel_v3_rejects_2x() -> None:
     transport, _, _ = make_fake_remnawave_transport(panel_version="2.3.1")
-    with pytest.raises(LegacyMigrationError, match="3.x"):
+    with pytest.raises(LegacyMigrationError, match=r"3\.x"):
         await assert_panel_v3(_sdk(transport))
 
 

@@ -188,6 +188,7 @@ Search the module and `app/core` first. Often re-implemented: `subscriptions.get
 ### Telegram bot
 
 - Never append to `render_window_text`'s result: that skips HTML validation and the 1024-character caption limit. Extra blocks are `frg-*` variables of the window.
+- Translation text never goes to Telegram as `runner.get(...)` alone, or a premium emoji's `[x](emoji:id)` shows literally: a message is `render_window_text` (`msg-*`), `answer_notice` or `plain_to_html` with `parse_mode=HTML`; an alert, inline title or command description is `premium_emoji_glyphs`; a notification card is `telegram_card` (`tests/telegram/test_translation_sends.py`). Every other channel shows the glyph: `WebPushSender` and `render_email` turn the markup into it themselves; a new non-Telegram output of translation text (feed, payment provider) calls `premium_emoji_glyphs`.
 - A window's buttons go through the dialog catalog (`ConfigKeyboard`) so the shop owner can edit them. A button the bot builds in code (list items, flow steps, `/terms`) takes its label from a `btn-*` key through `telegram/dialogs/rendering.py`'s `label_with_icon` (`style=LabelIcon(...)` in a dialog), so the translations page edits its text and icon; never a literal label.
 
 ### Dashboard code
@@ -195,6 +196,7 @@ Search the module and `app/core` first. Often re-implemented: `subscriptions.get
 - Lists of entities use `ListRow`; a raw `<table>` only for a data matrix (pricing, retention). Raw `<button>`/`<input>` only for drag handles, file inputs, inline text links and tab strips.
 - A field kind added to a generic component (a settings form) stays generic, with no one feature's flags wired into it.
 - Money goes through `shared/lib/format`'s `formatMoney`; a full date or date-time shown to the admin through `shared/lib/relative-time`'s `formatDate`/`formatDateTime`/`formatTime`. Counts use `toLocaleString(language)`, and short chart labels may call `toLocaleDateString` with their own options. A page size comes from the entity's `api.ts` constant, not a literal.
+- A payment gateway's logo is `features/gateway-settings/logos/<GATEWAY_TYPE>.png|svg`: the bare mark, no background or rounded corners, cropped to its edges so it fills the 22px box; a white mark is recolored to the brand color; every `PaymentGatewayType` has exactly one (`tests/modules/gateways/test_logos.py`). The same file goes into the cabinet repository's `src/entities/plan/gateway-logos/` with the gateway's release, since the cabinet shows it at checkout and in payment history.
 
 ### Tests
 
@@ -233,7 +235,7 @@ Feature-Sliced Design: `app/` (providers, router, styles) → `pages/` → `widg
 
 ## Typing
 
-Optional values use `typing.Optional[X]`, never PEP 604's `X | None`; other unions use `typing.Union[X, Y]`, not `X | Y`. Applies to backend Python code only (`ruff` has no rule to enforce this direction — it's discipline, not lint-enforced).
+Optional values use `typing.Optional[X]`, never PEP 604's `X | None`; other unions use `typing.Union[X, Y]`, not `X | Y`. Applies to backend Python code only (`ruff` has no rule for this direction; `tests/test_typing_style.py` checks every annotation).
 
 ## Constants
 

@@ -85,7 +85,7 @@ class GetOwnRecurringPaymentUseCase(UseCase[int, RecurringPaymentStateDto, UserD
         paused = bool(
             mandate
             and not mandate.customer_disabled
-            and (state is RecurringState.ATTENTION or enabled and not available)
+            and (state is RecurringState.ATTENTION or (enabled and not available))
         )
         retrying = state is RecurringState.RETRYING and available
         payment_pending = bool(mandate and mandate.pending_transaction_id is not None)
@@ -93,8 +93,7 @@ class GetOwnRecurringPaymentUseCase(UseCase[int, RecurringPaymentStateDto, UserD
             reason
             and (
                 reason.policy.retry is RetryKind.TECHNICAL
-                or reason.policy.retry is RetryKind.POLL
-                and payment_pending
+                or (reason.policy.retry is RetryKind.POLL and payment_pending)
             )
         )
         next_retry_at = (

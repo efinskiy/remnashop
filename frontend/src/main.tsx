@@ -23,15 +23,26 @@ window.addEventListener("vite:preloadError", (event) => {
   window.location.reload();
 });
 
-// Overlay scrollbars (Firefox and macOS defaults) take no room and scrollbar-gutter does nothing for
-// them, so paddings and masks that give the scrollbar's width back must subtract zero.
+// Paddings and masks give back the width the scrollbar really takes: zero for overlay scrollbars
+// (Firefox and macOS defaults), the native width where a browser skips the 10px ::-webkit-scrollbar.
 const scrollbarProbe = document.createElement("div");
 scrollbarProbe.style.cssText = "position:absolute;visibility:hidden;width:100px;height:100px;overflow:scroll";
 document.body.append(scrollbarProbe);
-if (scrollbarProbe.offsetWidth === scrollbarProbe.clientWidth) {
-  document.documentElement.style.setProperty("--scrollbar-size", "0px");
-}
+document.documentElement.style.setProperty(
+  "--scrollbar-size",
+  `${scrollbarProbe.offsetWidth - scrollbarProbe.clientWidth}px`,
+);
 scrollbarProbe.remove();
+
+// iOS zooms in on a field under 16px as it takes focus; maximum-scale stops that, and iOS still lets a pinch zoom
+// (Android would lose it, so only here). iPadOS Safari claims to be a Mac: only the touch points tell them apart.
+if (
+  /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+  (/macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1)
+) {
+  const viewport = document.querySelector('meta[name="viewport"]');
+  viewport?.setAttribute("content", `${viewport.getAttribute("content")}, maximum-scale=1`);
+}
 
 installFormValidationMessages();
 registerServiceWorker();

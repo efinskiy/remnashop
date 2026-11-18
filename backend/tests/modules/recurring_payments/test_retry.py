@@ -736,7 +736,7 @@ async def test_late_cancel_webhook_resolves_lost_create_response_without_new_deb
         assert await notice_types(session) == notices_before
     elif reason == "insufficient_funds":
         assert after.enabled and after.retry_count == 1 and after.last_error == reason
-        assert await notice_types(session) == notices_before + ["RecurringPaymentFailedEvent"]
+        assert await notice_types(session) == [*notices_before, "RecurringPaymentFailedEvent"]
     else:
         assert not after.enabled and after.payment_method_id is None and after.last_error == reason
     if reason == "permission_revoked":

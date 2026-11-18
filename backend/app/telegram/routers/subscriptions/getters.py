@@ -33,8 +33,10 @@ from app.telegram.dialogs.config_cache import DialogConfigCache
 from app.telegram.dialogs.context import build_condition_data, menu_flags, selected_subscription_id
 from app.telegram.dialogs.rendering import (
     UNAVAILABLE_BUTTONS_KEY,
+    ButtonLabel,
     TrustedHtml,
     label_with_icon,
+    plan_title,
     render_dialog_buttons,
     render_window_text,
     resolve_variable_kwargs,
@@ -49,6 +51,27 @@ _KNOWN_PLATFORMS: Final[frozenset[str]] = frozenset({"ios", "android", "windows"
 def _platform_icon_key(platform: Optional[str]) -> str:
     normalized = (platform or "default").lower()
     return normalized if normalized in _KNOWN_PLATFORMS else "default"
+
+
+def _subscription_label(
+    runner: TranslatorRunner, subscription: SubscriptionDto, user: UserDto
+) -> ButtonLabel:
+    snapshot = subscription.plan_snapshot
+    name = snapshot.display_name(user.language)
+    return label_with_icon(
+        runner,
+        "btn-subscriptions.item",
+        default_icon_id=snapshot.icon_emoji_id,
+        # an active unlimited one has no date to read "until"
+        status="UNLIMITED"
+        if subscription.status is SubscriptionStatus.ACTIVE and subscription.is_unlimited
+        else subscription.status.value,
+        # a custom emoji goes into the button's icon; a bare glyph has nowhere else to go
+        plan_name=f"{snapshot.icon_emoji_fallback} {name}"
+        if snapshot.icon_emoji_fallback and not snapshot.icon_emoji_id
+        else name,
+        expire_at=format_expiry(runner, subscription.expire_at),
+    )
 
 
 @inject
@@ -89,16 +112,7 @@ async def subscriptions_list_getter(
     data["subscriptions"] = [
         {
             "id": s.id,
-            "label": label_with_icon(
-                runner,
-                "btn-subscriptions.item",
-                # an active unlimited one has no date to read "until"
-                status="UNLIMITED"
-                if s.status is SubscriptionStatus.ACTIVE and s.is_unlimited
-                else s.status.value,
-                plan_name=s.plan_snapshot.display_name(user.language),
-                expire_at=format_expiry(runner, s.expire_at),
-            ),
+            "label": _subscription_label(runner, s, user),
         }
         for s in subscriptions
     ]
@@ -220,7 +234,11 @@ async def subscription_card_getter(
         data["window_text"] = render_window_text(
             runner,
             "msg-subscription-card",
-            plan_name=subscription.plan_snapshot.display_name(user.language),
+            plan_name=plan_title(
+                subscription.plan_snapshot.display_name(user.language),
+                subscription.plan_snapshot.icon_emoji_id,
+                subscription.plan_snapshot.icon_emoji_fallback,
+            ),
             status=subscription.status.value,
             is_trial=int(subscription.is_trial),
             expire_at=format_expiry(runner, subscription.expire_at),

@@ -11,11 +11,12 @@ from fluentogram import TranslatorRunner
 from fluentogram.exceptions import KeyNotFoundError
 from loguru import logger
 
+from app.core.enums import ButtonLinkType
 from app.core.utils.telegram_text import (
-    PREMIUM_EMOJI_RE,
     TELEGRAM_CAPTION_LIMIT,
     compose_button_text,
     html_text_length,
+    premium_emoji_html,
 )
 from app.modules.dialogs import catalog
 from app.modules.translations import strip_serializer_escapes
@@ -44,6 +45,17 @@ _BLANK_RUN_RE: Final[re.Pattern[str]] = re.compile(r"\n{3,}")
 _QUOTE_EDGE_NEWLINE_RE: Final[re.Pattern[str]] = re.compile(
     r"(<blockquote[^>]*>)\n|\n(</blockquote>)"
 )
+
+
+def plan_title(name: str, icon_id: Optional[str], fallback: Optional[str]) -> TrustedHtml:
+    """The plan's name behind its icon: the custom emoji, its glyph where it can't render."""
+    escaped = html.escape(name)
+    if icon_id:
+        glyph = html.escape(fallback or "•")
+        return TrustedHtml(
+            f'<tg-emoji emoji-id="{html.escape(icon_id)}">{glyph}</tg-emoji> {escaped}'
+        )
+    return TrustedHtml(f"{html.escape(fallback)} {escaped}" if fallback else escaped)
 
 
 def _prepare_value(value: Any) -> Any:
@@ -102,7 +114,7 @@ def render_window_text(runner: TranslatorRunner, key: str, **kwargs: Any) -> str
         prepared = {name: "" if value == _EMPTY else value for name, value in prepared.items()}
         text = strip_serializer_escapes(runner.get(key, **prepared))
     text = text.replace(_VALUE_NEWLINE, "\n")
-    return PREMIUM_EMOJI_RE.sub(r'<tg-emoji emoji-id="\2">\1</tg-emoji>', text)
+    return premium_emoji_html(text)
 
 
 def fits_caption(text: str) -> bool:
@@ -195,15 +207,22 @@ def compose_button_label(label: str, icon: Optional[str], icon_id: Optional[str]
     return ButtonLabel(text=text, icon_custom_emoji_id=icon_custom_emoji_id)
 
 
-def label_with_icon(runner: TranslatorRunner, text_key: str, **kwargs: Any) -> ButtonLabel:
+def label_with_icon(
+    runner: TranslatorRunner,
+    text_key: str,
+    *,
+    default_icon_id: Optional[str] = None,
+    **kwargs: Any,
+) -> ButtonLabel:
     """A label for a button the bot hardcodes rather than renders from config.
     Those never reach ConfigKeyboard, so the icon has to come along here or it
-    would silently never show."""
-    return compose_button_label(
-        runner.get(text_key, **kwargs),
-        _optional_translation(runner, catalog.icon_text_key(text_key)),
-        _optional_translation(runner, catalog.icon_id_text_key(text_key)),
-    )
+    would silently never show. `default_icon_id` shows only while the key has no
+    icon of its own, glyph or premium."""
+    icon = _optional_translation(runner, catalog.icon_text_key(text_key))
+    icon_id = _optional_translation(runner, catalog.icon_id_text_key(text_key))
+    if icon is None and icon_id is None:
+        icon_id = default_icon_id
+    return compose_button_label(runner.get(text_key, **kwargs), icon, icon_id)
 
 
 async def render_dialog_buttons(
@@ -229,6 +248,17 @@ async def render_dialog_buttons(
             condition = catalog.get_condition(button.visibility_condition)
             if not condition(getter_data):
                 continue
+        url_value = _resolve_variables(button.url_value, getter_data)
+        link_type = button.link_type
+        cabinet_url = getter_data.get("cabinet_url")
+        if (
+            link_type == ButtonLinkType.WEB_APP
+            and cabinet_url
+            and url_value
+            and url_value.startswith(cabinet_url)
+            and not getter_data.get("cabinet_webapp")
+        ):
+            link_type = ButtonLinkType.URL
         rows.setdefault(button.row, []).append(
             {
                 "id": button.id,
@@ -238,10 +268,10 @@ async def render_dialog_buttons(
                 "icon_custom_emoji_id": _optional_translation(
                     runner, catalog.icon_id_text_key(button.text_key)
                 ),
-                "link_type": button.link_type,
+                "link_type": link_type,
                 "action_key": button.action_key,
                 "target_window_key": button.target_window_key,
-                "url_value": _resolve_variables(button.url_value, getter_data),
+                "url_value": url_value,
             }
         )
     return [rows[row] for row in sorted(rows)]

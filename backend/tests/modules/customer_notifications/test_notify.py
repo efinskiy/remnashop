@@ -36,8 +36,8 @@ from app.modules.gateways import GatewayRepository
 from app.modules.notifications.dto import PushMessage
 from app.modules.notifications.render import NotificationRenderer
 from app.modules.notifications.repository import NotificationRepository
+from app.modules.plans import PlanRepository
 from app.modules.plans.dto import CreatePlanDto
-from app.modules.plans.repository import PlanRepository
 from app.modules.recurring_payments import (
     RecurringPaymentRepository,
 )
@@ -140,6 +140,7 @@ class _Fixture:
             settings,
             orders,
             SubscriptionRepository(orders.session),
+            PlanRepository(orders.session),
             cast(Any, _Renderers()),
             cast(Any, self.tokens),
             cast(Any, self.signals),

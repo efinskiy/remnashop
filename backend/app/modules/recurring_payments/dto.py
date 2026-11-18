@@ -94,7 +94,7 @@ class PaidOrderFacts:
     id: int
     user_id: int
     status: TransactionStatus
-    gateway_type: PaymentGatewayType
+    gateway_type: Optional[PaymentGatewayType]
     is_test: bool
     is_recurring: bool
     recurring_consent_id: Optional[int]

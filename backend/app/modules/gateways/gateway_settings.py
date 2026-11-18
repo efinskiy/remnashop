@@ -64,7 +64,7 @@ RECURRING_TIMINGS: Final[dict[str, tuple[int, int, int]]] = {
 
 
 def _recurring_timing() -> Any:
-    return Field(default=None, json_schema_extra={HIDDEN_WHEN_KEY: ("payment_mode", "single")})
+    return Field(default=None, json_schema_extra={HIDDEN_WHEN_KEY: ["payment_mode", "single"]})
 
 
 class YooKassaSettings(GatewaySettings):

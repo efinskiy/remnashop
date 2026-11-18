@@ -39,7 +39,7 @@ from app.modules.plans.dto import (
 from app.modules.plans.repository import PlanRepository
 from app.modules.subscriptions.dto import CreateSubscriptionDto, PlanSnapshot
 from app.modules.transactions.gateways.base import PaymentHttpClient
-from app.modules.users.dto import CreateUserDto
+from app.modules.users.dto import CreateUserDto, UpdateUserDto
 from app.modules.users.repository import UserRepository
 from tests.fakes.container import make_test_container
 
@@ -134,6 +134,8 @@ async def plan(plan_repository: PlanRepository) -> PlanDto:
             type=PlanType.BOTH,
             traffic_limit=100,
             device_limit=3,
+            icon_emoji_id="5429503991232900799",
+            icon_emoji_fallback="⭐",
         )
     )
     await plan_repository.set_durations(
@@ -291,9 +293,14 @@ async def _customer_headers(
     config: AppConfig,
     name: str,
     audience: SessionAudience,
+    telegram_mini_app: bool = False,
+    personal_discount: int = 0,
 ) -> dict[str, str]:
     async with uow:
         user = await user_repository.create(CreateUserDto(name=name, language=Locale.EN))
+        await user_repository.update_fields(
+            user.id, UpdateUserDto(personal_discount=personal_discount)
+        )
         await uow.commit()
     session = await session_repository.create(
         CreateSessionDto(
@@ -303,6 +310,7 @@ async def _customer_headers(
             user_agent=None,
             expires_at=datetime.datetime.now(timezone.utc) + timedelta(days=30),
             audience=audience,
+            telegram_mini_app=telegram_mini_app,
         )
     )
     token = create_access_token(user.id, session.id, config.jwt_secret.get_secret_value())
@@ -352,6 +360,60 @@ async def test_a_cabinet_checkout_returns_to_the_cabinet(
     )
 
 
+async def test_a_mini_app_session_pays_only_by_what_telegram_allows(
+    client: httpx.AsyncClient,
+    plan: PlanDto,
+    gateway_repository: GatewayRepository,
+    user_repository: UserRepository,
+    session_repository: SessionRepository,
+    uow: UnitOfWork,
+    config: AppConfig,
+) -> None:
+    await _enable_yookassa(gateway_repository)
+    mini_app = await _customer_headers(
+        user_repository,
+        session_repository,
+        uow,
+        config,
+        "mini-app-buyer",
+        SessionAudience.CABINET,
+        telegram_mini_app=True,
+    )
+
+    methods = await client.get(f"{API_V1}/checkout/methods", headers=mini_app)
+    assert methods.json()["items"] == []
+    response = await client.post(f"{API_V1}/checkout", json=_checkout_body(plan), headers=mini_app)
+    assert response.status_code == 400
+    assert response.json()["code"] == "GATEWAY_NOT_AVAILABLE"
+
+
+async def test_a_free_order_needs_no_gateway_and_lists_without_one(
+    client: httpx.AsyncClient,
+    plan: PlanDto,
+    user_repository: UserRepository,
+    session_repository: SessionRepository,
+    uow: UnitOfWork,
+    config: AppConfig,
+) -> None:
+    buyer = await _customer_headers(
+        user_repository,
+        session_repository,
+        uow,
+        config,
+        "free-buyer",
+        SessionAudience.CABINET,
+        personal_discount=100,
+    )
+    body = {k: v for k, v in _checkout_body(plan).items() if k != "gateway_type"}
+
+    created = await client.post(f"{API_V1}/checkout", json=body, headers=buyer)
+    assert created.status_code == 201, created.json()
+    assert created.json()["confirmation_url"] is None
+
+    listed = await client.get(f"{API_V1}/transactions/me", headers=buyer)
+    assert [item["gateway_type"] for item in listed.json()["items"]] == [None]
+
+
 async def test_a_dashboard_checkout_keeps_the_old_return_address(
     client: httpx.AsyncClient,
     plan: PlanDto,
@@ -377,6 +439,7 @@ async def test_a_dashboard_checkout_keeps_the_old_return_address(
 async def test_own_transactions_list_and_detail(
     client: httpx.AsyncClient,
     plan: PlanDto,
+    plan_repository: PlanRepository,
     gateway_repository: GatewayRepository,
     user_repository: UserRepository,
     session_repository: SessionRepository,
@@ -401,6 +464,8 @@ async def test_own_transactions_list_and_detail(
     assert listed.status_code == 200
     assert [item["id"] for item in listed.json()["items"]] == [own_order]
     assert listed.json()["items"][0]["plan_name"] == plan.name
+    assert listed.json()["items"][0]["plan_icon_emoji_id"] == "5429503991232900799"
+    assert listed.json()["items"][0]["plan_icon_emoji_fallback"] == "⭐"
     # "try again" reopens the same plan; a new purchase targets no subscription
     assert listed.json()["items"][0]["plan_id"] == plan.id
     assert listed.json()["items"][0]["target_subscription_id"] is None
@@ -410,9 +475,11 @@ async def test_own_transactions_list_and_detail(
     assert (item["plan_discount_percent"], item["discount_percent"]) == (0, 0)
     assert item["discount_source"] == "NONE"
 
-    assert (
-        await client.get(f"{API_V1}/transactions/me/{own_order}", headers=mine)
-    ).status_code == 200
+    # a plan renamed after the purchase reads the same in the history as in the catalog
+    await plan_repository.update(UpdatePlanDto(plan_id=plan.id, name="Renamed"))
+    detail = await client.get(f"{API_V1}/transactions/me/{own_order}", headers=mine)
+    assert detail.status_code == 200
+    assert detail.json()["plan_name"] == "Renamed"
     foreign = await client.get(f"{API_V1}/transactions/me/{foreign_order}", headers=mine)
     assert foreign.status_code == 404
     assert foreign.json()["code"] == "PAYMENT_ORDER_NOT_FOUND"

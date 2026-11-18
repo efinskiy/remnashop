@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Any, Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, computed_field, field_validator
 from remnapy.enums import TrafficLimitStrategy
 
 from app.core.constants import PANEL_TAG_MAX_LENGTH, PANEL_TAG_PATTERN
@@ -153,7 +153,8 @@ class PublicPlanDurationResponse(BaseModel):
 class PublicPlanResponse(BaseModel):
     id: int
     name: str
-    description: Optional[str] = None
+    # `[glyph](emoji:id)` kept, for a cabinet that draws the thumbnails
+    description_markup: Optional[str] = Field(default=None, validation_alias="description")
     badge: Optional[PlanBadge] = None
     type: PlanType
     traffic_limit_strategy: TrafficLimitStrategy
@@ -164,12 +165,16 @@ class PublicPlanResponse(BaseModel):
     durations: list[PublicPlanDurationResponse]
     discount_percent: int = 0
     discount_ends_at: Optional[datetime] = None
+    icon_emoji_id: Optional[str] = None
+    icon_emoji_fallback: Optional[str] = None
 
-    # the cabinet can't draw a Telegram premium emoji: its glyph stands in
-    @field_validator("description", mode="before")
-    @classmethod
-    def _premium_emoji_as_glyph(cls, value: Any) -> Any:
-        return PREMIUM_EMOJI_RE.sub(r"\1", value) if isinstance(value, str) else value
+    # a cabinet that can't draw a Telegram premium emoji shows its glyph
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def description(self) -> Optional[str]:
+        if self.description_markup is None:
+            return None
+        return PREMIUM_EMOJI_RE.sub(r"\1", self.description_markup)
 
 
 class PublicPlanListResponse(BaseModel):
@@ -189,6 +194,8 @@ class OwnSubscriptionResponse(BaseModel):
     effective_device_limit: int
     traffic_limit_strategy: TrafficLimitStrategy
     plan_name: str
+    plan_icon_emoji_id: Optional[str] = None
+    plan_icon_emoji_fallback: Optional[str] = None
     plan_id: int
     # the terms it was sold with: a renewal moves it to the plan's current ones
     plan_traffic_limit: int
@@ -215,6 +222,8 @@ class OwnSubscriptionResponse(BaseModel):
                 **subscription.model_dump(),
                 "is_unlimited": subscription.is_unlimited,
                 "plan_name": subscription.plan_snapshot.display_name(locale),
+                "plan_icon_emoji_id": subscription.plan_snapshot.icon_emoji_id,
+                "plan_icon_emoji_fallback": subscription.plan_snapshot.icon_emoji_fallback,
                 "plan_id": subscription.plan_snapshot.plan_id,
                 "plan_traffic_limit": subscription.plan_snapshot.traffic_limit,
                 "plan_device_limit": subscription.plan_snapshot.device_limit,

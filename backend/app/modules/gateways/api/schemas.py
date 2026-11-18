@@ -12,10 +12,17 @@ class GatewayResponse(BaseModel):
     is_configured: bool
     flags: dict[str, bool]
     values: dict[str, str]
+    telegram_enabled: bool
+    cabinet_enabled: bool
 
 
 class UpdateGatewaySettingsRequest(BaseModel):
     values: dict[str, str] = Field(min_length=1)
+
+
+class UpdateGatewayRequest(BaseModel):
+    telegram_enabled: Optional[bool] = None
+    cabinet_enabled: Optional[bool] = None
 
 
 class ReorderGatewaysRequest(BaseModel):

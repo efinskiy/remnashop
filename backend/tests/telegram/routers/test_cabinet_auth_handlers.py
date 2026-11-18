@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from typing import Any, Optional
+from typing import Any, ClassVar, Optional
 
 import pytest
 from redis.asyncio import Redis
@@ -19,7 +19,7 @@ class _Runner:
 
 
 class _Hub:
-    translators_map = {"en": [], "ru": []}
+    translators_map: ClassVar[dict[str, list[Any]]] = {"en": [], "ru": []}
     root_locale = "en"
 
     def __init__(self) -> None:
@@ -38,7 +38,9 @@ class _Message:
         )
         self.sent: list[dict[str, Any]] = []
 
-    async def answer(self, text: str, reply_markup: Optional[Any] = None) -> dict[str, Any]:
+    async def answer(
+        self, text: str, reply_markup: Optional[Any] = None, parse_mode: Optional[str] = None
+    ) -> dict[str, Any]:
         sent = {"text": text, "markup": reply_markup}
         self.sent.append(sent)
         return sent

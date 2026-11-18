@@ -13,9 +13,9 @@ from app.core.exceptions import ValidationError
 from app.modules.recurring_payments.dto import CheckoutRecurringTermsDto
 from app.modules.subscriptions import PlanCatalogDto, SubscriptionDto
 from app.telegram.dialogs.context import SELECTED_SUBSCRIPTION_KEY
+from app.telegram.dialogs.rendering import plan_title
 from app.telegram.routers.purchase.getters import (
     _plan_details,
-    _plan_title,
     confirm_getter,
     duration_getter,
     method_getter,
@@ -64,7 +64,7 @@ def _quote(price: str, percent: int = 0, source: DiscountSource = DiscountSource
 
 
 async def _durations(
-    dialog_data: dict, catalog: PlanCatalogDto, quote: AsyncMock, owned: list | None = None
+    dialog_data: dict, catalog: PlanCatalogDto, quote: AsyncMock, owned: Optional[list] = None
 ) -> dict:
     return await duration_getter.__dishka_orig_func__(
         _manager(dialog_data),
@@ -94,11 +94,20 @@ async def test_duration_labels_carry_the_quoted_price_and_the_period() -> None:
             period=_get("time-unit.month", value=1),
             price="2.25",
             currency_symbol="$",
+            is_free=0,
         )
     )
     assert "frg-purchase-discount" in data["window_text"]
     assert "'percent': 10" in data["window_text"]
     assert data["back_text"].text.endswith(" btn-purchase.back-plans")
+
+
+async def test_a_free_duration_is_labelled_free() -> None:
+    catalog = PlanCatalogDto(plans=[_plan(id=10)], anchor_currency=Currency.USD)
+
+    data = await _durations({"plan_id": 10, "purchase_type": "NEW"}, catalog, _quote("0"))
+
+    assert "'is_free': 1" in data["durations"][0]["label"].text
 
 
 async def test_duration_falls_back_to_the_list_price_when_the_quote_fails() -> None:
@@ -289,9 +298,9 @@ async def test_plan_buttons_carry_the_custom_emoji_or_lead_with_the_glyph() -> N
 
 
 def test_plan_title_renders_the_icon_before_an_escaped_name() -> None:
-    assert _plan_title("A<B", "123", "📦") == '<tg-emoji emoji-id="123">📦</tg-emoji> A&lt;B'
-    assert _plan_title("A<B", None, "⭐") == "⭐ A&lt;B"
-    assert _plan_title("A<B", None, None) == "A&lt;B"
+    assert plan_title("A<B", "123", "📦") == '<tg-emoji emoji-id="123">📦</tg-emoji> A&lt;B'
+    assert plan_title("A<B", None, "⭐") == "⭐ A&lt;B"
+    assert plan_title("A<B", None, None) == "A&lt;B"
 
 
 def test_plan_description_renders_premium_emoji_and_escapes_html() -> None:

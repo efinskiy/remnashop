@@ -6,6 +6,7 @@ from app.core.exceptions import PermissionDeniedError, ValidationError
 from app.modules.gateways.dto import (
     ReorderGatewaysDto,
     SetGatewayActiveDto,
+    UpdateGatewayChannelsDto,
     UpdateGatewaySettingsDto,
 )
 from app.modules.gateways.events import GatewayChangedEvent
@@ -14,6 +15,7 @@ from app.modules.gateways.usecases import (
     ListGatewaysUseCase,
     ReorderGatewaysUseCase,
     SetGatewayActiveUseCase,
+    UpdateGatewayChannelsUseCase,
     UpdateGatewaySettingsUseCase,
 )
 from app.modules.users.dto import UserDto
@@ -181,3 +183,31 @@ async def test_saved_recurring_only_mode_can_be_changed_to_single(
     assert result.values["payment_mode"] == "single"
     raw = await gateway_repository.get_raw_settings(PaymentGatewayType.YOOKASSA)
     assert raw["payment_mode"] == "single"
+
+
+async def test_channels_change_is_audited(
+    gateway_repository: GatewayRepository, uow: UnitOfWork
+) -> None:
+    publisher = _RecordingPublisher()
+    use_case = UpdateGatewayChannelsUseCase(gateway_repository, publisher, uow)  # type: ignore[arg-type]
+
+    gateway = await use_case(
+        OWNER, UpdateGatewayChannelsDto(type=PaymentGatewayType.YOOKASSA, telegram_enabled=True)
+    )
+
+    assert gateway.telegram_enabled and gateway.cabinet_enabled
+    (event,) = publisher.events
+    assert isinstance(event, GatewayChangedEvent)
+    assert (event.action, event.changed_fields) == ("channels", ["telegram_enabled"])
+
+
+async def test_regular_user_cannot_change_channels(
+    gateway_repository: GatewayRepository, uow: UnitOfWork
+) -> None:
+    use_case = UpdateGatewayChannelsUseCase(gateway_repository, _RecordingPublisher(), uow)  # type: ignore[arg-type]
+
+    with pytest.raises(PermissionDeniedError):
+        await use_case(
+            REGULAR_USER,
+            UpdateGatewayChannelsDto(type=PaymentGatewayType.YOOKASSA, telegram_enabled=True),
+        )

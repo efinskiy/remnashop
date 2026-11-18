@@ -20,7 +20,6 @@ from app.core.constants import (
 )
 from app.core.db.uow import UnitOfWork
 from app.core.enums import (
-    AppearanceTarget,
     Locale,
     PaymentGatewayType,
     PaymentOutcome,
@@ -30,7 +29,11 @@ from app.core.enums import (
 from app.core.exceptions import NotFoundError, RetryableTaskError
 from app.core.ports import BotSignals
 from app.core.usecase import UseCase
-from app.core.utils.telegram_text import compose_button_text
+from app.core.utils.telegram_text import (
+    compose_button_text,
+    premium_emoji_glyphs,
+    premium_emoji_html,
+)
 from app.modules.cabinet_auth import CabinetNewDeviceSignInEvent
 from app.modules.customer_notifications.dispatch import SendCustomerTelegramDispatch
 from app.modules.customer_notifications.dto import NotifyCustomerDto
@@ -56,13 +59,14 @@ from app.modules.notifications import (
     plan_summary_block,
     telegram_card,
 )
+from app.modules.plans import PlanRepository
 from app.modules.recurring_payments import (
     RecurringPaymentExhaustedEvent,
     RecurringPaymentFailedEvent,
     RecurringPaymentPausedEvent,
     RecurringPaymentRepository,
 )
-from app.modules.settings import SettingsRepository, push_icon_path
+from app.modules.settings import SettingsRepository
 from app.modules.subscriptions import (
     SubscriptionChangedEvent,
     SubscriptionDto,
@@ -77,6 +81,7 @@ from app.modules.subscriptions import (
     SubscriptionTrafficLimitedEvent,
     SubscriptionTrafficThresholdEvent,
     TorrentBlockerReportEvent,
+    current_plan_snapshots,
 )
 from app.modules.transactions import (
     PaidOrderNotFulfilledEvent,
@@ -146,6 +151,7 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
         settings_repository: SettingsRepository,
         transaction_repository: TransactionRepository,
         subscription_repository: SubscriptionRepository,
+        plan_repository: PlanRepository,
         renderer_factory: NotificationRendererFactory,
         token_source: BotTokenSource,
         bot_signals: BotSignals,
@@ -164,6 +170,7 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
         self._settings_repository = settings_repository
         self._transaction_repository = transaction_repository
         self._subscription_repository = subscription_repository
+        self._plan_repository = plan_repository
         self._renderer_factory = renderer_factory
         self._token_source = token_source
         self._bot_signals = bot_signals
@@ -330,7 +337,11 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
         subscription = await self._find_subscription(data.subscription_id)
         if subscription is None:
             return data
-        name = subscription.plan_snapshot.display_name(locale)
+        async with self._uow:
+            (snapshot,) = await current_plan_snapshots(
+                [subscription.plan_snapshot], self._plan_repository
+            )
+        name = snapshot.display_name(locale)
         return replace(data, args={**data.args, "plan_name": name})
 
     async def _queue(
@@ -357,7 +368,7 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
             )
             text = (
                 # a one-line notice, like the bot's own "payments are off"
-                f"<i>{escape(f'{emoji} {body}')}</i>"
+                premium_emoji_html(f"<i>{escape(f'{emoji} {body}')}</i>")
                 if data.event_type == PAYMENTS_RESTORED
                 else telegram_card(title, body, emoji=emoji, blocks=blocks)
             )
@@ -370,13 +381,6 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
             )
             return
         if channel is CustomerChannel.PUSH:
-            async with self._uow:
-                cabinet = await self._settings_repository.get_appearance_settings(
-                    AppearanceTarget.CABINET
-                )
-                dashboard = await self._settings_repository.get_appearance_settings(
-                    AppearanceTarget.DASHBOARD
-                )
             # already in the worker: per-device failures are swallowed by the sender
             await self._web_push.send(
                 user.id,
@@ -385,7 +389,6 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
                     body=body,
                     url=customer_url(data.event_type, data.subscription_id, data.args),
                     tag=data.event_type,
-                    icon=push_icon_path(cabinet, dashboard),
                 ),
                 SessionAudience.CABINET,
             )
@@ -402,7 +405,9 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
             cabinet_url=self._config.cabinet.url or None,
             button=renderer.text(user.language, "ntf-customer-open-cabinet"),
         )
-        await self._send_email.kiq(to=user.email, subject=title, text=text, html=html)
+        await self._send_email.kiq(
+            to=user.email, subject=premium_emoji_glyphs(title), text=text, html=html
+        )
 
     async def _telegram_buttons(
         self,

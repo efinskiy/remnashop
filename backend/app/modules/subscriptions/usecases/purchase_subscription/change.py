@@ -30,7 +30,7 @@ from app.modules.subscriptions.panel import (
 )
 from app.modules.subscriptions.ports import RecurringPaymentCloser
 from app.modules.subscriptions.repository import SubscriptionRepository
-from app.modules.subscriptions.unlimited import assert_not_unlimited_trial, expiry_after
+from app.modules.subscriptions.unlimited import expiry_after
 
 
 class _TargetMovedError(Exception):
@@ -95,10 +95,6 @@ class ChangePurchase:
                 raise ValidationError(
                     "Cannot change a deleted subscription", code=ErrorCode.SUBSCRIPTION_DELETED
                 )
-        assert_not_unlimited_trial(
-            data.plan_snapshot.is_trial,
-            old.is_unlimited if data.keep_expire_at else data.duration_days == 0,
-        )
 
         plan, final_expire_at, credit_days = await self._new_term(old, data)
 

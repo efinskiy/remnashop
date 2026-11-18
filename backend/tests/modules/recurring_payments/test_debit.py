@@ -436,7 +436,7 @@ async def test_unsent_reserved_payment_is_canceled_without_unknown_outcome(
 @pytest.mark.usefixtures("production_session_mode")
 async def test_canceled_worker_keeps_durable_possible_submission(case, monkeypatch):
     await case.worker.reservation.reserve(await case.repository.get(case.subscription.id))
-    mandate, order, _ = await case.worker.debit._pending_context(case.subscription.id)
+    _mandate, order, _ = await case.worker.debit._pending_context(case.subscription.id)
     monkeypatch.setattr(
         worker_module, "submit_recurring", AsyncMock(side_effect=asyncio.CancelledError)
     )

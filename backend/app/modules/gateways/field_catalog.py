@@ -53,7 +53,8 @@ _KIND_BY_TYPE: Final[dict[object, GatewayFieldKind]] = {
 
 def _field_spec(key: str, field: FieldInfo) -> GatewayFieldSpec:
     extra = field.json_schema_extra if isinstance(field.json_schema_extra, dict) else {}
-    hidden_when = cast(Optional[tuple[str, str]], extra.get(HIDDEN_WHEN_KEY))
+    condition = cast(Optional[list[str]], extra.get(HIDDEN_WHEN_KEY))
+    hidden_when = (condition[0], condition[1]) if condition else None
     if get_origin(field.annotation) is Literal:
         return GatewayFieldSpec(
             key=key,

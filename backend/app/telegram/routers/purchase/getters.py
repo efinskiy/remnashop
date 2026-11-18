@@ -26,7 +26,12 @@ from app.modules.transactions import (
 )
 from app.modules.users import UserDto
 from app.telegram.dialogs.context import selected_subscription_id
-from app.telegram.dialogs.rendering import TrustedHtml, label_with_icon, render_window_text
+from app.telegram.dialogs.rendering import (
+    TrustedHtml,
+    label_with_icon,
+    plan_title,
+    render_window_text,
+)
 from app.telegram.i18n import (
     format_expiry,
     format_period,
@@ -87,19 +92,8 @@ async def _target(
     return next((s for s in owned if s.id == target_id), None)
 
 
-def _plan_title(name: str, icon_id: Optional[str], fallback: Optional[str]) -> TrustedHtml:
-    """The plan's name behind its icon: the custom emoji, its glyph where it can't render."""
-    escaped = html.escape(name)
-    if icon_id:
-        glyph = html.escape(fallback or "•")
-        return TrustedHtml(
-            f'<tg-emoji emoji-id="{html.escape(icon_id)}">{glyph}</tg-emoji> {escaped}'
-        )
-    return TrustedHtml(f"{html.escape(fallback)} {escaped}" if fallback else escaped)
-
-
 def _catalog_plan_title(plan: CatalogPlanDto) -> TrustedHtml:
-    return _plan_title(plan.name, plan.icon_emoji_id, plan.icon_emoji_fallback)
+    return plan_title(plan.name, plan.icon_emoji_id, plan.icon_emoji_fallback)
 
 
 def _plan_details(runner: TranslatorRunner, plan: CatalogPlanDto, period: str = "") -> TrustedHtml:
@@ -256,6 +250,7 @@ async def duration_getter(
                     period=format_period(runner, duration.days),
                     price=format_price(price),
                     currency_symbol=currency.symbol,
+                    is_free=int(price == 0),
                 ),
             }
         )
@@ -387,16 +382,20 @@ async def confirm_getter(
             runner,
             "msg-purchase-confirm",
             purchase_type=purchase_type.value,
-            plan_name=_plan_title(
+            plan_name=plan_title(
                 data["plan_name"], data.get("plan_icon_id"), data.get("plan_icon_fallback")
             ),
             traffic_limit=traffic_limit,
             device_limit=device_limit,
             period=format_period(runner, data["duration_days"]),
             price=_price(data["prices"], data["currency"]),
+            is_free=int(Decimal(data["prices"][data["currency"]]) == 0),
             original_price=_original_price(data),
             currency_symbol=Currency(data["currency"]).symbol,
-            method=runner.get(f"gateway-name.{data['gateway_type']}"),
+            # a free order has no method to name: the line drops
+            method=runner.get(f"gateway-name.{data['gateway_type']}")
+            if data["gateway_type"]
+            else "",
             type_notice=_type_notice(runner, purchase_type, data),
             plan_changed_notice=_plan_changed_notice(runner, plan, renewed) if plan else "",
             terms_notice=terms_notice,

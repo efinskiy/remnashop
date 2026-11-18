@@ -2,7 +2,7 @@ from dishka import FromDishka
 from dishka.integrations.fastapi import inject
 from fastapi import APIRouter, Depends, Request
 
-from app.api.dependencies.public import get_current_user
+from app.api.dependencies.public import AuthContext, get_auth_context, get_current_user
 from app.api.errors import error_responses
 from app.core.enums import PurchaseChannel
 from app.core.utils.http import resolve_client_ip
@@ -75,6 +75,7 @@ async def checkout_recurring_terms(
     payload: CheckoutRecurringTermsRequest,
     use_case: FromDishka[GetCheckoutRecurringTermsUseCase],
     actor: UserDto = Depends(get_current_user),
+    auth: AuthContext = Depends(get_auth_context),
 ) -> CheckoutRecurringTermsResponse:
     result = await use_case(
         actor,
@@ -85,6 +86,7 @@ async def checkout_recurring_terms(
             purchase_type=payload.purchase_type,
             channel=PurchaseChannel.CABINET,
             gateway_type=payload.gateway_type,
+            in_telegram=auth.telegram_mini_app,
             target_subscription_id=payload.target_subscription_id,
             plan_code=payload.plan_code,
             legal_locale=payload.legal_locale,
