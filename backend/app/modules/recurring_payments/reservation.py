@@ -151,12 +151,16 @@ class RecurringReservation:
                     discount_percent=quote.discount_percent,
                     discount_source=quote.discount_source,
                     plan_discount_percent=quote.plan_discount_percent,
+                    markup_percent=quote.markup_percent,
                     final_price=quote.final_price,
                     anchor_base_price=quote.anchor_base_price,
                     anchor_final_price=quote.anchor_final_price,
+                    discount_promocode_id=quote.discount_promocode_id,
                     customer_email=customer_email,
                     idempotency_key=uuid4().hex,
                     expires_at=now + SAFE_REPOST_WINDOW,
+                    # charged in the shop that holds the card
+                    gateway_account=current.shop_id,
                     recurring_consent_id=current.consent_id,
                     is_recurring=True,
                     yookassa_receipt_vat_code=int(vat_code) if vat_code is not None else None,
@@ -187,7 +191,7 @@ class RecurringReservation:
         self, mandate: RecurringPaymentDto, customer_email: Optional[str]
     ) -> Optional[YooKassaGateway]:
         gateway = await self._poller.gateway()
-        if mandate.shop_id != gateway.settings.shop_id or not mandate.payment_method_id:
+        if not gateway.takes_payments_into(mandate.shop_id) or not mandate.payment_method_id:
             await self._lifecycle.pause(mandate.subscription_id, RecurringReason.SHOP_CHANGED)
             return None
         if gateway.settings.vat_code is not None and not customer_email:

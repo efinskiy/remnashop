@@ -14,7 +14,7 @@ from app.core.db.models import EventOutboxEntry
 from app.core.db.models.subscription import Subscription
 from app.core.db.models.user import User
 from app.core.db.uow import UnitOfWork
-from app.core.enums import AddOnType, Locale, PlanType, Role, SubscriptionStatus
+from app.core.enums import AddOnType, CreditSegmentKind, Locale, PlanType, Role, SubscriptionStatus
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import (
     NotFoundError,
@@ -37,6 +37,8 @@ from app.modules.plans.repository import PlanRepository
 from app.modules.pricing.repository import PricingRepository
 from app.modules.settings.dto import UpdateBotRequirementsDto, UpdateShopSettingsDto
 from app.modules.settings.repository import SettingsRepository
+from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
+from app.modules.subscriptions.device_name_repository import DeviceNameRepository
 from app.modules.subscriptions.dto import (
     AdminDeleteDeviceDto,
     ChangeSubscriptionPlanDto,
@@ -77,7 +79,7 @@ from app.modules.users.repository import UserRepository
 from tests.fakes.recurring import make_recurring_lifecycle
 from tests.fakes.remnawave import FakeHwidStore, FakeUserStore
 from tests.modules.settings.factories import SHOP_SETTINGS_FIELDS
-from tests.modules.subscriptions.factories import make_eligibility
+from tests.modules.subscriptions.factories import add_paid_term, make_eligibility
 
 OWNER = UserDto(login="owner", name="owner", role=Role.OWNER, language=Locale.EN)
 REGULAR_USER = UserDto(id=2, name="Bob", role=Role.USER, language=Locale.EN)
@@ -117,7 +119,9 @@ def purchase_use_case(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -165,15 +169,16 @@ async def test_grant_creates_free_subscription_for_another_user(
     plan = await _plan(plan_repository, "grant")
 
     subscription = await grant_use_case(
-        OWNER, GrantSubscriptionDto(user_id=recipient.id, plan_id=plan.id, duration_days=10)
+        OWNER, GrantSubscriptionDto(user_id=recipient.id, plan_id=plan.id, duration_days=30)
     )
 
     assert subscription.user_id == recipient.id
     assert subscription.plan_snapshot.plan_id == plan.id
     assert subscription.plan_snapshot.price_paid == Decimal(0)
-    assert subscription.plan_snapshot.duration_days == 10
+    assert subscription.plan_snapshot.duration_days == 30
     assert subscription.traffic_limit == 50
-    expected = datetime_now() + timedelta(days=10)
+    # typed-in days are days, not a calendar month of 28-31
+    expected = datetime_now() + timedelta(days=30)
     assert abs((subscription.expire_at - expected).total_seconds()) < 60
     assert await _event_types(subscription_repository.session) == ["SubscriptionGrantedEvent"]
 
@@ -394,8 +399,11 @@ def _set_enabled(
     return SetSubscriptionEnabledUseCase(
         subscription_repository,
         UserRepository(subscription_repository.session),
+        SettingsRepository(subscription_repository.session),
         remnawave_sdk,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         event_publisher,
         uow,
     )
@@ -492,6 +500,9 @@ async def test_reset_traffic_zeroes_used_bytes(
         remnawave_sdk,
         event_publisher,
         uow,
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
     )
 
     await use_case(OWNER, granted.id)
@@ -529,6 +540,9 @@ async def test_reset_traffic_brings_a_limited_subscription_back_active(
         remnawave_sdk,
         event_publisher,
         uow,
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
     )
 
     reset = await use_case(OWNER, granted.id)
@@ -579,6 +593,9 @@ async def test_reset_traffic_of_deleted_subscription_is_rejected(
         remnawave_sdk,
         event_publisher,
         uow,
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
     )
 
     with pytest.raises(ValidationError):
@@ -614,7 +631,11 @@ async def test_admin_device_list_and_delete(
     panel_id = granted.remnawave_user_id
     remnawave_hwid_store[panel_id] = [_device(h, panel_id) for h in ("a", "b", "c")]
     list_devices = AdminListDevicesUseCase(
-        subscription_repository, UserRepository(subscription_repository.session), remnawave_sdk, uow
+        subscription_repository,
+        UserRepository(subscription_repository.session),
+        DeviceNameRepository(subscription_repository.session),
+        remnawave_sdk,
+        uow,
     )
     delete_one = AdminDeleteDeviceUseCase(
         subscription_repository,
@@ -794,15 +815,15 @@ async def test_change_plan_keeping_expiry_carries_the_paid_credit(
 ) -> None:
     old = await _granted(grant_use_case, user_repository, plan_repository, 9410, "credit-a")
     # as if the customer had paid for this term
-    paid = replace(
-        old.plan_snapshot,
-        price_paid=Decimal("300"),
-        duration_days=30,
-        credit_paid=None,
-        credit_days=None,
-    )
-    await subscription_repository.session.execute(
-        update(Subscription).where(Subscription.id == old.id).values(plan_snapshot=paid.to_json())
+    await add_paid_term(
+        subscription_repository.session,
+        old.model_copy(
+            update={
+                "plan_snapshot": replace(
+                    old.plan_snapshot, price_paid=Decimal("300"), duration_days=30
+                )
+            }
+        ),
     )
     new_plan = await _plan(plan_repository, "credit-b")
 
@@ -812,8 +833,10 @@ async def test_change_plan_keeping_expiry_carries_the_paid_credit(
     )
 
     assert changed.expire_at == old.expire_at
-    assert changed.plan_snapshot.effective_credit_paid == Decimal("300")
-    assert changed.plan_snapshot.effective_credit_days == 30
+    carried = await CreditSegmentRepository(subscription_repository.session).list_for(changed.id)
+    assert {segment.kind for segment in carried} == {CreditSegmentKind.CARRIED}
+    assert sum(segment.paid for segment in carried) == Decimal("300")
+    assert {segment.ends_at for segment in carried} == {old.expire_at}
 
 
 async def test_squads_are_restored_in_the_panel_when_deleted_mid_edit(
@@ -963,7 +986,10 @@ async def test_limits_are_restored_in_the_panel_when_deleted_mid_edit(
         remnawave_sdk,
         event_publisher,
         uow,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
+        SettingsRepository(subscription_repository.session),
     )
 
     with pytest.raises(ValidationError) as error:
@@ -977,6 +1003,43 @@ async def test_limits_are_restored_in_the_panel_when_deleted_mid_edit(
     assert remnawave_store[granted.remnawave_user_id]["hwidDeviceLimit"] == devices_before
     row = await subscription_repository.get_by_id(granted.id)
     assert row.device_limit != devices_before + 5
+
+
+async def test_a_hand_set_expiry_drops_the_term_anchor(
+    grant_use_case: GrantSubscriptionUseCase,
+    user_repository: UserRepository,
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+    remnawave_sdk: RemnawaveSDK,
+    event_publisher: EventPublisher,
+    uow: UnitOfWork,
+) -> None:
+    recipient = await user_repository.create(CreateUserDto(name="r", telegram_id=9291))
+    plan = await _plan(plan_repository, "grant-anchor")
+    granted = await grant_use_case(
+        OWNER, GrantSubscriptionDto(user_id=recipient.id, plan_id=plan.id, duration_days=30)
+    )
+    await subscription_repository.set_term_anchor_day(granted.id, 31)
+    use_case = UpdateSubscriptionUseCase(
+        subscription_repository,
+        UserRepository(subscription_repository.session),
+        remnawave_sdk,
+        event_publisher,
+        uow,
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
+        SettingsRepository(subscription_repository.session),
+    )
+
+    updated = await use_case(
+        OWNER,
+        UpdateSubscriptionDto(
+            subscription_id=granted.id, expire_at=datetime_now() + timedelta(days=45)
+        ),
+    )
+
+    assert updated.term_anchor_day is None
 
 
 async def test_an_admin_can_neither_see_nor_touch_the_owners_own_subscription(
@@ -1000,7 +1063,13 @@ async def test_an_admin_can_neither_see_nor_touch_the_owners_own_subscription(
         owner, GrantSubscriptionDto(user_id=owner.id, plan_id=plan.id, duration_days=30)
     )
     get = GetSubscriptionUseCase(
-        subscription_repository, user_repository, PanelTrafficUsage(remnawave_sdk), uow
+        subscription_repository,
+        user_repository,
+        PanelTrafficUsage(remnawave_sdk),
+        uow,
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
     )
     listing = ListSubscriptionsUseCase(subscription_repository, user_repository, uow)
     delete = DeleteSubscriptionUseCase(
@@ -1078,7 +1147,9 @@ def _membership_use_case(
         UserRepository(session),
         SettingsRepository(session),
         remnawave_sdk,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         event_publisher,
         uow,
     )
@@ -1315,7 +1386,10 @@ async def test_an_admin_changes_their_own_subscription_only_with_staff_self_mana
         remnawave_sdk,
         event_publisher,
         uow,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
+        SettingsRepository(subscription_repository.session),
     )
 
     with pytest.raises(PermissionDeniedError):

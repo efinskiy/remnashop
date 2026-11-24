@@ -3,7 +3,7 @@ from typing import Any, Optional
 from uuid import UUID
 
 from remnapy.enums import TrafficLimitStrategy
-from sqlalchemy import ForeignKey, Index, text
+from sqlalchemy import ForeignKey, Index, SmallInteger, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -20,6 +20,17 @@ class Subscription(BaseSql, TimestampMixin):
             "remnawave_user_id",
             unique=True,
             postgresql_where=text(f"status != '{SubscriptionStatus.DELETED.name}'"),
+        ),
+        # the grace sweep's end lookup; almost every row has none
+        Index(
+            "ix_subscriptions_grace_until",
+            "grace_until",
+            postgresql_where=text("grace_until IS NOT NULL"),
+        ),
+        Index(
+            "ix_subscriptions_panel_restore_due_at",
+            "panel_restore_due_at",
+            postgresql_where=text("panel_restore_due_at IS NOT NULL"),
         ),
     )
 
@@ -55,5 +66,23 @@ class Subscription(BaseSql, TimestampMixin):
     link_reset_at: Mapped[Optional[datetime]]
     # disabled because the customer left the required channel; only these come back on rejoin
     paused_by_channel_leave: Mapped[bool] = mapped_column(default=False, server_default="false")
+    # set while the grace period holds the panel user active past expiry; cleared on renewal
+    grace_until: Mapped[Optional[datetime]]
+    # the grace entry finished (pushed, traffic reset, customer told); a claim without it
+    # is an entry a retry still has to finish
+    grace_started_at: Mapped[Optional[datetime]]
+    # the last grace's end: the panel keeps it as its expiry, so a sync brings it into
+    # expire_at and the row would look freshly expired again
+    grace_ended_at: Mapped[Optional[datetime]]
+    # the grace sweep's last pick: a row that keeps failing goes to the back of its queue
+    grace_attempted_at: Mapped[Optional[datetime]]
+    # a push putting the panel user back to the row's config (or grace's) failed after a
+    # commit that can't be retried; a cron pushes it again until it lands
+    panel_restore_due_at: Mapped[Optional[datetime]]
     # kept on DELETED rows: a trial->paid or plan change replaces the row, not the customer
     first_connected_at: Mapped[Optional[datetime]]
+    # the panel user's createdAt: its day of the month is when MONTH_ROLLING resets
+    panel_created_at: Mapped[Optional[datetime]]
+    # day of the month calendar terms land on: started on the 31st, back on the 31st
+    # after a shorter month cut a term to the 28th
+    term_anchor_day: Mapped[Optional[int]] = mapped_column(SmallInteger)

@@ -11,7 +11,7 @@ from remnapy.exceptions import ApiError
 
 from app.core.actor import Actor
 from app.core.db.uow import UnitOfWork
-from app.core.enums import BackupKind, BackupRunStatus
+from app.core.enums import BackupKind, BackupRunStatus, PanelSyncDirection
 from app.core.exceptions import RemnawavePanelUnavailableError
 from app.core.security.permissions import Permission, PermissionPolicy
 from app.core.usecase import UseCase
@@ -22,7 +22,12 @@ from app.modules.broadcasts import BroadcastRepository
 from app.modules.email import read_smtp_failure
 from app.modules.event_log import EventOutboxRepository
 from app.modules.overview.dto import AttentionDto, AttentionItemDto, AttentionKind
-from app.modules.overview.system_health import read_health_problems
+from app.modules.overview.system_health import (
+    GATEWAY_FAILED_SPIKE,
+    GATEWAY_FAILED_WINDOW,
+    OUTBOX_STUCK_AFTER,
+    read_health_problems,
+)
 from app.modules.plans import PlanDto, PlanRepository
 from app.modules.settings import (
     BotSettingsDto,
@@ -33,12 +38,11 @@ from app.modules.subscriptions import (
     PanelSquadCatalog,
     SubscriptionStatsRepository,
     missing_squads,
+    read_panel_sync_status,
 )
 from app.modules.transactions import TransactionRepository, TransactionStatsRepository
 from app.modules.users import UserRepository
 
-_FAILED_SPIKE: Final[int] = 5
-_FAILED_WINDOW: Final[timedelta] = timedelta(hours=1)
 _UNFULFILLED_AFTER: Final[timedelta] = timedelta(minutes=10)
 _UNFULFILLED_WINDOW: Final[timedelta] = timedelta(days=7)
 # checkout orders expire after 30 min, so this has to be shorter to ever fire
@@ -47,8 +51,6 @@ _STALE_PENDING_AFTER: Final[timedelta] = timedelta(minutes=15)
 _STALE_PENDING_SPIKE: Final[int] = 5
 _EXPIRING_WITHIN: Final[timedelta] = timedelta(days=7)
 _EXPIRING_URGENT: Final[timedelta] = timedelta(hours=24)
-# the sweep runs every minute
-_OUTBOX_STUCK_AFTER: Final[timedelta] = timedelta(minutes=5)
 # the scheduled check runs hourly
 _BACKUP_GRACE: Final[timedelta] = timedelta(hours=2)
 _BROADCAST_FAILED_WINDOW: Final[timedelta] = timedelta(days=1)
@@ -102,6 +104,7 @@ class GetAttentionUseCase(UseCase[None, AttentionDto]):
         perms = PermissionPolicy.effective_permissions(actor)
         items: list[AttentionItemDto] = await self._system_health()
         items += await self._smtp_failed(perms)
+        items += await self._panel_users_missing(perms)
         async with self._uow:
             items += await self._outbox_stuck()
             items += await self._gateway_failures(perms)
@@ -156,6 +159,23 @@ class GetAttentionUseCase(UseCase[None, AttentionDto]):
             if not n.is_connected and not n.is_disabled
         ]
 
+    async def _panel_users_missing(self, perms: set[Permission]) -> list[AttentionItemDto]:
+        # until the next sync from the panel: pushing them back or deleting them
+        # doesn't rewrite this result
+        if Permission.SUBSCRIPTIONS_PANEL_SYNC_STATUS_VIEW not in perms:
+            return []
+        last = (await read_panel_sync_status(self._redis, PanelSyncDirection.FROM_PANEL)).last
+        if last is None or not last.missing:
+            return []
+        return [
+            AttentionItemDto(
+                kind=AttentionKind.PANEL_USERS_MISSING,
+                severity="warning",
+                count=last.missing,
+                since=last.finished_at,
+            )
+        ]
+
     async def _plan_squads_missing(self, plans: list[PlanDto]) -> list[AttentionItemDto]:
         # such a plan is off sale (PurchaseEligibility) until its squads are fixed
         squadded = [plan for plan in plans if plan.internal_squads or plan.external_squad]
@@ -189,7 +209,7 @@ class GetAttentionUseCase(UseCase[None, AttentionDto]):
         if Permission.TRANSACTIONS_VIEW not in perms:
             return []
         failed = await self._transaction_stats.count_failed_by_gateway(
-            datetime_now() - _FAILED_WINDOW
+            datetime_now() - GATEWAY_FAILED_WINDOW
         )
         return [
             AttentionItemDto(
@@ -199,7 +219,7 @@ class GetAttentionUseCase(UseCase[None, AttentionDto]):
                 subject=gateway.value,
             )
             for gateway, count in failed.items()
-            if count >= _FAILED_SPIKE
+            if count >= GATEWAY_FAILED_SPIKE
         ]
 
     async def _backup_failed(self, perms: set[Permission]) -> list[AttentionItemDto]:
@@ -225,16 +245,16 @@ class GetAttentionUseCase(UseCase[None, AttentionDto]):
             return []
         now = datetime_now()
         stuck = await self._transaction_repository.list_paid_awaiting_reconciliation(
-            now - _UNFULFILLED_AFTER, since=now - _UNFULFILLED_WINDOW
+            now - _UNFULFILLED_AFTER, since=now - _UNFULFILLED_WINDOW, include_held=True
         )
         if not stuck:
             return []
         return [
             AttentionItemDto(
                 kind=AttentionKind.PAID_NOT_FULFILLED,
-                severity="warning",
+                severity="critical",
                 count=len(stuck),
-                since=min((t.updated_at for t in stuck if t.updated_at), default=None),
+                since=min((t.paid_at for t in stuck if t.paid_at), default=None),
             )
         ]
 
@@ -254,6 +274,9 @@ class GetAttentionUseCase(UseCase[None, AttentionDto]):
         count, urgent = await self._subscription_stats.count_expiring_paid(
             now, now + _EXPIRING_WITHIN, now + _EXPIRING_URGENT
         )
+        # listed once one ends within a day: a live shop always has some ending within a week
+        if urgent == 0:
+            return []
         return [
             AttentionItemDto(
                 kind=AttentionKind.EXPIRING_PAID,
@@ -289,7 +312,7 @@ class GetAttentionUseCase(UseCase[None, AttentionDto]):
         ]
 
     async def _outbox_stuck(self) -> list[AttentionItemDto]:
-        stats = await self._outbox_repository.get_stuck_stats(datetime_now() - _OUTBOX_STUCK_AFTER)
+        stats = await self._outbox_repository.get_stuck_stats(datetime_now() - OUTBOX_STUCK_AFTER)
         return [
             AttentionItemDto(
                 kind=AttentionKind.OUTBOX_STUCK,

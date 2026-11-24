@@ -201,8 +201,8 @@ async def test_list_paid_awaiting_reconciliation_excludes_fulfilled_orders(
 
     fetched = await transaction_repository.get_by_id(paid.id)
     assert fetched.fulfilled_subscription_id == subscription.id
-    # updated_at drives revenue-by-day analytics, fulfilment must not move it
-    assert fetched.updated_at == paid.updated_at
+    # revenue is dated by paid_at, fulfilment must not move it
+    assert fetched.paid_at == paid.paid_at
 
     awaiting = await transaction_repository.list_paid_awaiting_reconciliation(
         datetime_now(), since=datetime_now() - timedelta(days=1)
@@ -235,10 +235,14 @@ async def test_mark_fulfilled_by_key_links_the_order_to_its_subscription(
             )
         )
         await transaction_repository.mark_fulfilled_by_key("key-fulfilled-now", subscription.id)
+        await transaction_repository.set_added_days("key-fulfilled-now", 31)
+        # recorded once: a redelivered event can't change it
+        await transaction_repository.set_added_days("key-fulfilled-now", 28)
 
     fetched = await transaction_repository.get_by_id(paid.id)
     assert fetched.fulfilled_subscription_id == subscription.id
-    assert fetched.updated_at == paid.updated_at
+    assert fetched.added_days == 31
+    assert fetched.paid_at == paid.paid_at
 
 
 async def test_list_paid_awaiting_reconciliation_excludes_orders_before_since(
@@ -256,7 +260,7 @@ async def test_list_paid_awaiting_reconciliation_excludes_orders_before_since(
     await session.execute(
         update(Transaction)
         .where(Transaction.id == paid.id)
-        .values(updated_at=datetime_now() - timedelta(days=10))
+        .values(paid_at=datetime_now() - timedelta(days=10))
     )
 
     awaiting = await transaction_repository.list_paid_awaiting_reconciliation(
@@ -574,7 +578,9 @@ async def test_cancel_expired_pending_only_touches_expired_pending_rows(
         )
         await transaction_repository.mark_status(expired_paid.id, TransactionStatus.PAID)
 
-        marked = await transaction_repository.cancel_expired_pending(datetime_now())
+        marked = await transaction_repository.cancel_expired_pending(
+            datetime_now(), [expired_pending.id, expired_paid.id]
+        )
 
     assert [order.id for order in marked] == [expired_pending.id]
     assert (await transaction_repository.get_by_id(expired_pending.id)).status == (
@@ -668,12 +674,12 @@ async def test_count_paid_since_excludes_pending_and_old_orders(
         )
     await transaction_repository.mark_status(old_order.id, TransactionStatus.PAID)
     # now() is frozen for the test transaction, so both rows get the same
-    # updated_at; the old one is backdated by hand
+    # paid_at; the old one is backdated by hand
     now = datetime_now()
     await session.execute(
         update(Transaction)
         .where(Transaction.id == old_order.id)
-        .values(updated_at=now - timedelta(days=1))
+        .values(paid_at=now - timedelta(days=1))
     )
     since = now - timedelta(hours=1)
     async with uow:
@@ -819,7 +825,7 @@ async def test_count_open_new_orders_drops_paid_orders_past_reconcile(
     await session.execute(
         update(Transaction)
         .where(Transaction.id == paid.id)
-        .values(updated_at=datetime_now() - timedelta(days=paid_days_ago))
+        .values(paid_at=datetime_now() - timedelta(days=paid_days_ago))
     )
 
     assert await transaction_repository.count_open_new_orders(user_id, datetime_now()) == counted
@@ -888,3 +894,45 @@ async def test_has_newer_order(
     assert (
         await transaction_repository.has_newer_order(user_id, PurchaseChannel.BOT, first.id) is True
     )
+
+
+async def test_paid_at_is_set_once_and_survives_a_refund(
+    transaction_repository: TransactionRepository,
+    session: AsyncSession,
+    uow: UnitOfWork,
+    user_id: int,
+    plan_id: int,
+) -> None:
+    async with uow:
+        order = await transaction_repository.create(
+            _order_dto(user_id=user_id, plan_id=plan_id, idempotency_key="paid-at-once")
+        )
+    assert order.paid_at is None
+    paid = await transaction_repository.mark_status(order.id, TransactionStatus.PAID)
+    assert paid.paid_at is not None
+    paid_at = paid.paid_at - timedelta(days=3)
+    await session.execute(
+        update(Transaction).where(Transaction.id == order.id).values(paid_at=paid_at)
+    )
+
+    # a repeated PAID (a duplicate webhook) keeps the first moment, and so does a refund
+    await transaction_repository.mark_status_if(
+        order.id, TransactionStatus.PAID, current=frozenset({TransactionStatus.PAID})
+    )
+    await transaction_repository.mark_status_if(
+        order.id, TransactionStatus.REFUNDED, current=frozenset({TransactionStatus.PAID})
+    )
+
+    session.expire_all()
+    refunded = await transaction_repository.get_by_id(order.id)
+    assert refunded.status is TransactionStatus.REFUNDED
+    assert refunded.paid_at == paid_at
+
+
+async def test_paid_sums_take_more_user_ids_than_asyncpg_takes_parameters(
+    transaction_repository: TransactionRepository,
+) -> None:
+    # a referral downline is handed over whole; IN (...) caps out at 32767 binds
+    sums = await transaction_repository.sum_paid_anchor_amount_per_user(list(range(1, 40_001)))
+
+    assert sums == {}

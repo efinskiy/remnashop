@@ -29,7 +29,11 @@ from app.cli.legacy.schema import (
     upgrade_legacy,
 )
 from app.cli.legacy.settings import transform_settings
-from app.cli.legacy.subscriptions import migrated_subscription_ids, transform_subscriptions
+from app.cli.legacy.subscriptions import (
+    credit_segments,
+    migrated_subscription_ids,
+    transform_subscriptions,
+)
 from app.cli.legacy.transactions import transform_transactions
 from app.cli.legacy.users import transform_users
 from app.core.db.base import BaseSql
@@ -38,6 +42,8 @@ from app.core.db.models import (
     AdLink,
     AdLinkAttribution,
     BotRequirements,
+    CreditSegment,
+    GraceSettings,
     OAuthIdentity,
     OAuthSettings,
     PaymentGateway,
@@ -75,7 +81,7 @@ class MigrationResult:
 
 
 async def flush_shop_redis(redis: Redis) -> None:
-    # the old broker keeps `taskiq` as a stream, the new one reads it as a list
+    # the old app's queue and caches hold its own task names and formats, which nothing here reads
     await redis.flushdb()
 
 
@@ -316,6 +322,7 @@ async def _transfer(
             if user["current_subscription_id"] is not None
         },
         index=panel_index,
+        grace_days=settings.grace["duration_days"] if settings else 0,
         plan_codes=plan_codes,
         last_payments=_last_payments(legacy_transactions),
         anchor_currency=anchor,
@@ -403,6 +410,7 @@ async def _transfer(
         (AdLinkAttribution, attributions),
         (OAuthIdentity, oauth),
         (Subscription, subscriptions),
+        (CreditSegment, credit_segments(subscriptions)),
         (Transaction, transactions),
         (Promocode, promocodes),
         (PromocodeActivation, activations),
@@ -415,6 +423,7 @@ async def _transfer(
             (AccessSettings, [settings.access]),
             (BotRequirements, [settings.bot_requirements]),
             (ReferralSettings, [settings.referral]),
+            (GraceSettings, [settings.grace]),
             (PricingSettings, [{"id": SINGLETON_ID, "anchor_currency": anchor}]),
         ]
     if owner_migrated:

@@ -111,6 +111,15 @@ class DiscountSource(UpperStrEnum):
     LOYALTY = auto()
 
 
+class FulfillmentHold(UpperStrEnum):
+    """Why a paid order waits for an admin to issue or refund it."""
+
+    # paid after its cancel, its one-shot discount already spent again
+    PURCHASE_DISCOUNT_SPENT = auto()
+    # a renewal whose subscription moved to another plan while it was paid
+    PLAN_CHANGED = auto()
+
+
 class SubscriptionStatus(UpperStrEnum):
     ACTIVE = auto()
     LIMITED = auto()
@@ -147,12 +156,33 @@ class PromocodeStatus(UpperStrEnum):
     EXHAUSTED = auto()
 
 
+# what opening a promocode by link did: applied it, or needs the customer to act
+class PromocodeLinkOutcome(UpperStrEnum):
+    ACTIVATED = auto()
+    CHOOSE_TARGET = auto()
+    NO_TARGET = auto()
+    # a reusable code: applied by the customer's own press, never by opening a link again
+    CONFIRM = auto()
+
+
 class PromocodeAvailability(UpperStrEnum):
     ALL = auto()
     NEW = auto()
     EXISTING = auto()
     INVITED = auto()
     ALLOWED = auto()
+
+
+class CreditSegmentKind(UpperStrEnum):
+    """Where a stretch of a subscription's term came from, for the plan change credit."""
+
+    PURCHASE = auto()
+    # what a plan change credited from the replaced subscription
+    CARRIED = auto()
+    # free days: referral bonus, an admin's grant
+    BONUS = auto()
+    # the term as it stood before segments existed
+    LEGACY = auto()
 
 
 class PurchaseType(UpperStrEnum):
@@ -300,6 +330,8 @@ class BroadcastButtonKind(UpperStrEnum):
     URL = auto()
     PROMOCODE = auto()
     MENU = auto()
+    CLOSE = auto()
+    SHARE_REFERRAL = auto()
 
 
 class BroadcastMediaType(UpperStrEnum):

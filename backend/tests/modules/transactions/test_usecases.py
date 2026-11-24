@@ -4,10 +4,12 @@ import dataclasses
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from typing import Final, Optional
+from typing import Any, Final, Optional
 from uuid import uuid4
 
+import httpx
 import pytest
+from remnapy import RemnawaveSDK
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, AsyncSession
 
@@ -82,7 +84,12 @@ from app.modules.subscriptions.idempotency_repository import PurchaseIdempotency
 from app.modules.subscriptions.usecases.purchase_subscription import STALE_CLAIM_AFTER
 from app.modules.transactions.api.schemas import CreateCheckoutRequest
 from app.modules.transactions.checkout_pricing import CheckoutPricer
-from app.modules.transactions.dto import CreateCheckoutDto, PaymentTextDto, TransactionDto
+from app.modules.transactions.dto import (
+    CreateCheckoutDto,
+    CreateTestPaymentDto,
+    PaymentTextDto,
+    TransactionDto,
+)
 from app.modules.transactions.gateways.base import PaymentIntent
 from app.modules.transactions.gateways.factory import PaymentGatewayFactory
 from app.modules.transactions.gateways.registry import GATEWAY_REGISTRY
@@ -98,7 +105,12 @@ from tests.fakes.payment_texts import FixedPaymentTexts
 from tests.fakes.recurring import make_recurring_checkout
 from tests.fakes.telegram_bot import FakeBotSession, use_fake_bot
 from tests.modules.settings.factories import SHOP_SETTINGS_FIELDS
-from tests.modules.subscriptions.factories import make_eligibility, make_plan_snapshot
+from tests.modules.subscriptions.factories import (
+    add_paid_term,
+    make_change_credit_calculator,
+    make_eligibility,
+    make_plan_snapshot,
+)
 from tests.modules.transactions.test_repository import _order_dto as _repository_order_dto
 
 _SHOP_FIELDS: Final[set[str]] = {field.name for field in dataclasses.fields(UpdateShopSettingsDto)}
@@ -143,6 +155,12 @@ async def _active_yookassa(gateway_repository: GatewayRepository, uow: UnitOfWor
         await gateway_repository.set_active(PaymentGatewayType.YOOKASSA, True)
 
 
+def _test_payment(
+    gateway_type: PaymentGatewayType, channel: PurchaseChannel = PurchaseChannel.BOT
+) -> CreateTestPaymentDto:
+    return CreateTestPaymentDto(gateway_type=gateway_type, channel=channel)
+
+
 @pytest.fixture
 def purchase_dispatch() -> RecordingDispatch:
     return RecordingDispatch()
@@ -167,6 +185,7 @@ def create_checkout_use_case(
     event_publisher: EventPublisher,
     legal_repository: LegalRepository,
     translation_repository: TranslationRepository,
+    remnawave_sdk: RemnawaveSDK,
 ) -> CreateCheckoutUseCase:
     return CreateCheckoutUseCase(
         CheckoutPricer(
@@ -178,6 +197,7 @@ def create_checkout_use_case(
             promocode_repository,
             subscription_repository,
             SettingsRepository(plan_repository.session),
+            make_change_credit_calculator(plan_repository.session, remnawave_sdk),
         ),
         user_repository,
         gateway_repository,
@@ -274,6 +294,44 @@ async def test_checkout_stores_channel(
     assert order.channel is PurchaseChannel.BOT
 
 
+@pytest.mark.parametrize(("in_telegram", "account"), [(True, "1"), (False, "2")])
+async def test_checkout_stores_the_yookassa_shop_of_its_channel(
+    create_checkout_use_case: CreateCheckoutUseCase,
+    transaction_repository: TransactionRepository,
+    gateway_repository: GatewayRepository,
+    uow: UnitOfWork,
+    _active_yookassa: None,
+    actor: UserDto,
+    plan: PlanDto,
+    in_telegram: bool,
+    account: str,
+) -> None:
+    async with uow:
+        await gateway_repository.update_settings(
+            PaymentGatewayType.YOOKASSA,
+            {"cabinet_shop_enabled": "true", "cabinet_shop_id": "2", "cabinet_api_key": "k2"},
+        )
+        await gateway_repository.set_channels(
+            PaymentGatewayType.YOOKASSA, telegram_enabled=True, cabinet_enabled=True
+        )
+
+    result = await create_checkout_use_case(
+        actor,
+        CreateCheckoutDto(
+            channel=PurchaseChannel.CABINET,
+            in_telegram=in_telegram,
+            plan_id=plan.id,
+            duration_days=30,
+            currency=Currency.RUB,
+            purchase_type=PurchaseType.NEW,
+            gateway_type=PaymentGatewayType.YOOKASSA,
+        ),
+    )
+
+    order = await transaction_repository.get_by_id(result.order_id)
+    assert order.gateway_account == account
+
+
 async def test_create_checkout_publishes_the_new_order(
     create_checkout_use_case: CreateCheckoutUseCase,
     _active_yookassa: None,
@@ -362,6 +420,7 @@ async def _seed_subscription(
             ),
         )
     )
+    await add_paid_term(subscription_repository.session, subscription)
     return subscription.id
 
 
@@ -423,6 +482,10 @@ async def test_concurrent_free_checkouts_stop_at_the_cap(
                 PromocodeRepository(session),
                 SubscriptionRepository(session),
                 SettingsRepository(session),
+                # a fixed-term checkout never reads the panel for its credit
+                make_change_credit_calculator(
+                    session, RemnawaveSDK(client=httpx.AsyncClient(base_url="http://unused"))
+                ),
             ),
             UserRepository(session),
             GatewayRepository(session),
@@ -1101,7 +1164,7 @@ async def test_test_payment_persists_a_pending_test_order_hidden_from_the_order_
         FixedPaymentTexts(),
     )
 
-    result = await use_case(owner, PaymentGatewayType.YOOKASSA)
+    result = await use_case(owner, _test_payment(PaymentGatewayType.YOOKASSA))
 
     assert result.confirmation_url == fake_gateway.confirmation_url
     order = await transaction_repository.get_by_id(result.order_id)
@@ -1111,6 +1174,50 @@ async def test_test_payment_persists_a_pending_test_order_hidden_from_the_order_
     assert order.external_payment_id == "yk-fake-id"
     assert order.currency is Currency.RUB
     assert await transaction_repository.list_paginated() == ([], 0)
+
+
+@pytest.mark.parametrize(
+    ("channel", "account"), [(PurchaseChannel.BOT, "1"), (PurchaseChannel.CABINET, "2")]
+)
+async def test_test_payment_goes_to_the_shop_of_the_chosen_channel(
+    channel: PurchaseChannel,
+    account: str,
+    gateway_repository: GatewayRepository,
+    transaction_repository: TransactionRepository,
+    pricing_repository: PricingRepository,
+    settings_repository: SettingsRepository,
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+    fake_gateway: _FakeGateway,
+) -> None:
+    async with uow:
+        await gateway_repository.update_settings(
+            PaymentGatewayType.YOOKASSA,
+            {
+                "shop_id": "1",
+                "api_key": "k",
+                "cabinet_shop_enabled": "true",
+                "cabinet_shop_id": "2",
+                "cabinet_api_key": "k2",
+            },
+        )
+        await gateway_repository.set_active(PaymentGatewayType.YOOKASSA, True)
+    owner = await user_repository.create(CreateUserDto(name="owner", role=Role.OWNER))
+    use_case = CreateTestPaymentUseCase(
+        gateway_repository,
+        transaction_repository,
+        pricing_repository,
+        settings_repository,
+        uow,
+        _FakeFactory(fake_gateway),
+        RecordingEventPublisher(),
+        FixedPaymentTexts(),
+    )
+
+    result = await use_case(owner, _test_payment(PaymentGatewayType.YOOKASSA, channel))
+
+    order = await transaction_repository.get_by_id(result.order_id)
+    assert order.gateway_account == account
 
 
 async def test_test_payment_stands_in_an_email_when_the_gateway_needs_a_receipt(
@@ -1139,7 +1246,7 @@ async def test_test_payment_stands_in_an_email_when_the_gateway_needs_a_receipt(
         FixedPaymentTexts(),
     )
 
-    await use_case(owner, PaymentGatewayType.YOOKASSA)
+    await use_case(owner, _test_payment(PaymentGatewayType.YOOKASSA))
 
     assert fake_gateway.create_payment_calls[0].customer_email == "test@example.com"
 
@@ -1166,7 +1273,7 @@ async def test_test_payment_rejects_an_unconfigured_gateway(
     )
 
     with pytest.raises(ValidationError):
-        await use_case(owner, PaymentGatewayType.YOOKASSA)
+        await use_case(owner, _test_payment(PaymentGatewayType.YOOKASSA))
     assert fake_gateway.create_payment_calls == []
 
 
@@ -1611,8 +1718,13 @@ async def test_create_checkout_keeps_the_previous_plan_on_a_change_order_only(
     subscription_repository: SubscriptionRepository,
     transaction_repository: TransactionRepository,
 ) -> None:
+    # a CHANGE comes from another plan
+    owned_plan_id = plan.id if purchase_type is PurchaseType.RENEW else plan.id + 1
     subscription_id = await _seed_subscription(
-        subscription_repository, user_id=actor.id, remnawave_user_id=820_105, plan_id=plan.id
+        subscription_repository,
+        user_id=actor.id,
+        remnawave_user_id=820_105,
+        plan_id=owned_plan_id,
     )
 
     result = await create_checkout_use_case(
@@ -1634,7 +1746,7 @@ async def test_create_checkout_keeps_the_previous_plan_on_a_change_order_only(
     assert (previous.name if previous is not None else None) == previous_name
 
 
-async def test_create_checkout_refuses_to_renew_an_inactive_plan(
+async def test_create_checkout_refuses_to_renew_a_plan_closed_to_renewal(
     create_checkout_use_case: CreateCheckoutUseCase,
     _active_yookassa: None,
     actor: UserDto,
@@ -1645,12 +1757,53 @@ async def test_create_checkout_refuses_to_renew_an_inactive_plan(
     subscription_id = await _seed_subscription(
         subscription_repository, user_id=actor.id, remnawave_user_id=820_104, plan_id=plan.id
     )
-    await plan_repository.update(UpdatePlanDto(plan_id=plan.id, is_active=False))
+    # still on sale: only the renewal is closed
+    await plan_repository.update(UpdatePlanDto(plan_id=plan.id, allow_renewal=False))
 
     with pytest.raises(NotFoundError) as error:
         await create_checkout_use_case(actor, _renew_dto(plan, subscription_id))
 
     assert error.value.code is ErrorCode.PLAN_NOT_FOUND
+
+
+async def test_create_checkout_refuses_a_change_to_the_same_plan(
+    create_checkout_use_case: CreateCheckoutUseCase,
+    _active_yookassa: None,
+    actor: UserDto,
+    plan: PlanDto,
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+) -> None:
+    subscription_id = await _seed_subscription(
+        subscription_repository, user_id=actor.id, remnawave_user_id=820_110, plan_id=plan.id
+    )
+    # a CHANGE onto its own plan would renew it past allow_renewal
+    await plan_repository.update(UpdatePlanDto(plan_id=plan.id, allow_renewal=False))
+
+    with pytest.raises(ValidationError) as error:
+        await create_checkout_use_case(
+            actor, replace(_renew_dto(plan, subscription_id), purchase_type=PurchaseType.CHANGE)
+        )
+
+    assert error.value.code is ErrorCode.CHANGE_SAME_PLAN
+
+
+async def test_create_checkout_renews_a_plan_taken_off_sale(
+    create_checkout_use_case: CreateCheckoutUseCase,
+    _active_yookassa: None,
+    actor: UserDto,
+    plan: PlanDto,
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+) -> None:
+    subscription_id = await _seed_subscription(
+        subscription_repository, user_id=actor.id, remnawave_user_id=820_109, plan_id=plan.id
+    )
+    await plan_repository.update(UpdatePlanDto(plan_id=plan.id, is_active=False))
+
+    result = await create_checkout_use_case(actor, _renew_dto(plan, subscription_id))
+
+    assert result.order_id > 0
 
 
 async def test_checkout_with_payments_off_refuses_and_waitlists_the_buyer(
@@ -2184,6 +2337,45 @@ async def test_checkout_refused_while_auto_charge_submitted(
     assert error.value.code is ErrorCode.RECURRING_PAYMENT_IN_PROGRESS
 
 
+async def test_checkout_refused_when_auto_charge_is_sent_while_it_prices(
+    create_checkout_use_case: CreateCheckoutUseCase,
+    _active_yookassa: None,
+    actor: UserDto,
+    plan: PlanDto,
+    subscription_repository: SubscriptionRepository,
+    transaction_repository: TransactionRepository,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    subscription_id = await _seed_subscription(
+        subscription_repository, user_id=actor.id, remnawave_user_id=820_203, plan_id=plan.id
+    )
+    order_terms = create_checkout_use_case._order_terms
+
+    async def _worker_sends_meanwhile(*args: Any, **kwargs: Any) -> Any:
+        # the automatic charge goes out after the first checks, before the order exists
+        await _recurring_attempt(
+            subscription_repository.session,
+            transaction_repository,
+            user_id=actor.id,
+            plan_id=plan.id,
+            subscription_id=subscription_id,
+            submitted=True,
+        )
+        return await order_terms(*args, **kwargs)
+
+    monkeypatch.setattr(create_checkout_use_case, "_order_terms", _worker_sends_meanwhile)
+    with pytest.raises(ConflictError) as error:
+        await create_checkout_use_case(
+            actor,
+            replace(
+                _checkout_dto(actor, plan),
+                purchase_type=PurchaseType.RENEW,
+                target_subscription_id=subscription_id,
+            ),
+        )
+    assert error.value.code is ErrorCode.RECURRING_PAYMENT_IN_PROGRESS
+
+
 async def test_checkout_allowed_when_reserved_but_not_submitted(
     create_checkout_use_case: CreateCheckoutUseCase,
     _active_yookassa: None,
@@ -2213,3 +2405,94 @@ async def test_checkout_allowed_when_reserved_but_not_submitted(
     )
     assert result.order_id != reserved
     assert (await transaction_repository.get_by_id(reserved)).status is TransactionStatus.CANCELED
+
+
+async def test_test_payment_issues_a_stars_invoice_to_an_admin_with_telegram(
+    gateway_repository: GatewayRepository,
+    transaction_repository: TransactionRepository,
+    pricing_repository: PricingRepository,
+    settings_repository: SettingsRepository,
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+    fake_gateway: _FakeGateway,
+) -> None:
+    async with uow:
+        await settings_repository.update_bot_settings(
+            UpdateBotSettingsDto(token="123:abc", secret_token="hook-secret")
+        )
+    owner = await user_repository.create(
+        CreateUserDto(name="owner", role=Role.OWNER, telegram_id=777)
+    )
+    use_case = CreateTestPaymentUseCase(
+        gateway_repository,
+        transaction_repository,
+        pricing_repository,
+        settings_repository,
+        uow,
+        _FakeFactory(fake_gateway),
+        RecordingEventPublisher(),
+        FixedPaymentTexts(),
+    )
+
+    result = await use_case(owner, _test_payment(PaymentGatewayType.TELEGRAM_STARS))
+
+    order = await transaction_repository.get_by_id(result.order_id)
+    assert order.is_test
+    assert order.currency is Currency.XTR
+    assert order.final_price == 1
+    assert order.status is TransactionStatus.PENDING
+
+
+async def test_test_payment_refuses_stars_without_a_linked_telegram(
+    gateway_repository: GatewayRepository,
+    transaction_repository: TransactionRepository,
+    pricing_repository: PricingRepository,
+    settings_repository: SettingsRepository,
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+    fake_gateway: _FakeGateway,
+) -> None:
+    async with uow:
+        await settings_repository.update_bot_settings(
+            UpdateBotSettingsDto(token="123:abc", secret_token="hook-secret")
+        )
+    owner = await user_repository.create(CreateUserDto(name="owner", role=Role.OWNER))
+    use_case = CreateTestPaymentUseCase(
+        gateway_repository,
+        transaction_repository,
+        pricing_repository,
+        settings_repository,
+        uow,
+        _FakeFactory(fake_gateway),
+        RecordingEventPublisher(),
+        FixedPaymentTexts(),
+    )
+
+    with pytest.raises(ValidationError) as error:
+        await use_case(owner, _test_payment(PaymentGatewayType.TELEGRAM_STARS))
+
+    assert error.value.code is ErrorCode.GATEWAY_TEST_NO_TELEGRAM
+    assert fake_gateway.create_payment_calls == []
+
+
+async def test_checkout_records_the_customers_markup_in_the_order(
+    create_checkout_use_case: CreateCheckoutUseCase,
+    _active_yookassa: None,
+    actor: UserDto,
+    plan: PlanDto,
+    user_repository: UserRepository,
+    transaction_repository: TransactionRepository,
+    uow: UnitOfWork,
+) -> None:
+    plain = await create_checkout_use_case(actor, _checkout_dto(actor, plan))
+    async with uow:
+        updated = await user_repository.update_fields(actor.id, UpdateUserDto(markup_percent=25))
+    assert updated is not None
+
+    marked = await create_checkout_use_case(updated, _checkout_dto(updated, plan))
+
+    plain_order = await transaction_repository.get_by_id(plain.order_id)
+    order = await transaction_repository.get_by_id(marked.order_id)
+    assert plain_order.markup_percent == 0
+    assert order.markup_percent == 25
+    assert order.base_price > plain_order.base_price

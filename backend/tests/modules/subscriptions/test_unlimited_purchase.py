@@ -5,7 +5,6 @@ from uuid import uuid4
 
 import pytest
 from remnapy import RemnawaveSDK
-from remnapy.enums import TrafficLimitStrategy
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import AppConfig
@@ -27,7 +26,7 @@ from app.modules.plans.repository import PlanRepository
 from app.modules.pricing import PricingRepository
 from app.modules.settings import SettingsRepository
 from app.modules.settings.dto import UpdateShopSettingsDto
-from app.modules.subscriptions.domain import calculate_proration_credit
+from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
 from app.modules.subscriptions.dto import (
     PurchaseSubscriptionDto,
     SubscriptionDto,
@@ -41,7 +40,11 @@ from app.modules.users.dto import CreateUserDto, UserDto
 from app.modules.users.repository import UserRepository
 from tests.fakes.recurring import make_recurring_lifecycle
 from tests.fakes.remnawave import FakeUserStore
-from tests.modules.subscriptions.factories import make_eligibility, snapshot_from_plan
+from tests.modules.subscriptions.factories import (
+    credit_summary,
+    make_eligibility,
+    snapshot_from_plan,
+)
 
 
 async def _plan(plan_repository: PlanRepository, code: str) -> PlanDto:
@@ -79,7 +82,9 @@ def _use_case(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(session),
         idempotency_repository,
         UserRepository(session),
@@ -140,8 +145,11 @@ async def test_new_purchase_unlimited_sets_2099_on_panel_and_row(
 
     assert subscription.is_unlimited
     assert _panel_expiry(remnawave_store, subscription).year == 2099
-    assert subscription.plan_snapshot.effective_credit_days == 0
-    assert subscription.plan_snapshot.effective_credit_paid == Decimal("5000")
+    credit = await credit_summary(subscription_repository.session, subscription.id)
+    assert credit.live_days == 0
+    assert (
+        await credit_summary(subscription_repository.session, subscription.id)
+    ).live_paid == Decimal("5000")
 
 
 async def test_trial_upgrade_to_unlimited_sets_2099(
@@ -242,12 +250,12 @@ async def test_renew_finite_with_unlimited_duration(
 
     assert renewed.is_unlimited
     assert _panel_expiry(remnawave_store, renewed).year == 2099
-    snapshot = renewed.plan_snapshot
-    assert snapshot.unlimited_from == month.expire_at
-    assert snapshot.unlimited_from_credit_paid == Decimal("500")
-    assert snapshot.unlimited_from_credit_days == 30
-    assert snapshot.credit_paid == Decimal("5000")
-    assert snapshot.credit_days == 0
+    credit = await credit_summary(subscription_repository.session, renewed.id)
+    assert credit.replaced_expire_at == month.expire_at
+    assert credit.superseded_paid == Decimal("500")
+    assert credit.superseded_days == 30
+    assert credit.live_paid == Decimal("5000")
+    assert credit.live_days == 0
 
 
 async def test_renewable_is_empty_for_unlimited_until_it_turns_finite(
@@ -276,21 +284,6 @@ async def test_renewable_is_empty_for_unlimited_until_it_turns_finite(
     )
 
     assert [p.id for p in await eligibility.renewable([plan], buyer.id, forever.id)] == [plan.id]
-
-
-def test_proration_credit_of_unlimited_is_zero() -> None:
-    credit = calculate_proration_credit(
-        credit_paid=Decimal("5000"),
-        credit_days=0,
-        expire_at=datetime(2099, 1, 1, tzinfo=timezone.utc),
-        is_trial=False,
-        now=datetime(2026, 11, 14, tzinfo=timezone.utc),
-        traffic_limit=0,
-        traffic_limit_strategy=TrafficLimitStrategy.NO_RESET,
-        used_traffic_bytes=0,
-    )
-
-    assert credit == Decimal("0")
 
 
 async def test_change_to_unlimited_sets_2099_without_day_credit(
@@ -323,8 +316,10 @@ async def test_change_to_unlimited_sets_2099_without_day_credit(
 
     assert changed.is_unlimited
     assert _panel_expiry(remnawave_store, changed).year == 2099
-    assert changed.plan_snapshot.credit_paid == Decimal("5000")
-    assert changed.plan_snapshot.credit_days == 0
+    credit = await credit_summary(subscription_repository.session, changed.id)
+    assert credit.live_paid == Decimal("5000")
+    credit = await credit_summary(subscription_repository.session, changed.id)
+    assert credit.live_days == 0
 
 
 async def test_change_unlimited_to_unlimited_accumulates_credit_paid(
@@ -356,8 +351,10 @@ async def test_change_unlimited_to_unlimited_accumulates_credit_paid(
     )
 
     assert changed.is_unlimited
-    assert changed.plan_snapshot.credit_paid == Decimal("5000")
-    assert changed.plan_snapshot.credit_days == 0
+    credit = await credit_summary(subscription_repository.session, changed.id)
+    assert credit.live_paid == Decimal("5000")
+    credit = await credit_summary(subscription_repository.session, changed.id)
+    assert credit.live_days == 0
 
 
 async def test_change_unlimited_to_finite_has_zero_credit(
@@ -389,7 +386,8 @@ async def test_change_unlimited_to_finite_has_zero_credit(
 
     assert not changed.is_unlimited
     assert changed.expire_at - datetime_now() < timedelta(days=30, minutes=1)
-    assert changed.plan_snapshot.credit_days == 30
+    credit = await credit_summary(subscription_repository.session, changed.id)
+    assert 28 <= credit.live_days <= 31  # a calendar month
 
 
 async def test_a_subscription_made_unlimited_by_hand_changes_to_finite_without_credit(
@@ -425,7 +423,8 @@ async def test_a_subscription_made_unlimited_by_hand_changes_to_finite_without_c
         target_subscription_id=month.id,
     )
 
-    assert changed.plan_snapshot.credit_days == 30
+    credit = await credit_summary(subscription_repository.session, changed.id)
+    assert 28 <= credit.live_days <= 31  # a calendar month
     assert changed.expire_at - datetime_now() < timedelta(days=30, minutes=1)
 
 
@@ -503,8 +502,10 @@ async def test_renewing_an_unlimited_turned_finite_does_not_unlock_its_payment(
         target_subscription_id=forever.id,
     )
 
-    assert renewed.plan_snapshot.credit_paid == Decimal("500")
-    assert renewed.plan_snapshot.credit_days == 30
+    credit = await credit_summary(subscription_repository.session, renewed.id)
+    assert credit.live_paid == Decimal("500")
+    # a calendar month
+    assert 28 <= credit.live_days <= 31
 
 
 async def test_a_trial_plan_is_issued_unlimited(
@@ -619,7 +620,8 @@ async def test_an_unlimited_change_carries_the_credit_its_order_was_priced_with(
         ),
     )
 
-    assert changed.plan_snapshot.credit_paid == Decimal("3000")
+    credit = await credit_summary(subscription_repository.session, changed.id)
+    assert credit.live_paid == Decimal("3000")
 
 
 async def test_a_webhook_landing_first_does_not_lose_the_term_an_unlimited_renewal_replaced(
@@ -667,8 +669,9 @@ async def test_a_webhook_landing_first_does_not_lose_the_term_an_unlimited_renew
     )
 
     assert renewed.is_unlimited
-    assert renewed.plan_snapshot.unlimited_from == month.expire_at
-    assert renewed.plan_snapshot.unlimited_from_credit_paid == Decimal("500")
+    credit = await credit_summary(subscription_repository.session, renewed.id)
+    assert credit.replaced_expire_at == month.expire_at
+    assert credit.superseded_paid == Decimal("500")
 
 
 async def _disable_change_credit(session: AsyncSession) -> None:
@@ -709,8 +712,10 @@ async def test_a_change_with_credit_off_adds_no_days(
     )
 
     assert changed.expire_at - datetime_now() < timedelta(days=30, minutes=1)
-    assert changed.plan_snapshot.credit_paid == Decimal("500")
-    assert changed.plan_snapshot.credit_days == 30
+    credit = await credit_summary(subscription_repository.session, changed.id)
+    assert credit.live_paid == Decimal("500")
+    credit = await credit_summary(subscription_repository.session, changed.id)
+    assert 28 <= credit.live_days <= 31  # a calendar month
 
 
 async def test_an_unlimited_change_without_an_order_keeps_its_credit_with_credit_off(
@@ -742,4 +747,5 @@ async def test_an_unlimited_change_without_an_order_keeps_its_credit_with_credit
     )
 
     # no order priced it (an admin change), so what was paid stays on the books
-    assert changed.plan_snapshot.credit_paid == Decimal("8000")
+    credit = await credit_summary(subscription_repository.session, changed.id)
+    assert credit.live_paid == Decimal("8000")

@@ -4,7 +4,12 @@ from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.core.enums import Currency, PromocodeAvailability, PromocodeRewardType
+from app.core.enums import (
+    Currency,
+    PromocodeAvailability,
+    PromocodeLinkOutcome,
+    PromocodeRewardType,
+)
 from app.core.utils.time import range_start_utc
 
 
@@ -19,6 +24,7 @@ class PromocodeResponse(BaseModel):
     reward_duration_days: Optional[int] = None
     availability: PromocodeAvailability
     allowed_user_ids: list[int]
+    prior_customers_only: bool
     allowed_plan_ids: list[int]
     expires_at: Optional[datetime] = None
     max_activations: Optional[int] = None
@@ -47,6 +53,7 @@ class CreatePromocodeRequest(BaseModel):
     reward_duration_days: Optional[int] = None
     availability: PromocodeAvailability = PromocodeAvailability.ALL
     allowed_user_ids: list[int] = Field(default_factory=list)
+    prior_customers_only: bool = False
     allowed_plan_ids: list[int] = Field(default_factory=list)
     expires_at: Optional[datetime] = None
     max_activations: Optional[int] = Field(default=None, ge=1)
@@ -63,6 +70,7 @@ class UpdatePromocodeRequest(BaseModel):
     is_active: Optional[bool] = None
     availability: Optional[PromocodeAvailability] = None
     allowed_user_ids: Optional[list[int]] = None
+    prior_customers_only: Optional[bool] = None
     allowed_plan_ids: Optional[list[int]] = None
     expires_at: Optional[datetime] = None
     max_activations: Optional[int] = Field(default=None, ge=1)
@@ -78,6 +86,16 @@ class UpdatePromocodeRequest(BaseModel):
 class ActivatePromocodeRequest(BaseModel):
     code: str = Field(min_length=1, max_length=64)
     target_subscription_id: Optional[int] = None
+
+
+class ActivatePromocodeByLinkRequest(BaseModel):
+    code: str = Field(min_length=1, max_length=64)
+
+
+class PromocodeLinkResponse(BaseModel):
+    # CHOOSE_TARGET: the cabinet asks which subscription, then activates as usual
+    outcome: PromocodeLinkOutcome
+    promocode: PublicPromocodeResponse
 
 
 class PromocodeTargetsResponse(BaseModel):

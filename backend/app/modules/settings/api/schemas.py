@@ -1,9 +1,11 @@
 import re
 from typing import Annotated, Final, Optional
+from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field, HttpUrl, field_validator, model_validator
+from remnapy.enums import TrafficLimitStrategy
 
-from app.core.constants import INT64_MAX
+from app.core.constants import INT32_MAX, INT64_MAX, PANEL_TAG_MAX_LENGTH, PANEL_TAG_PATTERN
 from app.core.enums import AccessMode, CaptchaProvider, SmtpSecurity
 
 _COMMAND_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-z0-9_]{1,32}$")
@@ -24,6 +26,7 @@ class BotSettingsResponse(BaseModel):
     is_configured: bool
     is_proxy_configured: bool
     drop_pending_updates: bool
+    remove_reply_keyboard: bool
 
 
 class SetBotProxyRequest(BaseModel):
@@ -41,6 +44,7 @@ class BotStatusResponse(BaseModel):
 class UpdateBotSettingsRequest(BaseModel):
     token: Optional[str] = Field(default=None, min_length=1)
     drop_pending_updates: Optional[bool] = None
+    remove_reply_keyboard: Optional[bool] = None
 
 
 MAX_ACTIVE_SUBSCRIPTIONS_LIMIT: Final[int] = 10
@@ -61,6 +65,7 @@ class ShopSettingsResponse(BaseModel):
     support_url: Optional[str]
     payment_email: Optional[str]
     plan_change_credit_enabled: bool
+    plan_change_traffic_cap_enabled: bool
 
 
 class UpdateShopSettingsRequest(BaseModel):
@@ -88,6 +93,7 @@ class UpdateShopSettingsRequest(BaseModel):
     support_url: Optional[str] = Field(default=None, pattern=r"^https://.+", max_length=512)
     payment_email: Optional[EmailStr] = None
     plan_change_credit_enabled: Optional[bool] = None
+    plan_change_traffic_cap_enabled: Optional[bool] = None
 
     @field_validator("max_active_subscriptions", mode="before")
     @classmethod
@@ -112,6 +118,36 @@ class UpdateShopSettingsRequest(BaseModel):
     @model_validator(mode="after")
     def non_nullable_fields(self) -> "UpdateShopSettingsRequest":
         nullable = {"max_active_subscriptions", "support_telegram", "support_url", "payment_email"}
+        for name in self.model_fields_set - nullable:
+            if getattr(self, name) is None:
+                raise ValueError(f"{name} cannot be null")
+        return self
+
+
+class GraceSettingsResponse(BaseModel):
+    enabled: bool
+    internal_squads: list[UUID]
+    external_squad: Optional[UUID]
+    traffic_limit_mb: int
+    traffic_limit_strategy: TrafficLimitStrategy
+    tag: Optional[str]
+    duration_days: int
+
+
+class UpdateGraceSettingsRequest(BaseModel):
+    enabled: Optional[bool] = None
+    internal_squads: Optional[list[UUID]] = None
+    external_squad: Optional[UUID] = None
+    traffic_limit_mb: Optional[int] = Field(default=None, le=INT32_MAX)
+    traffic_limit_strategy: Optional[TrafficLimitStrategy] = None
+    tag: Optional[str] = Field(
+        default=None, max_length=PANEL_TAG_MAX_LENGTH, pattern=PANEL_TAG_PATTERN
+    )
+    duration_days: Optional[int] = Field(default=None, le=INT32_MAX)
+
+    @model_validator(mode="after")
+    def non_nullable_fields(self) -> "UpdateGraceSettingsRequest":
+        nullable = {"external_squad", "tag"}
         for name in self.model_fields_set - nullable:
             if getattr(self, name) is None:
                 raise ValueError(f"{name} cannot be null")
@@ -293,6 +329,7 @@ class CabinetAuthSettingsResponse(BaseModel):
     email_enabled: bool
     restrict_email_domains: bool
     allowed_email_domains: list[str]
+    email_required: bool
     captcha_enabled: bool
     captcha_provider: CaptchaProvider
     captcha_site_key: Optional[str]
@@ -308,6 +345,7 @@ class UpdateCabinetAuthSettingsRequest(BaseModel):
     email_enabled: Optional[bool] = None
     restrict_email_domains: Optional[bool] = None
     allowed_email_domains: Optional[list[str]] = None
+    email_required: Optional[bool] = None
     captcha_enabled: Optional[bool] = None
     captcha_provider: Optional[CaptchaProvider] = None
     captcha_site_key: Optional[str] = Field(default=None, min_length=1, max_length=255)
@@ -369,6 +407,7 @@ class CabinetSettingsResponse(BaseModel):
     device_all_reset_enabled: bool
     device_all_reset_cooldown_hours: int
     link_reset_enabled: bool
+    referral_reset_enabled: bool
     bot_username: Optional[str]
     channel_url: Optional[str]
     support_telegram: Optional[str]

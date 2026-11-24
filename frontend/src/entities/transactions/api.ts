@@ -9,6 +9,8 @@ export type TransactionStatus = "PENDING" | "PAID" | "FAILED" | "CANCELED" | "RE
 export type PurchaseType = "NEW" | "RENEW" | "CHANGE";
 export type DiscountSource = "NONE" | "PERSONAL" | "PURCHASE" | "LOYALTY";
 
+export type FulfillmentHold = "PURCHASE_DISCOUNT_SPENT" | "PLAN_CHANGED";
+
 export interface TransactionUser {
   name: string;
   username: string | null;
@@ -40,11 +42,15 @@ export interface TransactionItem {
   discount_percent: number;
   discount_source: DiscountSource;
   plan_discount_percent: number;
+  /** the customer's hidden markup, already in base_price */
+  markup_percent: number;
   final_price: string;
   change_credit: string;
   customer_email: string | null;
   idempotency_key: string;
   is_test: boolean;
+  /** set: paid, left to an admin to issue or refund */
+  fulfillment_hold: FulfillmentHold | null;
   expires_at: string;
   created_at: string;
 }

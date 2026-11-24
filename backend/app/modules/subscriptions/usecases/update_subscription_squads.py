@@ -11,6 +11,7 @@ from app.core.exceptions import ValidationError
 from app.core.ports import EventPublisher
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
+from app.core.utils.time import datetime_now
 from app.modules.subscriptions.dto import SubscriptionDto, UpdateSubscriptionSquadsDto
 from app.modules.subscriptions.eligibility import get_manageable_subscription, subscription_owner
 from app.modules.subscriptions.events import SubscriptionEditedEvent
@@ -42,13 +43,16 @@ class UpdateSubscriptionSquadsUseCase(UseCase[UpdateSubscriptionSquadsDto, Subsc
                 self._subscription_repository, self._user_repository, actor, data.subscription_id
             )
 
-        await self._remnawave_sdk.users.update_user(
-            panel_update(
-                id=current.remnawave_user_id,
-                active_internal_squads=data.internal_squads or None,
-                external_squad_uuid=data.external_squad,
+        # in grace the panel runs on the grace squads: the grace end pushes the row's
+        pushed = current.grace_until is None
+        if pushed:
+            await self._remnawave_sdk.users.update_user(
+                panel_update(
+                    id=current.remnawave_user_id,
+                    active_internal_squads=data.internal_squads or None,
+                    external_squad_uuid=data.external_squad,
+                )
             )
-        )
 
         async with self._uow:
             # deleted while the panel call was in flight
@@ -61,6 +65,12 @@ class UpdateSubscriptionSquadsUseCase(UseCase[UpdateSubscriptionSquadsDto, Subsc
             else:
                 owner = None
                 subscription = await self._subscription_repository.update_squads(data)
+                if pushed != (locked.grace_until is None):
+                    # grace started or ended while the edit ran: the panel holds the wrong
+                    # squads, the edit's over grace's or the previous ones over the edit's
+                    await self._subscription_repository.mark_panel_restore_due(
+                        data.subscription_id, datetime_now()
+                    )
                 subscriber = await subscription_owner(self._user_repository, subscription)
                 await self._event_publisher.publish(
                     SubscriptionEditedEvent(
@@ -73,14 +83,16 @@ class UpdateSubscriptionSquadsUseCase(UseCase[UpdateSubscriptionSquadsDto, Subsc
         if locked.status is SubscriptionStatus.DELETED:
             restored = owner or current
             # best effort, outside the row lock: the edit lost its row, the panel user may not
-            with suppress(Exception):
-                await self._remnawave_sdk.users.update_user(
-                    panel_update(
-                        id=current.remnawave_user_id,
-                        active_internal_squads=restored.internal_squads or None,
-                        external_squad_uuid=restored.external_squad,
+            if pushed:
+                with suppress(Exception):
+                    await self._remnawave_sdk.users.update_user(
+                        panel_update(
+                            id=current.remnawave_user_id,
+                            # an empty list too: left out, the edit's squads would stay
+                            active_internal_squads=restored.internal_squads,
+                            external_squad_uuid=restored.external_squad,
+                        )
                     )
-                )
             raise ValidationError(
                 f"Subscription '{data.subscription_id}' was deleted",
                 code=ErrorCode.SUBSCRIPTION_DELETED,

@@ -10,6 +10,8 @@ class Subscriptions(StatesGroup):
     CARD = State()
     RECURRING_TERMS = State()
     DEVICES = State()
+    DEVICE = State()
+    DEVICE_RENAME = State()
     DEVICE_CONFIRM_DELETE = State()
     DEVICE_CONFIRM_DELETE_ALL = State()
     DEVICE_CONFIRM_REISSUE = State()
@@ -40,5 +42,7 @@ class Promocode(StatesGroup):
 
 class Referrals(StatesGroup):
     MAIN = State()
+    REDEEM_AMOUNT = State()
     REDEEM_TARGET = State()
     ABOUT = State()
+    CONFIRM_RESET_CODE = State()

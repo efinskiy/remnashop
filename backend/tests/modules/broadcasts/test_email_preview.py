@@ -15,6 +15,7 @@ from app.modules.broadcasts.dto import (
     PreviewBroadcastEmailDto,
     SendTestBroadcastEmailDto,
 )
+from app.modules.broadcasts.recipient_repository import BroadcastRecipientRepository
 from app.modules.broadcasts.repository import BroadcastRepository
 from app.modules.broadcasts.storage import email_image_path
 from app.modules.broadcasts.usecases import (
@@ -23,6 +24,7 @@ from app.modules.broadcasts.usecases import (
 )
 from app.modules.email import EmailDeliveryDto
 from app.modules.promocodes.repository import PromocodeRepository
+from app.modules.referrals.repository import ReferralRepository
 from app.modules.settings import GetPublicAppearanceImageUseCase
 from app.modules.settings.dto import UpdateEmailSettingsDto
 from app.modules.settings.repository import SettingsRepository
@@ -70,8 +72,10 @@ def make_test_send(
 ) -> Callable[[FakeBatchSender], SendTestBroadcastEmailUseCase]:
     return lambda sender: SendTestBroadcastEmailUseCase(
         broadcast_repository,
+        BroadcastRecipientRepository(broadcast_repository.session),
         settings_repository,
         promocode_repository,
+        ReferralRepository(promocode_repository.session),
         translation_repository,
         GetPublicAppearanceImageUseCase(settings_repository, media_config, uow),
         sender,  # type: ignore[arg-type]

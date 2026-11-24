@@ -34,6 +34,7 @@ import {
 } from "@entities/event-log/describe-entry";
 import type { UserSnapshot } from "@entities/event-log/describe-entry";
 import { EventTypeIcon } from "@entities/event-log/EventTypeIcon";
+import { DailyReportSections } from "@features/event-details/DailyReportSections";
 import { OpenUserFooter } from "@features/open-user/OpenUserFooter";
 import { copyToClipboard } from "@shared/lib/clipboard";
 import { useMeasuredHeight } from "@shared/lib/use-measured-height";
@@ -178,7 +179,7 @@ function EventDetailDialogBody({ entry }: { entry: EventLogEntry }) {
   return (
     <>
       <DialogHeader
-        glyph={<EventTypeIcon eventType={entry.event_type} className="size-4" />}
+        glyph={<EventTypeIcon entry={entry} className="size-4" />}
         title={eventTitle(entry, t)}
       />
 
@@ -213,6 +214,8 @@ function EventDetailDialogBody({ entry }: { entry: EventLogEntry }) {
                     {entry.event_type}
                   </InfoRow>
                 </DialogCard>
+
+                {entry.event_type === "DailyReportEvent" && <DailyReportSections entry={entry} />}
 
                 {!isSystemInitiated && (
                   <ParticipantSection

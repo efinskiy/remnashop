@@ -17,11 +17,12 @@ frg-menu-subscription =
             <blockquote>
             • <b>Лимит трафика</b>: { $traffic_limit }
             • <b>Лимит устройств</b>: { $device_limit }
-            • <b>Действует до</b>: { $expire_at }
+            • <b>Действует до</b>: { $expire_at_local }
             </blockquote>
         [EXPIRED]
             <blockquote>
             • Срок действия истёк.
+            { $grace }
 
             <i>{ $is_trial ->
                 [0] Ваша подписка истекла. Продлите её, чтобы продолжить пользоваться сервисом!
@@ -73,10 +74,29 @@ frg-subscription-status = { $status ->
        *[other] { $status }
     }
 frg-subscription-unlimited = Безлимит
+frg-subscription-grace = • Льготный период{ $grace_until ->
+        [none] {""}
+       *[other] {" "}до { $grace_until }
+    }
+frg-subscription-card-grace = • <b>Льготный период</b>{ $grace_until ->
+        [none] {""}
+       *[other] {" "}до { $grace_until }
+    }
 frg-subscription-traffic-limit = { $traffic_limit } ГБ
 msg-window-gone = Этот экран больше недоступен.
+msg-start-welcome = Добро пожаловать!
 msg-paysupport = Чтобы запросить возврат средств, напишите в поддержку.
-msg-menu-devices = Ваши устройства ({ $devices_current }/{ $devices_max })
+msg-menu-devices = Ваши устройства ({ $devices_max ->
+    [0] { $devices_current }
+   *[other] { $devices_current }/{ $devices_max }
+})
+msg-menu-device =
+    <b>{ $device_name }</b>
+    Модель: { $device_model }
+    Система: { $device_system }
+    Приложение: { $device_app }
+    Подключено: { $device_created_at_local }
+msg-menu-device-rename = Отправьте новое имя для «{ $device_name }» — до { $device_name_max_length } символов.
 msg-menu-devices-confirm-delete = Удалить это устройство?
 msg-menu-devices-confirm-delete-all = Удалить все устройства? Ссылка подключения сменится, все устройства потеряют доступ — каждое придётся подключать заново по новой ссылке.
 msg-menu-devices-confirm-reissue = Перевыпустить ссылку подключения? Старая ссылка перестанет работать.
@@ -130,7 +150,13 @@ btn-legal-gate =
     .accept = ✅ Принимаю
 
 btn-devices =
-    .item = { $platform_icon } { $platform } ({ $device_model }) — { $created_at }
+    .item = { $platform_icon } { $device_name } — { $created_at }
+    .rename = Переименовать
+    .rename-icon = ✏️
+    .delete = Удалить
+    .delete-icon = 🗑
+    .clear-name = Сбросить имя
+    .clear-name-icon = ↩️
     .delete-all = Удалить все устройства
     .delete-all-icon = 🗑
     .reissue = Перевыпустить ссылку
@@ -170,7 +196,8 @@ msg-subscription-card =
         [0] Безлимит
        *[other] { $device_limit }
     }
-    • <b>Действует до</b>: { $expire_at }
+    • <b>Действует до</b>: { $expire_at_local }
+    { $grace }
     </blockquote>
 
     { $auto_renew }
@@ -273,7 +300,16 @@ frg-referral-terms = { $reward_strategy ->
     }
 frg-referral-levels = Друзья ваших друзей тоже приносят награду:
 frg-referral-level = { $level } уровень — { $terms }
-msg-referrals-redeem-target = Бонусных дней: { $bonus_days }. Выберите подписку, к которой их добавить:
+msg-referrals-redeem-amount =
+    Бонусных дней: { $bonus_days }.
+
+    Отправьте, сколько дней добавить к подписке (не больше { $max_days }), или обменяйте все.
+msg-referrals-confirm-reset-code = Создать новую реферальную ссылку? Старая перестанет работать.
+msg-referrals-redeem-target = Выберите подписку, к которой добавить { $bonus_days } { $bonus_days ->
+        [one] бонусный день
+        [few] бонусных дня
+       *[other] бонусных дней
+    }:
 
 btn-referrals =
     .about = Как это работает?
@@ -286,10 +322,16 @@ btn-referrals =
     .withdraw-icon = 💎
     .redeem = Обменять бонусные дни
     .redeem-icon = 🎁
+    .redeem-all = Все ({ $days })
+    .redeem-all-icon = 🎁
     .qr = QR-код
     .qr-icon = 🧾
     .reset-code = Новая реферальная ссылка
     .reset-code-icon = 🔄
+    .confirm-reset-code = Да, создать
+    .confirm-reset-code-icon = ✅
+    .cancel-reset-code = Отмена
+    .cancel-reset-code-icon = ❌
 
 btn-back =
     .general = Назад
@@ -306,6 +348,10 @@ ntf-devices =
     .delete-cooldown = ⏳ Удалить устройство можно будет через { $wait }.
     .delete-all-cooldown = ⏳ Удалить все устройства можно будет через { $wait }.
     .reissue-cooldown = ⏳ Перевыпустить ссылку подключения можно будет через { $wait }.
+    .renamed = ✅ Имя устройства сохранено.
+    .name-cleared = ✅ Имя устройства сброшено.
+    .name-too-long = ⚠️ Имя должно быть не длиннее { $max } символов.
+    .gone = ❌ Это устройство уже отключено.
 
 ntf-access =
     .restricted = 🚧 Технические работы. Попробуйте позже.
@@ -339,6 +385,7 @@ ntf-common =
 ntf-purchase =
     .stars-rejected = Этот заказ уже нельзя оплатить. Начните покупку заново.
     .plan-unavailable = ❌ Этот тариф больше недоступен — выберите другой.
+    .renew-unavailable = ⚠️ Этот тариф больше нельзя продлить — выберите другой.
     .limit-reached = ❌ Достигнут лимит подписок.
     .method-unavailable = ❌ Этот способ оплаты сейчас недоступен.
     .discount-used = ⚠️ Скидка уже использована — проверьте новую цену.
@@ -517,9 +564,11 @@ gateway-name =
     .CISPAY = cisPay
 
 ntf-referrals =
+    .disabled = ❌ Реферальная программа сейчас не работает.
     .no-subscription = ❌ У вас нет подписки, к которой можно добавить бонусные дни.
     .days-redeemed = ✅ Бонусные дни успешно добавлены к вашей подписке.
     .redeem-failed = ❌ Бонусные дни нельзя добавить к этой подписке.
+    .invalid-days = ❌ Отправьте целое число дней от 1 до { $max_days }.
     .code-reset = ✅ Ваша реферальная ссылка обновлена. Старая больше не будет работать.
     .reset-cooldown = ⏳ Обновить реферальную ссылку можно будет через { $wait }.
 
@@ -530,6 +579,7 @@ ntf-promocode =
     .discount-not-better = ⚠️ Промокод не применён: ваша текущая скидка такая же или больше.
     .not-available = ❌ Этот промокод вам недоступен.
     .no-target-subscription = ❌ У вас нет активной подписки, к которой можно применить этот промокод.
+    .link-no-target = 🎁 Промокод { $code } добавляет дни, трафик или устройства к подписке, но подходящей подписки у вас пока нет. Введите его позже в разделе «Промокод».
     .activated = ✅ Промокод активирован!
     .activation-failed = ❌ Не удалось активировать промокод. Попробуйте позже.
     .too-many-attempts = ⏳ Слишком много попыток. Попробуйте через минуту.

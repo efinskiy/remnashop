@@ -1,8 +1,10 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
+import httpx
 import pytest
 from redis.asyncio import Redis
+from remnapy import RemnawaveSDK
 from remnapy.models.webhook import UserDto as WebhookUserDto
 from remnapy.models.webhook import WebhookPayloadDto
 from sqlalchemy import select
@@ -14,15 +16,21 @@ from app.core.db.uow import UnitOfWork
 from app.core.enums import SubscriptionStatus
 from app.core.exceptions import RetryableTaskError
 from app.core.ports import EventPublisher
+from app.modules.plans.repository import PlanRepository
+from app.modules.settings import SettingsRepository
+from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
 from app.modules.subscriptions.dto import ProcessRemnawaveWebhookDto, PublishPanelEventDto
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.usecases import (
+    EndGraceUseCase,
+    EnterGraceUseCase,
     ProcessRemnawaveWebhookUseCase,
     PublishPanelEventUseCase,
     SyncSubscriptionStatusUseCase,
 )
 from app.modules.users.repository import UserRepository
+from tests.fakes.remnawave import make_fake_remnawave_transport, unused_sdk
 from tests.fakes.remnawave_webhook import sign_webhook, user_event_payload
 from tests.modules.subscriptions.factories import create_subscription
 
@@ -45,12 +53,43 @@ def _use_case(
         subscription_repository,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
+        unused_sdk(),
+        SettingsRepository(subscription_repository.session),
     )
     publish = PublishPanelEventUseCase(
         subscription_repository, user_repository, uow, event_publisher
     )
-    return ProcessRemnawaveWebhookUseCase(sync, publish, redis)
+    session = subscription_repository.session
+    sdk = RemnawaveSDK(
+        client=httpx.AsyncClient(
+            transport=make_fake_remnawave_transport()[0], base_url="http://fake-panel.test/api"
+        )
+    )
+    enter = EnterGraceUseCase(
+        subscription_repository,
+        PlanRepository(session),
+        SettingsRepository(session),
+        user_repository,
+        SubscriptionLifecycleService(subscription_repository, CreditSegmentRepository(session)),
+        sdk,
+        uow,
+        event_publisher,
+        sync,
+    )
+    end = EndGraceUseCase(
+        subscription_repository,
+        user_repository,
+        SettingsRepository(subscription_repository.session),
+        sdk,
+        uow,
+        event_publisher,
+    )
+    return ProcessRemnawaveWebhookUseCase(
+        sync, publish, enter, end, subscription_repository, SettingsRepository(session), uow, redis
+    )
 
 
 async def _lifecycle_rows(session: AsyncSession) -> list[EventOutboxEntry]:
@@ -232,6 +271,58 @@ async def test_publish_failure_does_not_fail_the_sync(
     assert refreshed.status == SubscriptionStatus.LIMITED
 
 
+async def test_a_redelivered_webhook_publishes_its_event_once(
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    redis: Redis,
+    config: AppConfig,
+) -> None:
+    await create_subscription(
+        subscription_repository, user_repository, telegram_id=91004, remnawave_user_id=91004
+    )
+    use_case = _use_case(subscription_repository, user_repository, uow, event_publisher, redis)
+    webhook = _webhook(config, "user.limited", 91004, "LIMITED")
+
+    # the worker died after the event committed, before acking the message
+    await use_case.system(webhook)
+    await use_case.system(webhook)
+
+    assert [row.event_type for row in await _lifecycle_rows(session)] == [
+        "SubscriptionTrafficLimitedEvent"
+    ]
+
+
+async def test_a_failed_publish_is_left_for_the_next_delivery(
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    redis: Redis,
+    config: AppConfig,
+) -> None:
+    await create_subscription(
+        subscription_repository, user_repository, telegram_id=91005, remnawave_user_id=91005
+    )
+    use_case = _use_case(subscription_repository, user_repository, uow, event_publisher, redis)
+    publish = use_case._publish_panel_event_use_case
+    webhook = _webhook(config, "user.limited", 91005, "LIMITED")
+
+    class _Failing:
+        async def system(self, data: Any) -> None:
+            raise RuntimeError("publish failed")
+
+    use_case._publish_panel_event_use_case = _Failing()  # type: ignore[assignment]
+    await use_case.system(webhook)
+    use_case._publish_panel_event_use_case = publish
+    await use_case.system(webhook)
+
+    assert len(await _lifecycle_rows(session)) == 1
+
+
 def _event_at(remnawave_user_id: int, event: str, status: str, moment: datetime) -> Any:
     payload = user_event_payload(event=event, remnawave_user_id=remnawave_user_id, status=status)
     payload["timestamp"] = moment.isoformat()
@@ -281,3 +372,32 @@ async def test_a_failed_sync_is_left_to_the_task_retry(
 
     with pytest.raises(RetryableTaskError):
         await use_case.system(_webhook(config, "user.limited", 91011, "LIMITED"))
+
+
+@pytest.mark.parametrize(("status", "published"), [("ACTIVE", True), ("LIMITED", False)])
+async def test_traffic_threshold_carries_the_percent_and_skips_a_limited_user(
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    redis: Redis,
+    config: AppConfig,
+    status: str,
+    published: bool,
+) -> None:
+    await create_subscription(
+        subscription_repository, user_repository, telegram_id=91010, remnawave_user_id=91010
+    )
+    payload = user_event_payload(
+        event="user.bandwidth_usage_threshold_reached", remnawave_user_id=91010, status=status
+    )
+    payload["data"]["lastTriggeredThreshold"] = 80
+    body, _ = sign_webhook(payload, config.remnawave.webhook_secret.get_secret_value())  # type: ignore[union-attr]
+    use_case = _use_case(subscription_repository, user_repository, uow, event_publisher, redis)
+
+    await use_case.system(ProcessRemnawaveWebhookDto(body=body.decode()))
+
+    rows = await _lifecycle_rows(session)
+    # a limited user already hears "traffic used up"
+    assert [row.payload["percent"] for row in rows] == ([80] if published else [])

@@ -21,6 +21,7 @@ from app.core.db.models.bot_translation import BotTranslation
 from app.core.db.models.broadcast import Broadcast, BroadcastEmailImage, BroadcastRecipient
 from app.core.db.models.cabinet_auth_settings import CabinetAuthSettings
 from app.core.db.models.connect_guide_settings import ConnectGuideSettings
+from app.core.db.models.credit_segment import CreditSegment
 from app.core.db.models.currency_rate import CurrencyRate
 from app.core.db.models.customer_notification import CustomerNotification
 from app.core.db.models.dialog_button import DialogButton
@@ -29,6 +30,7 @@ from app.core.db.models.email_settings import EmailSettings
 from app.core.db.models.emoji_pack import EmojiPack, EmojiPackItem
 from app.core.db.models.event_log import EventLogEntry
 from app.core.db.models.event_outbox import EventOutboxEntry
+from app.core.db.models.grace_settings import GraceSettings
 from app.core.db.models.legal_document import (
     LegalAcceptance,
     LegalDocument,
@@ -55,6 +57,7 @@ from app.core.db.models.referral_reward import ReferralReward
 from app.core.db.models.referral_settings import ReferralSettings
 from app.core.db.models.shop_settings import ShopSettings
 from app.core.db.models.subscription import Subscription
+from app.core.db.models.subscription_device_name import SubscriptionDeviceName
 from app.core.db.models.subscription_purchase_idempotency import SubscriptionPurchaseIdempotency
 from app.core.db.models.transaction import Transaction
 from app.core.db.models.user import User
@@ -88,6 +91,7 @@ __all__ = [
     "BroadcastRecipient",
     "CabinetAuthSettings",
     "ConnectGuideSettings",
+    "CreditSegment",
     "CurrencyRate",
     "CustomerNotification",
     "DialogButton",
@@ -97,6 +101,7 @@ __all__ = [
     "EmojiPackItem",
     "EventLogEntry",
     "EventOutboxEntry",
+    "GraceSettings",
     "LegalAcceptance",
     "LegalDocument",
     "LegalDocumentRevision",
@@ -122,6 +127,7 @@ __all__ = [
     "ReferralSettings",
     "ShopSettings",
     "Subscription",
+    "SubscriptionDeviceName",
     "SubscriptionPurchaseIdempotency",
     "Transaction",
     "User",

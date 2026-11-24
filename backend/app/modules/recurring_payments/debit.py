@@ -124,14 +124,15 @@ class RecurringDebit:
                 return None
             terms = await self._recurring.consent_terms(mandate.consent_id)
             gateway = await self._poller.gateway()
-            if mandate.shop_id != gateway.settings.shop_id:
-                await self._lifecycle.pause(
-                    subscription_id,
-                    RecurringReason.PENDING_TIMEOUT
-                    if order.external_payment_id and pending_expired(mandate, order, terms)
-                    else RecurringReason.SHOP_CHANGED,
-                )
-                await self._lifecycle.cancel_unsent(subscription_id, order.id)
+            if not gateway.takes_payments_into(mandate.shop_id):
+                if order.external_payment_id and pending_expired(mandate, order, terms):
+                    # outcome unknown: ends the attempt, so the customer may pay by hand
+                    await self._lifecycle.retire_pending(
+                        subscription_id, order.id, force_unknown=True
+                    )
+                else:
+                    await self._lifecycle.pause(subscription_id, RecurringReason.SHOP_CHANGED)
+                    await self._lifecycle.cancel_unsent(subscription_id, order.id)
                 return None
             await self._checks.defer(subscription_id)
             if order.external_payment_id is None and order.status is TransactionStatus.PENDING:
@@ -171,7 +172,7 @@ class RecurringDebit:
         if terms is None:
             return None
         gateway = await self._poller.gateway()
-        if mandate.shop_id != gateway.settings.shop_id:
+        if not gateway.takes_payments_into(mandate.shop_id):
             await self._lifecycle.pause(subscription_id, RecurringReason.SHOP_CHANGED)
             await self._lifecycle.cancel_unsent(subscription_id, order.id)
             return None

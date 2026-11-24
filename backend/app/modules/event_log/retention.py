@@ -23,6 +23,7 @@ SHORT_RETENTION_EVENT_TYPES: Final[frozenset[str]] = frozenset(
         "SubscriptionExpiredEvent",
         "SubscriptionExpiringEvent",
         "SubscriptionFirstConnectedEvent",
+        "SubscriptionGraceStartedEvent",
         "SubscriptionNotConnectedEvent",
         "SubscriptionStatusSyncedEvent",
         "SubscriptionTrafficLimitedEvent",
@@ -33,6 +34,7 @@ SHORT_RETENTION_EVENT_TYPES: Final[frozenset[str]] = frozenset(
         "CabinetSignedInEvent",
         # infrastructure
         "BackupCompletedEvent",
+        "DailyReportEvent",
         "BackupFailedEvent",
         "BotStartedEvent",
         "BotStoppedEvent",

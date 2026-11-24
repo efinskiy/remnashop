@@ -51,6 +51,8 @@ class CatalogButton:
     url_value: Optional[str] = None
     visibility_condition: Optional[str] = None
     style: Optional[ButtonStyleKind] = None
+    # hiding it would strand the customer in the window or cut off a core flow
+    required: bool = False
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -185,6 +187,12 @@ def text_variable_keys() -> frozenset[str]:
     return frozenset(key for key in _VARIABLES if _FLUENT_IDENTIFIER_RE.match(key))
 
 
+def allowed_text_variables(window_key: Optional[str]) -> frozenset[str]:
+    keys = text_variable_keys()
+    window = _WINDOWS.get(window_key) if window_key else None
+    return keys | frozenset(window.text_variables) if window is not None else keys
+
+
 def text_keys() -> frozenset[str]:
     # Custom windows aren't in the in-process catalog: callers add a prefix check on top.
     keys: set[str] = set()
@@ -244,6 +252,7 @@ def window_snapshot(key: str) -> dict:
                 "visibility_condition": b.visibility_condition,
                 "style": b.style.value if b.style else None,
                 "is_hidden": False,
+                "required": b.required,
             }
             for b in window.buttons
         ],

@@ -77,7 +77,7 @@
     "signIn": "Sign in",
     "passwordChange": {
       "title": "Set a new password",
-      "description": "You signed in with a temporary password. Choose your own to continue",
+      "description": "You signed in with a temporary password. Choose your own to continue.",
       "currentPasswordLabel": "Temporary password",
       "submit": "Change password",
       "done": "Password changed. Sign in with the new one."
@@ -171,7 +171,7 @@
         "sub": "The panel does not respond or the reply is not recognized",
         "what": "The node list could not be retrieved from the Remnawave panel: the panel did not respond or returned a response in an unknown format.",
         "why": "While the panel is unavailable, subscriptions are not issued or renewed, and sync and device management do not work. A changed response format may break individual features.",
-        "fix": "Check that the panel is reachable and that the URL and token in the settings are correct. If the panel was updated recently, make sure this shop version supports it. Details are in the api logs."
+        "fix": "Check that the panel is reachable and that the REMNAWAVE_* variables in .env are correct. If the panel was updated recently, make sure this shop version supports it. Details are in the api logs."
       },
       "nodeOffline": {
         "title": "Connection to node “{{node}}” lost",
@@ -207,7 +207,7 @@
         "title": "Backups are not being created on schedule",
         "sub": "Last successful backup: {{since}}",
         "never": "No backups since it was enabled",
-        "what": "Automatic backups are enabled, but there has been no successful backup for longer than the set interval.",
+        "what": "Automatic backups are enabled, but there has been no successful database backup for longer than the schedule interval plus a small margin.",
         "why": "Without a current backup, data since the last successful backup cannot be restored after a server or database failure.",
         "fix": "Check that the worker and scheduler are running; they create backups. Then start a backup manually and make sure it succeeds."
       },
@@ -231,7 +231,7 @@
         "sub_other": "{{formatted}} orders waiting for delivery over 10 minutes",
         "what": "The payment was received, but the subscription has not been issued within 10 minutes.",
         "why": "The customer paid but has no access. This leads to support requests and refunds.",
-        "fix": "The shop retries delivery automatically. If the item persists, check the panel connection and the worker, then fulfill the order manually in transactions."
+        "fix": "The shop retries delivery automatically. If the item persists, check the panel connection and the worker, then fulfill the order manually in transactions. Two kinds of orders wait for you: one paid after its cancel whose one-shot discount was already used again, and a renewal of a subscription whose plan has changed since (fulfilling renews the new plan). Fulfill the order or refund it."
       },
       "stalePending": {
         "title": "Payments awaiting confirmation",
@@ -254,7 +254,7 @@
         "sub_one": "{{formatted}} subscription in the next 7 days",
         "sub_other": "{{formatted}} subscriptions in the next 7 days",
         "urgent": "{{base}}, {{urgent}} of them within the next day",
-        "what": "Paid subscriptions that expire in the next 7 days.",
+        "what": "Some paid subscriptions expire within the next day. The count covers every paid subscription expiring in the next 7 days.",
         "why": "Without a reminder, some customers will not renew. This revenue can still be retained.",
         "fix": "Review retention and, if needed, send a broadcast with a reminder or a renewal promo code."
       },
@@ -271,7 +271,15 @@
         "error": "Telegram: {{error}}",
         "what": "Telegram reports an error delivering updates to the bot, or the webhook is not set.",
         "why": "The bot does not receive messages or button presses, and customers cannot use it.",
-        "fix": "Check the webhook URL in the bot settings and that the server is reachable from the internet over HTTPS. Restarting the bot usually helps."
+        "fix": "Check that the server is reachable from the internet over HTTPS on the APP_DOMAIN domain: the webhook URL is built from it. Restarting the bot usually helps."
+      },
+      "panelUsersMissing": {
+        "title": "Subscriptions without a panel user",
+        "sub_one": "{{formatted}} subscription was missing in the panel at the last sync",
+        "sub_other": "{{formatted}} subscriptions were missing in the panel at the last sync",
+        "what": "The last sync from the panel found subscriptions whose user no longer exists in Remnawave.",
+        "why": "These customers have no access. A panel restored from an old backup loses users the shop still sells to; the sync no longer deletes such subscriptions on its own.",
+        "fix": "Run the sync to the panel with “Recreate missing panel users” to give them access back, or delete the subscriptions that really ended. The item clears after the next sync from the panel."
       },
       "planSquadsMissing": {
         "title": "Plan “{{name}}” is off sale",
@@ -304,7 +312,8 @@
         "email": "Go to email settings",
         "apiTokens": "Go to API tokens",
         "plans": "Go to plans",
-        "pricing": "Go to pricing"
+        "pricing": "Go to pricing",
+        "subscriptions": "Go to subscriptions"
       }
     },
     "revenue": {
@@ -737,7 +746,24 @@
       },
       "id": "ID",
       "eventCode": "Event code",
-      "json": "JSON"
+      "json": "JSON",
+      "report": {
+        "day": "For the day",
+        "newUsers": "New users",
+        "newTrials": "New trials",
+        "trialConversions": "Trial → paid",
+        "newPayers": "New payers",
+        "revenue": "Revenue",
+        "subscriptions": "Subscriptions now",
+        "activeTrials": "Active trials",
+        "activePaid": "Active paid",
+        "paidNeverConnected": "Paid, never connected",
+        "payments": "Payments",
+        "purchases": "Purchases",
+        "renewals": "Renewals",
+        "changes": "Plan changes",
+        "referrers": "Top referrers"
+      }
     },
     "events": {
       "LoginSucceededEvent": "Dashboard sign-in",
@@ -805,8 +831,10 @@
       "UserPointsAdjustedEvent": "Points adjusted",
       "UserBonusDaysAdjustedEvent": "Bonus days adjusted",
       "UserPersonalDiscountChangedEvent": "Personal discount changed",
+      "UserMarkupChangedEvent": "Markup changed",
       "UserPurchaseDiscountChangedEvent": "Purchase discount changed",
       "UserUnblockedEvent": "User unblocked",
+      "UserBotMenuResetEvent": "Customer’s bot menu reset",
       "UserEmailUndeliverableClearedEvent": "Undeliverable email mark cleared",
       "UserTrialAvailabilityChangedEvent": "Trial availability changed",
       "UsersBulkUnblockedEvent": "Users bulk unblocked",
@@ -836,6 +864,7 @@
       "SubscriptionGrantedEvent": "Subscription granted",
       "SubscriptionExpiringEvent": "Subscription expiring",
       "SubscriptionExpiredEvent": "Subscription expired",
+      "SubscriptionGraceStartedEvent": "Grace period started",
       "SubscriptionTrafficLimitedEvent": "Traffic limit reached",
       "SubscriptionTrafficThresholdEvent": "Traffic threshold reached",
       "SubscriptionPlanChangedByAdminEvent": "Subscription plan changed by admin",
@@ -858,6 +887,7 @@
       "UserLoyaltyExclusionChangedEvent": "Loyalty program participation changed",
       "AccessSettingsChangedEvent": "Access settings changed",
       "BotRequirementsChangedEvent": "Bot requirements changed",
+      "GraceSettingsChangedEvent": "Grace period settings changed",
       "ShopSettingsChangedEvent": "Shop settings changed",
       "EmailSettingsChangedEvent": "Email settings changed",
       "CabinetAuthSettingsChangedEvent": "Cabinet sign-in settings changed",
@@ -895,6 +925,7 @@
       "PasskeyRenamedEvent": "Passkey renamed",
       "AdLinkAttributedEvent": "Ad link visit",
       "BackupCompletedEvent": "Backup completed",
+      "DailyReportEvent": "Daily report",
       "ConnectGuideChangedEvent": "Connect guide changed",
       "RecurringPaymentUpcomingEvent": "Upcoming recurring payment",
       "RecurringPaymentFailedEvent": "Recurring payment failed",
@@ -903,6 +934,7 @@
       "RecurringPaymentManagedEvent": "Recurring payment managed"
     },
     "eventVariants": {
+      "trialActivated": "Trial activated",
       "CabinetUserRegisteredEvent": {
         "EMAIL": "Cabinet sign-up (Email)",
         "GOOGLE": "Cabinet sign-up (Google)",
@@ -948,7 +980,8 @@
         "retry": "Broadcast retried",
         "set_media": "Broadcast media changed",
         "delete_media": "Broadcast media removed",
-        "add_email_image": "Email image added"
+        "add_email_image": "Email image added",
+        "duplicate": "Broadcast copied"
       },
       "ConnectGuideChangedEvent": {
         "update": "Connect guide changed",
@@ -1089,7 +1122,7 @@
       "button": "Demote to user",
       "title": "Demote admin?",
       "confirm": "The admin will become a regular user, and their login, password and permissions will be removed.",
-      "noSignIn": "They have no Telegram, email, or Google or Yandex sign-in, so they won't be able to sign in afterwards. If the account is no longer needed, delete it instead.",
+      "noSignIn": "They have no Telegram, email, or Google or Yandex sign-in, so they won’t be able to sign in afterwards. If the account is no longer needed, delete it instead.",
       "error": "Failed to demote admin."
     },
     "delete": {
@@ -1179,6 +1212,7 @@
       "points": "Points balance",
       "bonusDays": "Bonus days",
       "personalDiscount": "Personal discount",
+      "markup": "Markup",
       "purchaseDiscount": "Next purchase discount",
       "trialAvailable": "Trial access",
       "trialYes": "Available",
@@ -1242,6 +1276,8 @@
         "pointsError": "Failed to adjust points.",
         "bonusDaysError": "Failed to adjust bonus days.",
         "discountError": "Failed to change the discount.",
+        "markupError": "Failed to change the markup.",
+        "markupHint": "Hidden from the customer: plan prices already include it, before any discount.",
         "pointsHint": "Enter a number or an expression: +50; −10; 100−50.",
         "bonusDaysHint": "Enter a number or an expression: +7; −1; 30−7.",
         "discountHint": "Enter a number or an expression: +5; −5; 100−50."
@@ -1313,6 +1349,7 @@
         "language": "Language",
         "personal_discount": "Personal discount",
         "purchase_discount": "One-time discount",
+        "markup": "Markup",
         "referred_by": "Invited by",
         "oauth": "{{provider}} login"
       },
@@ -1361,6 +1398,10 @@
     },
     "botBlocked": {
       "badge": "Bot blocked"
+    },
+    "botMenu": {
+      "action": "Reset the bot menu",
+      "done": "The main menu was sent to the customer."
     },
     "emailUndeliverable": {
       "badge": "Undeliverable",
@@ -1418,6 +1459,7 @@
       "general": "General",
       "bot": "Telegram bot",
       "cabinet": "Web cabinet",
+      "translations": "Languages & texts",
       "apiTokens": "API tokens",
       "appearance": "Appearance",
       "gateways": "Payment gateways",
@@ -1441,7 +1483,9 @@
       "errorInvalidToken": "Invalid bot token format.",
       "dropPendingUpdatesLabel": "Drop pending updates when setting the webhook",
       "dropPendingUpdatesHint": "Discards any updates Telegram queued up before the webhook was set, instead of delivering that backlog once it goes live.",
-      "applyChangesDescription": "Restarts the telegram process so it picks up the saved token and proxy. Has no effect if the process isn’t currently running.",
+      "removeReplyKeyboardLabel": "Remove a previous bot’s keyboard on /start",
+      "removeReplyKeyboardHint": "On every /start the bot sends a welcome message that hides the button keyboard a bot previously running on this token left under the input field. The message stays in the chat: deleting it brings the old keyboard back. Text: msg-start-welcome key. Takes effect after a bot restart.",
+      "applyChangesDescription": "Restarts the bot process so it picks up the saved token and proxy. Has no effect if the process isn’t currently running.",
       "restartBot": "Restart",
       "restartRequested": "Restart requested. The bot process will come back up with the saved settings shortly.",
       "showLogs": "View logs",
@@ -1534,17 +1578,18 @@
           "Select your bot and open Login Widget",
           "If a domain is already set in the URL field, remove it",
           "Press Switch to OpenID Connect Login. If that button isn’t there, go back a menu after removing the domain and repeat step 3",
-          "Press Add a Redirect URI and Add a Trusted Origin and enter the values below:"
+          "Press Add a Redirect URI and Add a Trusted Origin and enter the values below, replacing YOUR_REMNASHOP_DOMAIN with the dashboard’s domain:"
         ],
         "trustedOriginsLabel": "Trusted Origins",
-        "trustedOriginsValue": "https://remnashop.domain.com",
+        "trustedOriginsValue": "https://YOUR_REMNASHOP_DOMAIN",
         "redirectUrisLabel": "Redirect URIs",
-        "redirectUrisValue": "https://remnashop.domain.com/oauth2/callback/telegram",
+        "redirectUrisValue": "https://YOUR_REMNASHOP_DOMAIN/oauth2/callback/telegram",
         "accessSetupTitle": "Setting up access",
-        "accessSetupIntro": "After filling in the Client ID and Client secret, you need to list the admin IDs allowed to sign in.",
+        "accessSetupIntro": "Only a staff member whose account has Telegram linked can sign in with Telegram.",
         "accessSetupSteps": [
-          "From the account you want to grant access, message @Get_myidrobot",
-          "The bot replies with your ID — enter it into the corresponding field"
+          "A staff member links their Telegram in the profile: “Sign-in methods” → Telegram → “Connect”",
+          "An admin promoted from a bot customer already has Telegram linked",
+          "The owner can enter their own Telegram ID by hand: “Admins” → their own card → “Bind Telegram”. @Get_myidrobot replies with the ID"
         ],
         "knownIssuesTitle": "Troubleshooting known issues",
         "knownIssuesIntro": "Protections layered in front of the dashboard (cookie policies and similar) can misbehave with Telegram OAuth2.",
@@ -1557,11 +1602,10 @@
       "githubGuide": {
         "title": "OAuth2: GitHub",
         "createAppTitle": "Creating an OAuth app",
-        "createAppIntro": "First, create an OAuth app. Follow this link to create one:",
-        "callbackIntro": "Under Authorization callback URL, enter your dashboard’s address.",
+        "createAppIntro": "Create an OAuth app via this link:",
+        "callbackIntro": "Under Authorization callback URL, enter the address below.",
         "callbackCommentLabel": "Replace YOUR_REMNASHOP_DOMAIN with your dashboard’s address",
         "callbackUrlValue": "https://YOUR_REMNASHOP_DOMAIN/oauth2/callback/github",
-        "callbackNote": "Don’t forget to replace YOUR_REMNASHOP_DOMAIN with your dashboard’s actual address.",
         "settingsTitle": "OAuth2 settings in Remnashop",
         "settingsBody": "Once the OAuth app is created, copy the Client ID and Client secret. Paste them into the corresponding fields."
       },
@@ -1572,7 +1616,6 @@
         "callbackIntro": "When creating the app with your OIDC provider, set the Redirect URI below.",
         "callbackCommentLabel": "Replace YOUR_REMNASHOP_DOMAIN with your dashboard’s domain",
         "callbackUrlValue": "https://YOUR_REMNASHOP_DOMAIN/oauth2/callback/oidc",
-        "callbackNote": "Don’t forget to replace YOUR_REMNASHOP_DOMAIN with your actual dashboard domain.",
         "settingsTitle": "OIDC settings in Remnashop",
         "settingsBody": "Enter your provider’s Issuer URL along with the Client ID and Client secret you received. The display name is used as the label on the login button."
       },
@@ -1587,13 +1630,31 @@
       "redirectHint": "Redirect URI: your cabinet address followed by {{path}}",
       "issuerUrlInvalid": "The issuer URL must start with https://."
     },
+    "grace": {
+      "title": "Grace period",
+      "description": "Temporary access for a customer whose subscription has just ended",
+      "enabledLabel": "Enable the grace period",
+      "enabledHint": "When a subscription ends, the customer keeps access with the limits below instead of losing it at once.",
+      "trafficLabel": "Traffic limit",
+      "unit": {
+        "MB": "MB",
+        "GB": "GB"
+      },
+      "durationLabel": "Duration, days",
+      "internalSquadsHint": "Leave empty to keep the subscription’s own squads.",
+      "externalSquadHint": "“None” keeps the subscription’s own external squad.",
+      "tagHint": "Leave empty to keep the subscription’s tag. Capital Latin letters, digits and “_”.",
+      "durationUnlimited": "No end"
+    },
     "shop": {
       "title": "Subscriptions and limits",
       "description": "Subscription limit, plan change credit and reset cooldowns",
       "maxActiveSubscriptionsLabel": "Subscription limit per user",
       "maxActiveSubscriptionsHint": "How many subscriptions besides a trial one customer may have at once. Every one but deleted ones counts — expired ones too (they’re renewed, not bought again), and unpaid orders for a new subscription.\n\nOnly new subscriptions are limited, bought or granted by a promocode: renewing and changing the plan always work, and an admin may grant one past the limit. Empty means unlimited.",
       "planChangeCreditLabel": "Credit the remainder on a plan change",
-      "planChangeCreditHint": "On: the unused part of the current plan is converted into days at the new plan’s price and added to its term. Example: 3 of 12 months used on a 1,200 plan — about 900 carries over, so a 3,000 yearly plan comes with about 3.5 extra months. On a plan with traffic that never resets, the credit is capped by the share of traffic left. Moving from one unlimited plan to another takes what was paid off the price instead. A trial, and a move between an unlimited and a fixed-term plan, carry nothing.\n\nOff: nothing is credited — the new plan costs what it always does, its term is exactly the plan’s, and what’s left of the current one is lost.",
+      "planChangeCreditHint": "On: the unused part of the current plan is converted into days at the new plan’s price and added to its term. Each day left is worth what was paid for it: a full-price month and a discounted year each count at their own price. Days an admin or the panel added on top of what was paid are free and carry nothing. Example: 3 of 12 months used on a 1,200 plan — about 900 carries over, so a 3,000 yearly plan comes with about 3.5 extra months. Moving from one unlimited plan to another takes what was paid off the price instead. A trial, and a move between an unlimited and a fixed-term plan, carry nothing. Traffic used is weighed by a separate setting below.\n\nOff: nothing is credited — the new plan costs what it always does, its term is exactly the plan’s, and what’s left of the current one is lost.",
+      "planChangeTrafficCapLabel": "Cap the credit by traffic used",
+      "planChangeTrafficCapHint": "On a plan with traffic that never resets: when a customer used traffic faster than time went by, the credit shrinks in the same proportion. It runs from the last payment to the expiry: a payment zeroes the counter for all the time left at once, terms paid ahead included. What was used ahead before a payment isn’t forgotten: a renewal bought only to zero the counter carries just its own money. Example: a third of the time since the last payment has passed and 95% of the traffic is gone — about 7.5% of the remainder is credited. A customer using traffic no faster than time loses nothing. Plans whose traffic resets daily, weekly or monthly aren’t affected.\n\nOff: the remainder is credited by days, however much traffic was used.",
       "unlimitedPlaceholder": "Unlimited",
       "deviceSingleResetLabel": "Single device reset",
       "deviceSingleResetHint": "The customer can remove one device from their subscription in the bot and the cabinet to make room for a new one.\n\nHours are the cooldown before the next removal, per subscription. 0 means no wait. Off: the customer has no such button.",
@@ -1621,10 +1682,12 @@
       "webhookLabel": "Webhook URL",
       "toggleError": "Failed to update gateway status.",
       "testPayment": "Test payment",
+      "testPaymentTelegram": "Test payment (Telegram)",
+      "testPaymentCabinet": "Test payment (Web cabinet)",
       "testPaymentCreating": "Creating…",
       "testPaymentPaid": "Test payment received.",
       "testPaymentStatus": {
-        "PENDING": "Waiting for the test payment… It will not grant a subscription or count in statistics.",
+        "PENDING": "Waiting for the test payment…",
         "PAID": "Test payment received — the gateway works.",
         "FAILED": "The test payment failed.",
         "CANCELED": "The test payment was not paid and was canceled.",
@@ -1650,11 +1713,37 @@
         "telegramHint": "The bot and the cabinet opened as a Mini App.",
         "cabinet": "Web cabinet",
         "cabinetHint": "The cabinet opened in a browser.",
-        "warning": "Telegram allows only Stars for digital goods in bots and Mini Apps and may block a bot that takes other payments."
+        "warning": "Telegram allows only Stars for digital goods in bots and Mini Apps and may block a bot that takes other payments.",
+        "sharedShopWarning": "Both channels pay into one shop. YooKassa’s security team may block a shop that takes payments from several platforms: turn on a separate shop for the web cabinet or payment through paygate."
+      },
+      "paygateGuide": {
+        "title": "paygate setup",
+        "intro": "paygate is a relay through which every channel pays into the aggregator’s one shop. The YooKassa key lives only on the relay: remnashop signs its requests to it, and the relay forwards the shop’s notifications to us with its own signature.",
+        "relayTitle": "On the paygate server (.env.prod)",
+        "relaySteps": [
+          "YOOKASSA_SHOP_ID and YOOKASSA_SECRET_KEY — the aggregator’s shop.",
+          "INGRESS_SECRET and FORWARD_SECRET — two different random secrets. Enter the same values in the fields below.",
+          "INGRESS_ALLOWED_IPS — the public IP of the remnashop server.",
+          "PUBLIC_URL — the paygate address, https:// only.",
+          "FORWARD_URL and ALLOWED_RETURN_ORIGINS — the values below."
+        ],
+        "originsTip": "Add the web cabinet’s address to ALLOWED_RETURN_ORIGINS. paygate won’t create a payment returning anywhere not listed.",
+        "yookassaTitle": "In the YooKassa account",
+        "yookassaBody": "Point the webhook at paygate: PUBLIC_URL + WEBHOOK_PATH. Events: payment.succeeded, payment.canceled, refund.succeeded.",
+        "dashboardTitle": "In the dashboard",
+        "dashboardSteps": [
+          "“paygate URL” — the PUBLIC_URL value.",
+          "Both secrets — the same as INGRESS_SECRET and FORWARD_SECRET on paygate.",
+          "“Verify webhook IP” can stay on: a notification signed by paygate skips the IP check."
+        ],
+        "returnTitle": "Return after payment",
+        "returnBody": "With RETURN_MODE=buttons the buyer sees the aggregator’s page with buttons. For the cabinet to show the payment result itself, add its address to RETURN_DIRECT_ORIGINS."
       },
       "flagHints": {
         "require_paid_purchase": "Customers see this payment method only after paying another way at least once. With no other method in Telegram, new customers can’t pay in the bot or the Mini App.",
         "verify_ip": "Accept notifications only from YooKassa addresses. If a proxy in front of the server (e.g. Cloudflare) hides the real IP, set up real IP forwarding (realip) in the reverse proxy; turn off only if that isn’t possible.",
+        "cabinet_shop_enabled": "Web cabinet payments go to their own shop; the bot and the Mini App keep the main one. Each order is checked in the shop it was paid into, so keep a shop’s ID and key here while its orders can still be refunded.",
+        "relay_enabled": "Every channel pays through one paygate relay, which holds its shop’s key; the shop fields aren’t used for new payments. Set paygate’s FORWARD_URL to the webhook URL above: its notifications are checked by signature instead of the YooKassa IP.",
         "payment_mode": "Single payments do not enable auto-renewal. Recurring only requires separate customer consent before payment. Single + recurring lets customers choose whether to enable auto-renewal. Enable recurring payments for the shop in YooKassa first."
       },
       "title": "Payment gateways",
@@ -1714,6 +1803,13 @@
         "verify_ip": "Verify webhook IP",
         "wallet_id": "Wallet ID",
         "webhook_secret": "Webhook secret",
+        "cabinet_shop_enabled": "Separate shop for the web cabinet",
+        "cabinet_shop_id": "Shop ID (Web cabinet)",
+        "cabinet_api_key": "API key (Web cabinet)",
+        "relay_enabled": "Pay through paygate",
+        "relay_url": "paygate URL",
+        "relay_ingress_secret": "Request signing secret (INGRESS_SECRET)",
+        "relay_forward_secret": "Notification signing secret (FORWARD_SECRET)",
         "payment_mode": "Payment mode",
         "recurring_lead_minutes": "Charge before expiry",
         "recurring_retry_minutes": "Retry after a provider error",
@@ -1750,6 +1846,12 @@
       "confirmTitle": "Regenerate keys?",
       "confirm": "Push subscriptions will be deleted for everyone, both admins and customers. This can’t be undone. Until someone turns push back on on their device, they won’t get push notifications there. Emails and Telegram messages keep arriving as usual.",
       "generated": "Keys generated."
+    },
+    "dailyReport": {
+      "title": "Daily report",
+      "description": "Sent to admins who turned on “Reports” in their profile",
+      "timezone": "Time zone",
+      "hour": "Send at"
     },
     "access": {
       "title": "Service availability",
@@ -1826,6 +1928,8 @@
       "title": "Cabinet sign-in",
       "description": "Manage web cabinet sign-in methods for customers",
       "restrictDomains": "Only allowed email domains",
+      "requireEmail": "Require an email after Telegram sign-in",
+      "requireEmailHint": "Customers without an email can’t use the cabinet until they confirm one.",
       "allowedDomains": "Allowed domains",
       "allowedDomainsHint": "New email sign-ups only from these domains. Existing customers sign in with any address.",
       "telegramMiniAppHint": "The cabinet inside Telegram, signs in automatically",
@@ -2146,6 +2250,10 @@
           "title": "Broadcasts",
           "description": "Sent and stopped by an error"
         },
+        "reports": {
+          "title": "Reports",
+          "description": "The daily shop report"
+        },
         "money": {
           "title": "Transactions",
           "description": "Purchases, renewals, plan changes, refunds, manual issues and unissued orders"
@@ -2223,6 +2331,8 @@
     "BOT_PROXY_SET": "Set bot proxy",
     "BOT_PROXY_REMOVE": "Remove bot proxy",
     "SHOP_SETTINGS_VIEW": "View shop settings",
+    "GRACE_SETTINGS_VIEW": "View grace period settings",
+    "GRACE_SETTINGS_MANAGE": "Edit grace period settings",
     "SHOP_SETTINGS_MANAGE": "Edit shop settings",
     "OAUTH_SETTINGS_VIEW": "View OAuth settings",
     "OAUTH_SETTINGS_MANAGE": "Edit OAuth settings",
@@ -2266,6 +2376,7 @@
     "USERS_TELEGRAM_BIND": "Link a Telegram ID",
     "USERS_TELEGRAM_UNBIND": "Unlink a Telegram ID",
     "USERS_DISCOUNT_MANAGE": "Edit user discounts",
+    "USERS_MARKUP_MANAGE": "Edit user markups",
     "STAFF_SELF_MANAGE": "Change own subscriptions and balance",
     "USER_SESSIONS_VIEW": "View user sessions",
     "USER_SESSIONS_REVOKE": "Revoke user sessions",
@@ -2345,6 +2456,7 @@
     "BROADCASTS_VIEW": "View broadcasts",
     "BROADCASTS_DETAIL_VIEW": "View broadcast details",
     "BROADCASTS_CREATE": "Create broadcasts",
+    "BROADCASTS_DUPLICATE": "Copy broadcasts",
     "BROADCASTS_UPDATE": "Edit broadcasts",
     "BROADCASTS_DELETE": "Delete broadcasts",
     "BROADCASTS_SEND": "Send broadcasts",
@@ -2404,6 +2516,7 @@
     "BLACKLIST_SYNC": "Sync blacklist sources",
     "BLACKLIST_MATCHES_VIEW": "View users matched by the blacklist",
     "USERS_BLOCK": "Block users",
+    "USERS_BOT_MENU_RESET": "Reset a customer’s bot menu",
     "USERS_EMAIL_UNDELIVERABLE_CLEAR": "Clear the undeliverable email mark",
     "USERS_TRIAL_MANAGE": "Allow or revoke the trial",
     "USERS_UNBLOCK": "Unblock users",
@@ -2503,6 +2616,7 @@
     "dialogs": "Bot windows",
     "emojiPacks": "Emoji packs",
     "loyalty": "Loyalty",
+    "grace": "Grace period",
     "notificationSettings": "Push notifications",
     "accessSettings": "Access",
     "cabinetAuthSettings": "Cabinet sign-in",
@@ -2808,6 +2922,12 @@
     }
   },
   "advertising": {
+    "promocode": {
+      "label": "Promocode",
+      "hint": "Applied on its own when a customer opens the link: new or already registered. A reusable promocode waits for the customer to confirm it",
+      "none": "No promocode",
+      "unavailable": "Promocode #{{id}} (inactive)"
+    },
     "title": "Advertising links",
     "empty": "No advertising links",
     "noMatches": "Nothing found",
@@ -2852,6 +2972,7 @@
     "stats": {
       "attributions": "Sign-ups",
       "paidCount": "Purchases",
+      "trialCount": "paid trials",
       "conversionRate": "Conversion",
       "revenue": "Revenue",
       "cost": "Cost",
@@ -2937,6 +3058,14 @@
       "support_url": "Support link",
       "devices_current": "Devices connected",
       "devices_max": "Device limit",
+      "device_name": "Device name or model",
+      "device_model": "Device model",
+      "device_system": "Device system",
+      "device_app": "Client app and its version",
+      "device_created_at": "Device connection date",
+      "device_created_at_local": "Device connection date (customer’s time zone)",
+      "device_created_at_unix": "Device connection date, Unix time",
+      "device_name_max_length": "Longest allowed name",
       "name": "Name",
       "username": "Username",
       "points": "Points",
@@ -2953,16 +3082,23 @@
       "subscription_traffic_limit": "Traffic limit",
       "subscription_device_limit": "Device limit",
       "subscription_expire_at": "Subscription expires",
+      "subscription_expire_at_local": "Subscription expires (customer’s time zone)",
+      "subscription_expire_at_unix": "Subscription expiry, Unix time (empty if unlimited)",
+      "subscription_is_unlimited": "Subscription is unlimited (1/0)",
       "subscription_block": "Subscription block",
       "referral_url": "Referral link",
       "plan_name": "Plan",
       "status": "Status",
       "expire_at": "Expires",
+      "expire_at_local": "Expires (customer’s time zone)",
+      "expire_at_unix": "Expiry, Unix time (empty if unlimited)",
+      "is_unlimited": "Unlimited (1/0)",
       "traffic_limit": "Traffic limit",
       "device_limit": "Device limit",
       "referrals_level_1": "Level 1 referrals",
       "referrals_level_2": "Level 2 referrals",
-      "promocode": "Promocode"
+      "promocode": "Promocode",
+      "referral_link": "Referral link"
     },
     "variableCategories": {
       "user": "User",
@@ -2999,9 +3135,11 @@
         "command": "Commands",
         "inline": "Invite",
         "ntf-customer": "To customers",
+        "email": "Emails",
         "ntf-admin": "To admins",
         "ntf-telegram": "Card fields",
         "gateway": "Gateways",
+        "payment": "Payment description",
         "platform": "Platforms",
         "time": "Time units"
       }
@@ -3045,6 +3183,8 @@
         "menu": {
           "main": "Main menu",
           "devices": "Devices",
+          "device": "Device card",
+          "device_rename": "Device name",
           "device_confirm_delete": "Delete a device",
           "device_confirm_delete_all": "Delete all devices",
           "device_confirm_reissue": "Reissue the link"
@@ -3055,7 +3195,8 @@
         },
         "referrals": {
           "main": "Referral program",
-          "about": "How it works"
+          "about": "How it works",
+          "confirm_reset_code": "New referral link"
         }
       },
       "deleteWindow": "Delete window"
@@ -3089,6 +3230,7 @@
       "buttonConditionNone": "Always visible",
       "buttonLinkType": "Action type",
       "buttonActionHint": "Bound to action “{{key}}” — action buttons keep their action, only style/position/visibility are editable.",
+      "buttonRequiredHint": "A required button: it can’t be hidden or deleted, and keeps its condition.",
       "buttonTarget": "Target window",
       "buttonTargetNone": "Choose a window",
       "buttonUrl": "URL",
@@ -3097,7 +3239,7 @@
       "buttonsDiscard": "Discard changes",
       "buttonsDiscardTitle": "Discard changes?",
       "buttonLabelPending": "Save the button grid first to unlock editing this label.",
-      "buttonPremiumHint": "A premium emoji shows on a button only at the very start of the text, in place of the button icon, and only if the bot's owner has Telegram Premium. Anywhere else it shows as a regular emoji.",
+      "buttonPremiumHint": "A premium emoji shows on a button only at the very start of the text, in place of the button icon, and only if the bot’s owner has Telegram Premium. Anywhere else it shows as a regular emoji.",
       "discardSwitchConfirm": "Discard unsaved button changes and switch windows?",
       "discardSwitchConfirmButton": "Discard and switch",
       "buttonUrlEmpty": "A URL button needs a link.",
@@ -3133,10 +3275,10 @@
         "flags": "Flags"
       },
       "dirtyTitle": "Unsaved changes",
-      "disabledNote": "The window is off: the bot doesn't show it.",
-      "unlinkedNote": "No button leads to this window, so users can't reach it.",
+      "disabledNote": "The window is off: the bot doesn’t show it.",
+      "unlinkedNote": "No button leads to this window, so users can’t reach it.",
       "bannerHintShared": "The shared banner is one for every window; the file is for “{{locale}}”.",
-      "bannerHintOwn": "This window's own banner; the file is for “{{locale}}”.",
+      "bannerHintOwn": "This window’s own banner; the file is for “{{locale}}”.",
       "buttonStyles": {
         "primary": "Accent",
         "success": "Green",
@@ -3242,8 +3384,8 @@
       },
       "levelGets": "gets",
       "exampleLabel": "Example",
-      "levelsUnusedNote_one": "Only the direct inviter is rewarded. Pick more levels to reward further up the chain",
-      "levelsUnusedNote_other": "Only the first {{count}} levels are rewarded. Pick more levels to reward further up the chain",
+      "levelsUnusedNote_one": "Only the direct inviter is rewarded. Pick more levels to reward further up the chain.",
+      "levelsUnusedNote_other": "Only the first {{count}} levels are rewarded. Pick more levels to reward further up the chain.",
       "enabledHint": "A disabled program attaches no new referrals and grants no rewards. Existing referrals and rewards already granted stay.",
       "resetConfirmTitle": "Reset the program settings?",
       "resetConfirmText": "All settings return to their defaults and the program turns off. Existing referrals and rewards already granted stay.",
@@ -3401,6 +3543,8 @@
     "limits": {
       "availabilityLabel": "Who can use it",
       "allowedUserIdsLabel": "Allowed user IDs",
+      "priorCustomersOnlyLabel": "Only customers from before the code",
+      "priorCustomersOnlyHint": "Not available to anyone whose first purchase came after the code was created, e.g. with the same campaign’s code for new users",
       "allowedUserIdsPlaceholder": "ID, Enter to add",
       "plansLabel": "Which plans it applies to",
       "plansAll": "All",
@@ -3534,7 +3678,9 @@
       "allowBonusDaysLabel": "Bonus days",
       "allowBonusDaysHint": "Customers can spend bonus days on this plan’s subscriptions",
       "allowPromocodesLabel": "Promocodes",
-      "allowPromocodesHint": "Customers can apply days, traffic and device promocodes to this plan’s subscriptions"
+      "allowPromocodesHint": "Customers can apply days, traffic and device promocodes to this plan’s subscriptions",
+      "allowRenewalLabel": "Renewal",
+      "allowRenewalHint": "Customers can renew this plan’s subscriptions, even after it’s taken off sale"
     },
     "access": {
       "button": "Access",
@@ -3700,10 +3846,16 @@
       "purchaseType": "Purchase type",
       "targetSubscription": "Subscription",
       "notIssued": "Not issued yet",
+      "holdLabel": "Awaiting your decision",
+      "hold": {
+        "PURCHASE_DISCOUNT_SPENT": "Paid after its cancel, its one-shot discount already used. Fulfill the order or refund it",
+        "PLAN_CHANGED": "The subscription moved to another plan while it was paid. Fulfilling renews it on its current plan; otherwise refund it"
+      },
       "externalPaymentId": "External payment ID",
       "discount": "{{percent}}% off · {{source}}",
       "changeCredit": "credit {{amount}}",
       "planDiscount": "{{percent}}% off · plan",
+      "markup": "+{{percent}}% markup",
       "customerEmail": "Receipt email",
       "idempotencyKey": "Idempotency key",
       "createdAt": "Created at",
@@ -3837,6 +3989,8 @@
     "empty": "No subscriptions",
     "noMatches": "Nothing found",
     "trial": "Trial",
+    "grace": "Grace period",
+    "graceUntil": "Grace period until {{date}}",
     "unlimited": "Unlimited",
     "trafficUnlimited": "Traffic ∞",
     "devicesUnlimited": "Devices ∞",
@@ -3950,7 +4104,6 @@
       "title": "Plan snapshot",
       "trial": "Trial",
       "code": "Code",
-      "credit": "Accumulated credit",
       "name": "Plan",
       "price": "Price",
       "duration": "Duration",
@@ -3959,6 +4112,17 @@
       "changed": "Plan changed.",
       "error": "Failed to change the plan.",
       "resetWarning": "Add-ons will be removed. Limits, reset strategy, squads and tag will match the new plan. The subscription number will change; the link stays the same. A new term starts today; the days left on the current subscription are not carried over."
+    },
+    "credit": {
+      "title": "Plan change credit",
+      "unlimited": "unlimited",
+      "superseded": "replaced by an unlimited term",
+      "kind": {
+        "PURCHASE": "Payment",
+        "CARRIED": "Carried from the old plan",
+        "BONUS": "Free",
+        "LEGACY": "Before per-term credit"
+      }
     },
     "devices": {
       "empty": "No connected devices",
@@ -3992,7 +4156,7 @@
         "held_other": "{{formatted}} subscriptions",
         "replace": "Squad {{squad}} is not in the panel. Choose a replacement:"
       },
-      "missing": "The panel has no user for this subscription. Taking from the panel marks it deleted, sending to the panel creates a new one.",
+      "missing": "The panel has no user for this subscription. Send it to the panel to create a new one, or delete the subscription.",
       "columns": {
         "shop": "Remnashop",
         "panel": "Remnawave"
@@ -4038,6 +4202,10 @@
             "label": "Respect the subscription limit",
             "hint": "A panel user is not imported when its owner already has the shop’s maximum of active subscriptions."
           },
+          "create_users": {
+            "label": "Create missing shop users",
+            "hint": "A panel user with a Telegram ID that no shop user matches gets a new shop user with that subscription. For moving from another bot on the same token: customers see their subscription without signing up again."
+          },
           "recreate_missing": {
             "label": "Recreate missing panel users",
             "hint": "If a subscription has no panel user, a new one is created and the subscription link changes."
@@ -4048,7 +4216,7 @@
           }
         },
         "started": "Sync started.",
-        "finished": "Sync finished: {{updated}} updated, {{imported}} imported, {{over_limit}} skipped over the limit, {{missing}} deleted, {{failed}} failed.",
+        "finished": "Sync finished: {{updated}} updated, {{imported}} imported, {{users_created}} users created, {{over_limit}} skipped over the limit, {{missing}} missing in the panel, {{failed}} failed.",
         "finishedToPanel": "Sync finished: {{updated}} updated, {{recreated}} recreated in the panel, {{deleted}} deleted from the panel, {{failed}} failed.",
         "error": "Failed to start the sync."
       }
@@ -4244,7 +4412,7 @@
         "cardPill": "Limits on a plan card and in the subscription dialog: traffic, devices.",
         "chartTooltip": "Chart tooltip in analytics and the overview: a dot for a single series, a row per value.",
         "glassStatus": "A section header’s status, button height: the state’s colour as a tinted capsule with a dot.",
-        "dateTime": "A date and time on the app's calendar: a broadcast's send time.",
+        "dateTime": "A date and time on the app’s calendar: a broadcast’s send time.",
         "fullScreen": "Standalone screens without the dashboard: app crash, 404, server error and server unreachable, the OAuth sign-in wait. Open over the window, the cross at the top left closes.",
         "pageRouteError": "One dashboard page crashed: the sidebar and header stay.",
         "editorFields": "The dialog editor’s own field, kept in its editor styling.",
@@ -4532,11 +4700,14 @@
     "CANNOT_DELETE_SELF": "You can’t delete your own account.",
     "CAPTCHA_FAILED": "The captcha check failed. Try again.",
     "CAPTCHA_NOT_CONFIGURED": "Set the captcha site key and secret key first.",
+    "CHANGE_SAME_PLAN": "Changing to the plan you already have is a renewal.",
     "CHANNEL_NOT_ACCESSIBLE": "The bot can’t see this channel — add it as an admin and check the ID.",
     "COOLDOWN_ACTIVE": "Too soon — try again later.",
     "CSRF_FAILED": "Security check failed — reload the page.",
     "CURRENCY_RATE_MISSING": "No rate is set for this currency.",
     "CURRENT_PASSWORD_INCORRECT": "Current password is incorrect.",
+    "DEVICE_NAME_TOO_LONG": "The device name is too long.",
+    "DEVICE_NOT_FOUND": "Device not found.",
     "DEVICE_RESET_DISABLED": "Device reset is disabled.",
     "DIALOG_ACTION_NOT_IN_WINDOW": "This action doesn’t belong to this window.",
     "DIALOG_ACTION_UNKNOWN": "Unknown button action.",
@@ -4547,8 +4718,9 @@
     "DIALOG_CUSTOM_WINDOW_ACTION": "Custom windows can’t have action buttons.",
     "DIALOG_EXPORT_VERSION_UNSUPPORTED": "Unsupported export file version.",
     "DIALOG_ROW_BUTTON_LIMIT_REACHED": "Too many buttons in one row.",
-    "DIALOG_SYSTEM_BUTTON_CONDITION_LOCKED": "A system button’s visibility condition can’t be changed.",
-    "DIALOG_SYSTEM_BUTTON_NOT_HIDEABLE": "A system button can’t be hidden.",
+    "DIALOG_REQUIRED_BUTTON_CONDITION_LOCKED": "A required button keeps its visibility condition.",
+    "DIALOG_REQUIRED_BUTTON_MISSING": "A required button is missing; reset the window to bring it back.",
+    "DIALOG_SYSTEM_BUTTON_NOT_HIDEABLE": "This button can’t be hidden.",
     "DIALOG_TARGET_WINDOW_UNKNOWN": "The target window doesn’t exist.",
     "DIALOG_TEXT_EMPTY": "Window text can’t be empty without a banner.",
     "DIALOG_TEXT_HTML_INVALID": "The text has invalid formatting.",
@@ -4598,7 +4770,10 @@
     "GATEWAY_NOT_IMPLEMENTED": "This gateway isn’t supported.",
     "GATEWAY_NOT_SUPPORTED": "This gateway isn’t supported yet.",
     "GATEWAY_NOT_TESTABLE": "This gateway can’t be tested from the dashboard.",
+    "GATEWAY_TEST_NO_TELEGRAM": "Link Telegram to your account to pay a test invoice with Stars.",
     "GATEWAY_REORDER_INCOMPLETE": "The new order must include every gateway exactly once.",
+    "GATEWAY_SETTINGS_INCOMPLETE": "Fill in and save the fields this setting needs first.",
+    "GATEWAY_SHOP_DUPLICATE": "Turn off the separate web cabinet shop to use one shop for both channels.",
     "GATEWAY_REQUIRED": "Choose a payment method.",
     "HTTP_ERROR": "Request failed.",
     "IDENTITY_BLACKLISTED": "This sign-in method is blocked and can’t be linked.",
@@ -4625,6 +4800,7 @@
     "LOGIN_TAKEN": "This login is already taken.",
     "LOYALTY_TIERS_INVALID": "Tier thresholds and percents must both increase.",
     "LOYALTY_TIERS_REQUIRED": "Add at least one tier or switch the loyalty program off.",
+    "MARKUP_PERCENT_INVALID": "The markup must be between 0 and 500%.",
     "MERGE_ACCOUNT_BLOCKED": "This account is blocked and can’t be merged.",
     "MERGE_ACCOUNT_PRIVILEGED": "Staff accounts can’t be merged into a customer account.",
     "MERGE_BOTH_PRIVILEGED": "Two staff accounts can’t be merged.",
@@ -4728,12 +4904,14 @@
     "REQUEST_INVALID": "Some fields are filled in incorrectly.",
     "SESSION_AUDIENCE_MISMATCH": "This session can’t be used here. Sign in again.",
     "SESSION_NOT_FOUND": "Session not found.",
+    "GRACE_SETTINGS_INVALID": "The grace period settings are invalid.",
     "SHOP_SUBSCRIPTION_LIMIT_INVALID": "The limit must be positive, or empty for unlimited.",
     "SUBSCRIPTION_DELETED": "The subscription has been deleted.",
     "SUBSCRIPTION_DISABLED": "This subscription is disabled.",
     "SUBSCRIPTION_EXPIRE_AT_IN_PAST": "The expiry date must be in the future.",
     "TRIAL_NOT_RENEWABLE": "A trial can’t be renewed or changed. Buy a subscription instead.",
     "SUBSCRIPTION_LIMIT_REACHED": "The subscription limit is reached.",
+    "SUBSCRIPTION_MISSING_IN_PANEL": "The panel has no user for this subscription: send it to the panel or delete it.",
     "SUBSCRIPTION_NOT_FOUND": "Subscription not found.",
     "SUBSCRIPTION_ROLLBACK_BLOCKED": "The subscription changed after this purchase and can’t be rolled back.",
     "SUBSCRIPTION_STATUS_TRANSITION_INVALID": "This subscription status change isn’t allowed.",
@@ -4765,13 +4943,18 @@
     "USER_BLOCKED": "Your account is blocked.",
     "USER_NOT_DELETABLE": "This user can’t be deleted.",
     "USER_NOT_FOUND": "User not found.",
+    "USER_NO_TELEGRAM": "The user has no Telegram account.",
+    "USER_TARGET_BLOCKED": "The user is blocked.",
+    "USER_TARGET_BOT_BLOCKED": "The user blocked the bot.",
     "WEBHOOK_MALFORMED": "Malformed webhook.",
     "WEBHOOK_NOT_CONFIGURED": "The webhook secret isn’t configured.",
     "WEBHOOK_SIGNATURE_INVALID": "Invalid webhook signature.",
     "WEBHOOK_SOURCE_UNTRUSTED": "The webhook source isn’t trusted.",
     "WEBHOOK_STALE": "The webhook is outdated.",
+    "BOT_NOT_RUNNING": "The bot isn’t running.",
     "BOT_PROXY_URL_INVALID": "Invalid proxy address: use socks5, socks5h or http with a host and a port.",
     "TRANSLATION_VARIABLE_NOT_ALLOWED": "The text uses a variable or expression the original text doesn’t have.",
+    "TRANSLATION_VARIABLE_UNKNOWN": "The original text has no {{detail}}. If you edited this text before an update, reset it and make your changes again.",
     "RECURRING_CONSENT_REQUIRED": "This payment method requires separate consent to auto-renewal.",
     "GATEWAY_FIELD_INVALID_CHOICE": "Select an available payment mode.",
     "GATEWAY_FIELD_OUT_OF_RANGE": "The value is outside the allowed range.",
@@ -4949,12 +5132,18 @@
         "kind": {
           "URL": "Link",
           "PROMOCODE": "Promocode",
-          "MENU": "Menu"
+          "MENU": "Menu",
+          "CLOSE": "Close",
+          "SHARE_REFERRAL": "Share"
         },
         "limit_one": "Up to {{count}} button",
         "limit_other": "Up to {{count}} buttons",
         "label": "Button text",
-        "menuTarget": "The bot’s main menu",
+        "target": {
+          "MENU": "The bot’s main menu",
+          "CLOSE": "Deletes the message",
+          "SHARE_REFERRAL": "The customer’s referral link"
+        },
         "empty": "No buttons set"
       },
       "promocode": {
@@ -4985,6 +5174,7 @@
         },
         "plans": "Plans",
         "expires": "Expires within",
+        "expiresTrialHint": "Trial subscriptions are included too. For paid ones only, pick the “Active” subscription.",
         "expired": "Expired within",
         "paid": "Has paid",
         "language": "Language",
@@ -5150,6 +5340,10 @@
           "confirm": "Stop",
           "done": "Broadcast stopped."
         },
+        "duplicate": {
+          "button": "Make a copy",
+          "done": "Copy saved as a draft."
+        },
         "retry": {
           "button": "Retry failed",
           "unavailable": "Can’t retry after a recall",
@@ -5164,7 +5358,7 @@
           "message": "The delivered Telegram messages are deleted from customers’ chats and the channel post is removed. Emails can’t be recalled. This can’t be undone.",
           "confirm": "Recall",
           "done": "Recall started.",
-          "hint": "Deletes the delivered Telegram messages and the channel post. Emails can’t be recalled"
+          "hint": "Deletes the delivered Telegram messages and the channel post. Emails can’t be recalled."
         },
         "delete": {
           "title": "Delete the broadcast?",
@@ -5244,12 +5438,12 @@
       "copy_link": "Copy link"
     },
     "buttonLabel": "Label",
-    "templateHint": "{{token}} becomes the customer's subscription link",
-    "saved": "Guide saved",
-    "error": "Couldn't save the guide",
+    "templateHint": "{{token}} becomes the customer’s subscription link",
+    "saved": "Guide saved.",
+    "error": "Failed to save the guide.",
     "resetConfirmTitle": "Reset the guide?",
     "resetConfirmText": "Your catalog is deleted and the cabinet goes back to the default one",
-    "resetSuccess": "Guide reset",
-    "resetError": "Couldn't reset the guide"
+    "resetSuccess": "Guide reset.",
+    "resetError": "Failed to reset the guide."
   }
 }

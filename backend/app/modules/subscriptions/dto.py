@@ -12,6 +12,7 @@ from app.core.constants import DEFAULT_PAGE_SIZE, ZERO_AMOUNT
 from app.core.dto import BaseDto, TimestampMixin
 from app.core.enums import (
     AddOnType,
+    CreditSegmentKind,
     Currency,
     Locale,
     PanelSyncDirection,
@@ -42,14 +43,6 @@ class PlanSnapshot:
     internal_squads: list[UUID] = field(default_factory=list)
     external_squad: Optional[UUID] = None
     tag: Optional[str] = None
-    # money and days behind the current credit, accumulated by RENEW and grants since
-    # the last NEW/CHANGE; None on a snapshot written before they existed
-    credit_paid: Optional[Decimal] = None
-    credit_days: Optional[int] = None
-    # what a renewal into an unlimited term replaced, so its refund can put it back
-    unlimited_from: Optional[datetime] = None
-    unlimited_from_credit_paid: Optional[Decimal] = None
-    unlimited_from_credit_days: Optional[int] = None
     # the plan's translated names at checkout; `name` for a locale it has none for
     names: dict[Locale, str] = field(default_factory=dict)
     # a custom emoji, and the plain glyph shown where it can't render
@@ -75,14 +68,6 @@ class PlanSnapshot:
             other.external_squad,
         )
 
-    @property
-    def effective_credit_paid(self) -> Decimal:
-        return self.credit_paid if self.credit_paid is not None else self.price_paid
-
-    @property
-    def effective_credit_days(self) -> int:
-        return self.credit_days if self.credit_days is not None else self.duration_days
-
     def to_json(self) -> dict[str, Any]:
         return {
             "plan_id": self.plan_id,
@@ -98,17 +83,6 @@ class PlanSnapshot:
             "internal_squads": [str(squad) for squad in self.internal_squads],
             "external_squad": str(self.external_squad) if self.external_squad else None,
             "tag": self.tag,
-            "credit_paid": str(self.credit_paid) if self.credit_paid is not None else None,
-            "credit_days": self.credit_days,
-            "unlimited_from": (
-                self.unlimited_from.isoformat() if self.unlimited_from is not None else None
-            ),
-            "unlimited_from_credit_paid": (
-                str(self.unlimited_from_credit_paid)
-                if self.unlimited_from_credit_paid is not None
-                else None
-            ),
-            "unlimited_from_credit_days": self.unlimited_from_credit_days,
             "names": {locale.value: name for locale, name in self.names.items()},
             "icon_emoji_id": self.icon_emoji_id,
             "icon_emoji_fallback": self.icon_emoji_fallback,
@@ -130,21 +104,6 @@ class PlanSnapshot:
             internal_squads=[UUID(squad) for squad in data["internal_squads"]],
             external_squad=UUID(data["external_squad"]) if data["external_squad"] else None,
             tag=data.get("tag"),
-            credit_paid=(
-                Decimal(data["credit_paid"]) if data.get("credit_paid") is not None else None
-            ),
-            credit_days=data.get("credit_days"),
-            unlimited_from=(
-                datetime.fromisoformat(data["unlimited_from"])
-                if data.get("unlimited_from") is not None
-                else None
-            ),
-            unlimited_from_credit_paid=(
-                Decimal(data["unlimited_from_credit_paid"])
-                if data.get("unlimited_from_credit_paid") is not None
-                else None
-            ),
-            unlimited_from_credit_days=data.get("unlimited_from_credit_days"),
             names={Locale(locale): name for locale, name in (data.get("names") or {}).items()},
             icon_emoji_id=data.get("icon_emoji_id"),
             icon_emoji_fallback=data.get("icon_emoji_fallback"),
@@ -174,12 +133,46 @@ class PlanSnapshot:
             internal_squads=plan.internal_squads,
             external_squad=plan.external_squad,
             tag=plan.tag,
-            credit_paid=price_paid,
-            credit_days=duration_days,
             names=plan.localized_names(),
             icon_emoji_id=plan.icon_emoji_id,
             icon_emoji_fallback=plan.icon_emoji_fallback,
         )
+
+
+class CreditSegmentDto(BaseDto, TimestampMixin):
+    """A stretch of a subscription's term and what was paid for it."""
+
+    id: int
+    subscription_id: int
+    kind: CreditSegmentKind
+    payment_key: Optional[str] = None
+    traffic_reset_at: Optional[datetime] = None
+    traffic_pace: Decimal = Decimal(1)
+    paid: Decimal
+    currency: Currency
+    seconds: int
+    # None: an unlimited term
+    ends_at: Optional[datetime] = None
+    replaced_expire_at: Optional[datetime] = None
+    superseded_by_id: Optional[int] = None
+
+    @property
+    def is_live(self) -> bool:
+        return self.superseded_by_id is None
+
+
+@dataclass(frozen=True, kw_only=True)
+class CreateCreditSegmentDto:
+    subscription_id: int
+    kind: CreditSegmentKind
+    paid: Decimal
+    currency: Currency
+    seconds: int
+    ends_at: Optional[datetime]
+    payment_key: Optional[str] = None
+    traffic_reset_at: Optional[datetime] = None
+    traffic_pace: Decimal = Decimal(1)
+    replaced_expire_at: Optional[datetime] = None
 
 
 class AddOnEntitlementDto(BaseDto, TimestampMixin):
@@ -211,7 +204,13 @@ class SubscriptionDto(BaseDto, TimestampMixin):
     device_all_reset_at: Optional[datetime] = None
     link_reset_at: Optional[datetime] = None
     first_connected_at: Optional[datetime] = None
+    panel_created_at: Optional[datetime] = None
+    term_anchor_day: Optional[int] = None
     paused_by_channel_leave: bool = False
+    grace_until: Optional[datetime] = None
+    grace_started_at: Optional[datetime] = None
+    grace_ended_at: Optional[datetime] = None
+    panel_restore_due_at: Optional[datetime] = None
     addon_entitlements: list[AddOnEntitlementDto] = Field(default_factory=list)
 
     @property
@@ -249,6 +248,7 @@ class PanelSquadDto:
 class SubscriptionDetailsDto:
     subscription: SubscriptionDto
     activity: "PanelActivityDto"
+    credit_segments: list[CreditSegmentDto]
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -314,6 +314,8 @@ class CreateSubscriptionDto:
     tag: Optional[str] = None
     internal_squads: list[UUID] = field(default_factory=list)
     external_squad: Optional[UUID] = None
+    panel_created_at: Optional[datetime] = None
+    term_anchor_day: Optional[int] = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -363,6 +365,8 @@ class PurchaseSubscriptionDto:
     publish_event: bool = True
     # CHANGE only: keep the target's expire_at instead of now + days + credit
     keep_expire_at: bool = False
+    # referral bonus days: plain days, not a plan term read as calendar months
+    exact_days: bool = False
     # zero the panel's traffic counter; set for a customer's paid order (a
     # CHANGE's credit already deducts the spent traffic), never for an admin grant
     reset_traffic: bool = False
@@ -370,6 +374,9 @@ class PurchaseSubscriptionDto:
     # edited since the target was sold, its limits, strategy and squads; set for a
     # checkout order, whose snapshot is the plan as sold now, not the target's own
     apply_current_plan: bool = False
+    # an admin issues a renewal whose subscription moved to another plan: its days
+    # go on, the plan stays; otherwise such a renewal is refused and held
+    renew_other_plan: bool = False
     # CHANGE to unlimited: the old unlimited payment checkout took off the price;
     # None for an order queued before it was stored, which credits it afresh
     change_credit: Optional[Decimal] = None
@@ -387,6 +394,12 @@ class PurchaseRollbackDto:
     # the order's purchase key: a renewal that reached the panel but not the
     # database is found by the expiry pinned on it
     idempotency_key: Optional[str] = None
+    # what the renewal really added; None on an order from when a term was plain days
+    added_days: Optional[int] = None
+
+    @property
+    def days_to_take_back(self) -> int:
+        return self.added_days if self.added_days is not None else self.duration_days
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -451,6 +464,7 @@ class SyncSubscriptionStatusDto:
     source: StatusSyncSource
     expire_at: Optional[datetime] = None
     first_connected_at: Optional[datetime] = None
+    panel_created_at: Optional[datetime] = None
     # None: the source only knows status and dates
     config: Optional[PanelConfigDto] = None
 
@@ -466,6 +480,8 @@ class PanelSyncResultDto(BaseDto):
     recreated: int = 0
     # rows made for a shop user's panel user without one (from panel only)
     imported: int = 0
+    # customers made for the imported rows (from panel only)
+    users_created: int = 0
     # shop users' panel users without a row, deleted (to panel only)
     deleted: int = 0
     # panel users left unimported: their shop user is at the subscription cap (from panel only)
@@ -479,6 +495,8 @@ class SyncFromPanelOptionsDto:
     adopt_unnamed: bool
     # skip a panel user whose shop user is at max_active_subscriptions
     respect_subscription_limit: bool
+    # a customer for a panel user nobody in the shop matches, by its Telegram id
+    create_users: bool = False
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -580,6 +598,7 @@ class CatalogPlanDto:
     is_trial: bool
     order_index: int
     durations: list[CatalogDurationDto]
+    allow_renewal: bool = True
     # the plan's promotion running now: 0 and None while there is none
     discount_percent: int = 0
     discount_ends_at: Optional[datetime] = None
@@ -629,6 +648,7 @@ class SetSubscriptionEnabledDto:
 class GetAvailableTrialDto:
     plan: Optional[PlanDto]
     is_trial_available: bool
+    duration_days: Optional[int] = None
     # the trial's one duration, priced in the anchor currency; 0 for a free trial
     price: Decimal = ZERO_AMOUNT
     currency: Optional[Currency] = None
@@ -643,10 +663,23 @@ class GetAvailableTrialDto:
 
 class DeviceDto(BaseModel):
     hwid: str
+    # the customer's own, kept by the shop: the panel has none
+    name: Optional[str]
     platform: Optional[str]
+    os_version: Optional[str]
     device_model: Optional[str]
+    # the client app and its version, read off the user agent
+    app: Optional[str]
     user_agent: Optional[str]
     created_at: datetime
+
+
+@dataclass(frozen=True, kw_only=True)
+class RenameDeviceDto:
+    subscription_id: int
+    hwid: str
+    # empty or None drops the name
+    name: Optional[str]
 
 
 @dataclass(frozen=True, kw_only=True)

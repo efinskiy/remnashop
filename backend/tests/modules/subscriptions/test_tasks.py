@@ -12,6 +12,7 @@ from app.core.enums import (
     AddOnType,
     Currency,
     DiscountSource,
+    PanelSyncDirection,
     PaymentGatewayType,
     PlanType,
     PurchaseChannel,
@@ -21,6 +22,7 @@ from app.core.enums import (
 )
 from app.core.ports import EventPublisher
 from app.core.utils.time import datetime_now
+from app.modules.blacklist.repository import BlacklistRepository
 from app.modules.plans.addon_repository import AddOnRepository
 from app.modules.plans.dto import (
     CreateAddOnDto,
@@ -33,6 +35,7 @@ from app.modules.plans.dto import (
 from app.modules.plans.repository import PlanRepository
 from app.modules.settings.dto import UpdateShopSettingsDto
 from app.modules.settings.repository import SettingsRepository
+from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
 from app.modules.subscriptions.dto import (
     CreateSubscriptionDto,
     GrantAddOnDto,
@@ -41,6 +44,7 @@ from app.modules.subscriptions.dto import (
     SyncSubscriptionStatusDto,
 )
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
+from app.modules.subscriptions.panel_sync import claim_panel_sync
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.tasks import (
     grant_addon_task,
@@ -57,8 +61,11 @@ from app.modules.subscriptions.usecases import (
 )
 from app.modules.transactions.dto import CreateTransactionDto
 from app.modules.transactions.repository import TransactionRepository
+from app.modules.transactions.unpaid_orders import PaidOrderHolder
+from app.modules.translations.repository import TranslationRepository
 from app.modules.users.dto import CreateUserDto
 from app.modules.users.repository import UserRepository
+from tests.fakes.events import RecordingEventPublisher
 from tests.fakes.remnawave import FakeUserStore, _user_payload
 from tests.modules.settings.factories import SHOP_SETTINGS_FIELDS
 from tests.modules.subscriptions.factories import make_eligibility, make_plan_snapshot
@@ -74,6 +81,7 @@ def fulfill_purchase(
         user_repository,
         purchase_subscription_use_case,
         TransactionRepository(user_repository.session),
+        PaidOrderHolder(TransactionRepository(user_repository.session), RecordingEventPublisher()),
         uow,
     )
 
@@ -89,7 +97,11 @@ def _reconcile_use_case(
         subscription_repository,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
+        remnawave_sdk,
+        SettingsRepository(subscription_repository.session),
     )
     return SyncAllFromPanelUseCase(
         subscription_repository,
@@ -102,6 +114,8 @@ def _reconcile_use_case(
         event_publisher,
         make_eligibility(subscription_repository.session),
         AppConfig.get(),
+        BlacklistRepository(subscription_repository.session),
+        TranslationRepository(subscription_repository.session),
     )
 
 
@@ -287,9 +301,12 @@ async def test_a_free_order_over_the_cap_fails_instead_of_provisioning(
 
     assert result is None
     assert len(await subscription_repository.get_active_by_user(buyer.id)) == 1
-    assert (await transactions.get_by_id(order.id)).status is TransactionStatus.FAILED
-    # the spent 100% purchase discount that made the order free comes back
+    failed = await transactions.get_by_id(order.id)
+    assert failed.status is TransactionStatus.FAILED
+    # the spent 100% purchase discount that made the order free comes back, and the
+    # order remembers it, so an admin issuing it later spends it again
     assert (await user_repository.find_by_id(buyer.id)).purchase_discount == 100  # type: ignore[union-attr]
+    assert failed.purchase_discount_returned
 
 
 async def test_grant_addon_task_body_grants_an_entitlement(
@@ -391,7 +408,7 @@ async def test_sync_from_panel_syncs_status_that_drifted_on_the_panel(
     assert refreshed.status == SubscriptionStatus.LIMITED
 
 
-async def test_sync_from_panel_marks_deleted_when_panel_identity_is_gone(
+async def test_sync_from_panel_counts_a_missing_panel_user_without_deleting(
     subscription_repository: SubscriptionRepository,
     user_repository: UserRepository,
     settings_repository: SettingsRepository,
@@ -415,12 +432,14 @@ async def test_sync_from_panel_marks_deleted_when_panel_identity_is_gone(
     )
     # not in remnawave_store, so the fake transport 404s (tests/fakes/remnawave.py)
 
-    await _reconcile_use_case(
+    result = await _reconcile_use_case(
         subscription_repository, remnawave_sdk, uow, event_publisher, redis
     ).system(SyncFromPanelOptionsDto(adopt_unnamed=True, respect_subscription_limit=True))
 
+    # a panel restored from an old backup must not close live subscriptions
     refreshed = await subscription_repository.get_by_id(created.id)
-    assert refreshed.status == SubscriptionStatus.DELETED
+    assert refreshed.status == SubscriptionStatus.ACTIVE
+    assert (result.missing, result.updated) == (1, 0)
 
 
 async def test_sync_from_panel_skips_subscriptions_already_in_sync(
@@ -470,6 +489,7 @@ async def test_sync_from_panel_keeps_going_after_one_row_fails_to_sync(
     event_publisher: EventPublisher,
     monkeypatch: pytest.MonkeyPatch,
     redis: Redis,
+    remnawave_store: FakeUserStore,
 ) -> None:
     user = await user_repository.create(CreateUserDto(name="reconcile-iso", telegram_id=91010))
     created = [
@@ -487,6 +507,11 @@ async def test_sync_from_panel_keeps_going_after_one_row_fails_to_sync(
         )
         for remnawave_user_id in (91011, 91012)
     ]
+    extended = datetime_now() + timedelta(days=40)
+    for row in created:
+        remnawave_store[row.remnawave_user_id] = _user_payload(
+            user_id=row.remnawave_user_id, username=f"u{row.remnawave_user_id}", expire_at=extended
+        )
     use_case = _reconcile_use_case(
         subscription_repository, remnawave_sdk, uow, event_publisher, redis
     )
@@ -502,7 +527,7 @@ async def test_sync_from_panel_keeps_going_after_one_row_fails_to_sync(
     await use_case.system()
 
     refreshed = await subscription_repository.get_by_id(created[1].id)
-    assert refreshed.status == SubscriptionStatus.DELETED
+    assert abs(refreshed.expire_at - extended) < timedelta(seconds=1)
 
 
 @pytest.mark.parametrize("is_trial", [True, False])
@@ -554,3 +579,33 @@ async def test_a_delivered_purchase_uses_up_the_trial(
     assert subscription is not None and subscription.is_trial is is_trial
     reloaded = await user_repository.find_by_id(buyer.id)
     assert reloaded is not None and reloaded.is_trial_available is False
+
+
+_run_panel_sync = run_panel_sync_task.original_func.__dishka_orig_func__
+
+
+class _RecordingSync:
+    def __init__(self) -> None:
+        self.runs = 0
+
+    async def system(self, data: object) -> None:
+        self.runs += 1
+
+
+@pytest.mark.parametrize("claimed", [True, False])
+async def test_panel_sync_task_runs_only_while_its_start_is_marked(
+    redis: Redis, claimed: bool
+) -> None:
+    if claimed:
+        await claim_panel_sync(redis, PanelSyncDirection.TO_PANEL)
+    to_panel = _RecordingSync()
+
+    # unclaimed: the sync finished and its message came back to another worker
+    await _run_panel_sync(
+        direction=PanelSyncDirection.TO_PANEL.value,
+        from_panel=_RecordingSync(),
+        to_panel=to_panel,
+        redis=redis,
+    )
+
+    assert to_panel.runs == (1 if claimed else 0)

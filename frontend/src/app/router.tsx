@@ -44,6 +44,7 @@ import {
   RewardsSettingsPage,
   SettingsPage,
   SubscriptionsPage,
+  TranslationsSettingsPage,
   UsersPage,
 } from "./lazy-pages";
 
@@ -86,6 +87,7 @@ export const router = createBrowserRouter([
                   { index: true, element: <GeneralSettingsPage /> },
                   { path: "bot", element: <BotSettingsPage /> },
                   { path: "cabinet", element: <CabinetSettingsPage /> },
+                  { path: "translations", element: <TranslationsSettingsPage /> },
                   { path: "connect", element: <Navigate to="../cabinet" replace /> },
                   { path: "api-tokens", element: <ApiTokensPage /> },
                   { path: "appearance", element: <AppearanceSettingsPage /> },

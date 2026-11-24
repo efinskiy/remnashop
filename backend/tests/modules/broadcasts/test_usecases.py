@@ -40,6 +40,7 @@ from app.modules.broadcasts.dto import (
     SetBroadcastMediaDto,
     UpdateBroadcastDto,
 )
+from app.modules.broadcasts.recipient_repository import BroadcastRecipientRepository
 from app.modules.broadcasts.repository import BroadcastRepository
 from app.modules.broadcasts.storage import media_path
 from app.modules.broadcasts.usecases import (
@@ -60,6 +61,7 @@ from app.modules.broadcasts.usecases import (
 from app.modules.broadcasts.validation import promocode_is_usable
 from app.modules.promocodes.dto import CreatePromocodeDto, UpdatePromocodeDto
 from app.modules.promocodes.repository import PromocodeRepository
+from app.modules.referrals.repository import ReferralRepository
 from app.modules.settings.dto import UpdateBotSettingsDto, UpdateEmailSettingsDto
 from app.modules.settings.repository import SettingsRepository
 from app.modules.users.dto import CreateUserDto, UserDto
@@ -424,11 +426,14 @@ async def test_preview_counts_by_locale(
     broadcast_repository: BroadcastRepository,
     uow: UnitOfWork,
     admin: UserDto,
+    broadcast_recipient_repository: BroadcastRecipientRepository,
 ) -> None:
     a = await make_customer(user_repository, session, telegram_id=9201, language=Locale.EN)
     b = await make_customer(user_repository, session, telegram_id=9202, language=Locale.EN)
     c = await make_customer(user_repository, session, telegram_id=9203, language=Locale.RU)
-    preview = await PreviewBroadcastAudienceUseCase(broadcast_repository, uow)(
+    preview = await PreviewBroadcastAudienceUseCase(
+        broadcast_repository, broadcast_recipient_repository, uow
+    )(
         admin,
         PreviewAudienceDto(
             audience=BroadcastAudienceDto(user_ids=[a, b, c]),
@@ -486,6 +491,7 @@ def recall_dispatch() -> RecordingDispatch:
 @pytest.fixture
 def send_use_case(
     broadcast_repository: BroadcastRepository,
+    promocode_repository: PromocodeRepository,
     settings_repository: SettingsRepository,
     config: AppConfig,
     start_dispatch: RecordingDispatch,
@@ -493,7 +499,13 @@ def send_use_case(
     event_publisher: EventPublisher,
 ) -> SendBroadcastUseCase:
     return SendBroadcastUseCase(
-        broadcast_repository, settings_repository, config, start_dispatch, uow, event_publisher
+        broadcast_repository,
+        promocode_repository,
+        settings_repository,
+        config,
+        start_dispatch,
+        uow,
+        event_publisher,
     )
 
 
@@ -501,7 +513,12 @@ def send_use_case(
 def cancel_use_case(
     broadcast_repository: BroadcastRepository, uow: UnitOfWork, event_publisher: EventPublisher
 ) -> CancelBroadcastUseCase:
-    return CancelBroadcastUseCase(broadcast_repository, uow, event_publisher)
+    return CancelBroadcastUseCase(
+        broadcast_repository,
+        BroadcastRecipientRepository(broadcast_repository.session),
+        uow,
+        event_publisher,
+    )
 
 
 @pytest.fixture
@@ -511,7 +528,13 @@ def retry_use_case(
     uow: UnitOfWork,
     event_publisher: EventPublisher,
 ) -> RetryBroadcastUseCase:
-    return RetryBroadcastUseCase(broadcast_repository, start_dispatch, uow, event_publisher)
+    return RetryBroadcastUseCase(
+        broadcast_repository,
+        BroadcastRecipientRepository(broadcast_repository.session),
+        start_dispatch,
+        uow,
+        event_publisher,
+    )
 
 
 @pytest.fixture
@@ -521,7 +544,13 @@ def recall_use_case(
     uow: UnitOfWork,
     event_publisher: EventPublisher,
 ) -> RecallBroadcastUseCase:
-    return RecallBroadcastUseCase(broadcast_repository, recall_dispatch, uow, event_publisher)
+    return RecallBroadcastUseCase(
+        broadcast_repository,
+        BroadcastRecipientRepository(broadcast_repository.session),
+        recall_dispatch,
+        uow,
+        event_publisher,
+    )
 
 
 @pytest.fixture
@@ -541,7 +570,7 @@ async def _recipients(
         await make_customer(user_repository, session, telegram_id=base_telegram_id + i)
         for i in range(len(statuses))
     ]
-    await repository.materialize(
+    await BroadcastRecipientRepository(repository.session).materialize(
         broadcast.id,
         BroadcastAudienceDto(user_ids=user_ids),
         broadcast.category,
@@ -556,7 +585,7 @@ async def _recipients(
     )
     ids = [row.id for row in rows]
     for recipient_id, status in zip(ids, statuses, strict=True):
-        await repository.mark_recipient(recipient_id, status)
+        await BroadcastRecipientRepository(repository.session).mark_recipient(recipient_id, status)
     return ids
 
 
@@ -580,6 +609,20 @@ async def test_send_now_schedules_and_kicks_start(
     result = await send_use_case(admin, SendBroadcastDto(broadcast_id=draft.id))
     assert result.status is BroadcastStatus.SCHEDULED
     assert start_dispatch.messages == [{"broadcast_id": draft.id}]
+
+
+async def test_send_refuses_a_draft_whose_plan_is_gone(
+    send_use_case: SendBroadcastUseCase,
+    start_dispatch: RecordingDispatch,
+    broadcast_repository: BroadcastRepository,
+    admin: UserDto,
+    with_token: None,
+) -> None:
+    draft = await _make(broadcast_repository, audience=BroadcastAudienceDto(plan_ids=[999_999]))
+    with pytest.raises(ValidationError) as caught:
+        await send_use_case(admin, SendBroadcastDto(broadcast_id=draft.id))
+    assert caught.value.code is ErrorCode.BROADCAST_AUDIENCE_INVALID
+    assert start_dispatch.messages == []
 
 
 async def test_send_later_does_not_kick(
@@ -660,6 +703,7 @@ async def test_send_email_without_smtp_fails(
 
 async def test_send_marketing_email_without_cabinet_url_fails(
     broadcast_repository: BroadcastRepository,
+    promocode_repository: PromocodeRepository,
     settings_repository: SettingsRepository,
     config: AppConfig,
     start_dispatch: RecordingDispatch,
@@ -670,6 +714,7 @@ async def test_send_marketing_email_without_cabinet_url_fails(
 ) -> None:
     use_case = SendBroadcastUseCase(
         broadcast_repository,
+        promocode_repository,
         settings_repository,
         config.model_copy(update={"cabinet": CabinetConfig(domain=None)}),
         start_dispatch,
@@ -684,6 +729,7 @@ async def test_send_marketing_email_without_cabinet_url_fails(
 
 async def test_send_service_email_without_cabinet_url_ok(
     broadcast_repository: BroadcastRepository,
+    promocode_repository: PromocodeRepository,
     settings_repository: SettingsRepository,
     config: AppConfig,
     start_dispatch: RecordingDispatch,
@@ -694,6 +740,7 @@ async def test_send_service_email_without_cabinet_url_ok(
 ) -> None:
     use_case = SendBroadcastUseCase(
         broadcast_repository,
+        promocode_repository,
         settings_repository,
         config.model_copy(update={"cabinet": CabinetConfig(domain=None)}),
         start_dispatch,
@@ -882,8 +929,10 @@ def _test_use_case(
 ) -> SendTestBroadcastUseCase:
     return SendTestBroadcastUseCase(
         broadcast_repository,
+        BroadcastRecipientRepository(broadcast_repository.session),
         settings_repository,
         promocode_repository,
+        ReferralRepository(promocode_repository.session),
         telegram,
         media_config,
         uow,
@@ -1034,7 +1083,7 @@ async def test_test_send_missing_media_is_reported(
 async def _add_recipient(
     repository: BroadcastRepository, broadcast: BroadcastDto, customer: UserDto
 ) -> None:
-    await repository.materialize(
+    await BroadcastRecipientRepository(repository.session).materialize(
         broadcast.id,
         BroadcastAudienceDto(user_ids=[customer.id]),
         broadcast.category,
@@ -1049,9 +1098,15 @@ async def test_broadcast_promocode_for_customer(
     promocode_repository: PromocodeRepository,
     user_repository: UserRepository,
     uow: UnitOfWork,
+    broadcast_recipient_repository: BroadcastRecipientRepository,
 ) -> None:
     customer = await user_repository.create(CreateUserDto(name="c", telegram_id=9401))
-    use_case = GetBroadcastPromocodeUseCase(broadcast_repository, promocode_repository, uow)
+    use_case = GetBroadcastPromocodeUseCase(
+        broadcast_repository,
+        broadcast_recipient_repository,
+        promocode_repository,
+        uow,
+    )
     promo = await promocode_repository.create(
         CreatePromocodeDto(code="SALE", reward_type=PromocodeRewardType.DURATION, reward=5)
     )
@@ -1074,10 +1129,16 @@ async def test_broadcast_promocode_needs_recipient_or_channel_post(
     promocode_repository: PromocodeRepository,
     user_repository: UserRepository,
     uow: UnitOfWork,
+    broadcast_recipient_repository: BroadcastRecipientRepository,
 ) -> None:
     recipient = await user_repository.create(CreateUserDto(name="r", telegram_id=9403))
     stranger = await user_repository.create(CreateUserDto(name="s", telegram_id=9404))
-    use_case = GetBroadcastPromocodeUseCase(broadcast_repository, promocode_repository, uow)
+    use_case = GetBroadcastPromocodeUseCase(
+        broadcast_repository,
+        broadcast_recipient_repository,
+        promocode_repository,
+        uow,
+    )
     promo = await promocode_repository.create(
         CreatePromocodeDto(code="PRIVATE", reward_type=PromocodeRewardType.DURATION, reward=5)
     )
@@ -1092,14 +1153,44 @@ async def test_broadcast_promocode_needs_recipient_or_channel_post(
     assert await use_case(stranger, broadcast.id) == "PRIVATE"
 
 
+async def test_broadcast_promocode_draft_reaches_test_sender_only(
+    broadcast_repository: BroadcastRepository,
+    promocode_repository: PromocodeRepository,
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+    broadcast_recipient_repository: BroadcastRecipientRepository,
+    admin: UserDto,
+) -> None:
+    customer = await user_repository.create(CreateUserDto(name="c", telegram_id=9405))
+    use_case = GetBroadcastPromocodeUseCase(
+        broadcast_repository,
+        broadcast_recipient_repository,
+        promocode_repository,
+        uow,
+    )
+    promo = await promocode_repository.create(
+        CreatePromocodeDto(code="TEST", reward_type=PromocodeRewardType.DURATION, reward=5)
+    )
+    broadcast = await broadcast_repository.create(save_dto(promocode_id=promo.id), created_by=None)
+
+    assert await use_case(admin, broadcast.id) == "TEST"
+    assert await use_case(customer, broadcast.id) is None
+
+
 async def test_broadcast_promocode_is_none_when_deactivated(
     broadcast_repository: BroadcastRepository,
     promocode_repository: PromocodeRepository,
     user_repository: UserRepository,
     uow: UnitOfWork,
+    broadcast_recipient_repository: BroadcastRecipientRepository,
 ) -> None:
     customer = await user_repository.create(CreateUserDto(name="c", telegram_id=9402))
-    use_case = GetBroadcastPromocodeUseCase(broadcast_repository, promocode_repository, uow)
+    use_case = GetBroadcastPromocodeUseCase(
+        broadcast_repository,
+        broadcast_recipient_repository,
+        promocode_repository,
+        uow,
+    )
     promo = await promocode_repository.create(
         CreatePromocodeDto(code="OFF", reward_type=PromocodeRewardType.DURATION, reward=5)
     )

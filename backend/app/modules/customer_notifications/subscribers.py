@@ -1,7 +1,8 @@
 import math
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Final, Optional, Union, cast
 
+from app.core.constants import DATE_FORMAT, TTL_1D
 from app.core.event_bus import EventBus
 from app.core.events import StoredEvent
 from app.modules.account_merge import AccountsMergedEvent
@@ -32,6 +33,7 @@ from app.modules.subscriptions import (
     SubscriptionExpiredAgoEvent,
     SubscriptionExpiredEvent,
     SubscriptionExpiringEvent,
+    SubscriptionGraceStartedEvent,
     SubscriptionGrantedEvent,
     SubscriptionNotConnectedEvent,
     SubscriptionPurchasedEvent,
@@ -39,6 +41,7 @@ from app.modules.subscriptions import (
     SubscriptionTrafficLimitedEvent,
     SubscriptionTrafficThresholdEvent,
     TorrentBlockerReportEvent,
+    is_unlimited_expiry,
 )
 from app.modules.transactions import (
     PaidOrderNotFulfilledEvent,
@@ -60,6 +63,7 @@ async def _notify(
     args: dict[str, Any],
     payment_key: Optional[str] = None,
     subscription_id: Optional[int] = None,
+    cooldown_until: Optional[str] = None,
 ) -> None:
     # the system actor owns nothing
     if user_id <= 0:
@@ -71,6 +75,7 @@ async def _notify(
         args=args,
         payment_key=payment_key,
         subscription_id=subscription_id,
+        cooldown_until=cooldown_until,
     )
 
 
@@ -155,14 +160,32 @@ async def _on_hours(
 
 
 async def _on_subscription(
-    event: Union[
-        SubscriptionExpiredEvent,
-        SubscriptionTrafficLimitedEvent,
-        SubscriptionTrafficThresholdEvent,
-    ],
+    event: Union[SubscriptionExpiredEvent, SubscriptionTrafficLimitedEvent],
     entry: StoredEvent,
 ) -> None:
     await _notify(entry, event.user.id, {}, subscription_id=event.subscription_id)
+
+
+async def _on_grace_started(event: SubscriptionGraceStartedEvent, entry: StoredEvent) -> None:
+    until = datetime.fromisoformat(event.grace_until)
+    await _notify(
+        entry,
+        event.user.id,
+        {
+            # an indefinite grace has no date to name
+            "grace_until": "none" if is_unlimited_expiry(until) else until.strftime(DATE_FORMAT),
+            "traffic_limit_mb": event.traffic_limit_mb,
+        },
+        subscription_id=event.subscription_id,
+    )
+
+
+async def _on_traffic_threshold(
+    event: SubscriptionTrafficThresholdEvent, entry: StoredEvent
+) -> None:
+    await _notify(
+        entry, event.user.id, {"percent": event.percent}, subscription_id=event.subscription_id
+    )
 
 
 def _block_span(blocked_until: str, now: datetime) -> dict[str, Any]:
@@ -184,7 +207,17 @@ async def _on_torrent(event: TorrentBlockerReportEvent, entry: StoredEvent) -> N
         event.user.id,
         _block_span(event.blocked_until, entry.occurred_at),
         subscription_id=event.subscription_id,
+        # quiet until the first report's block ends; a torrent left running is reminded once
+        # per block duration, since the node extends the block on every report
+        cooldown_until=_torrent_cooldown_until(event, entry.occurred_at),
     )
+
+
+def _torrent_cooldown_until(event: TorrentBlockerReportEvent, now: datetime) -> str:
+    # a permanent block reports its own start as the end
+    if event.block_duration_s == 0:
+        return (now + timedelta(seconds=TTL_1D)).isoformat()
+    return event.blocked_until
 
 
 def _amount(value: Union[str, int]) -> Union[str, int]:
@@ -198,7 +231,8 @@ async def _on_discount_expiring(event: PromocodeDiscountExpiringEvent, entry: St
     await _notify(
         entry,
         event.user.id,
-        {"code": event.code, "percent": event.percent, "hours": event.hours},
+        {"code": event.code, "percent": event.percent, "hours": event.hours}
+        | ({"minutes": event.minutes} if event.minutes is not None else {}),
     )
 
 
@@ -271,8 +305,9 @@ def register_subscribers(bus: EventBus) -> None:
     bus.subscribe(TransactionExpiredEvent, _on_abandoned)
     bus.subscribe(SubscriptionExpiringEvent, _on_hours)
     bus.subscribe(SubscriptionExpiredEvent, _on_subscription)
+    bus.subscribe(SubscriptionGraceStartedEvent, _on_grace_started)
     bus.subscribe(SubscriptionTrafficLimitedEvent, _on_subscription)
-    bus.subscribe(SubscriptionTrafficThresholdEvent, _on_subscription)
+    bus.subscribe(SubscriptionTrafficThresholdEvent, _on_traffic_threshold)
     bus.subscribe(SubscriptionNotConnectedEvent, _on_hours)
     bus.subscribe(SubscriptionExpiredAgoEvent, _on_hours)
     bus.subscribe(TorrentBlockerReportEvent, _on_torrent)

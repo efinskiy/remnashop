@@ -1,20 +1,26 @@
 from dataclasses import replace
+from types import SimpleNamespace
+from typing import Any, cast
 from uuid import uuid4
 
 import pytest
 from remnapy.enums import TrafficLimitStrategy
 from sqlalchemy import func, select
 
+from app.core.constants import GB_TO_BYTES
 from app.core.db.models import EventOutboxEntry
 from app.core.db.uow import UnitOfWork
 from app.core.enums import AddOnType, SubscriptionStatus
 from app.core.ports import EventPublisher
+from app.modules.settings import SettingsRepository
+from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
 from app.modules.subscriptions.dto import PanelConfigDto, SyncSubscriptionStatusDto
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
-from app.modules.subscriptions.panel_config import _base_limit
+from app.modules.subscriptions.panel_config import _base_limit, panel_config
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.usecases import SyncSubscriptionStatusUseCase
 from app.modules.users.repository import UserRepository
+from tests.fakes.remnawave import unused_sdk
 from tests.modules.subscriptions.factories import create_subscription
 
 
@@ -31,6 +37,28 @@ from tests.modules.subscriptions.factories import create_subscription
 )
 def test_base_limit(panel: int, bonus: int, expected: tuple[int, bool]) -> None:
     assert _base_limit(panel, bonus) == expected
+
+
+@pytest.mark.parametrize(
+    ("limit_bytes", "expected_gb"),
+    [
+        (0, 0),
+        (300 * 1024**2, 1),  # under half a GB: still a limit, not unlimited
+        (int(1.4 * GB_TO_BYTES), 2),
+        (100 * GB_TO_BYTES, 100),
+    ],
+)
+def test_a_panel_limit_rounds_up_to_whole_gb(limit_bytes: int, expected_gb: int) -> None:
+    user = SimpleNamespace(
+        subscription_url="https://example.com/sub/1",
+        traffic_limit_bytes=limit_bytes,
+        hwid_device_limit=3,
+        traffic_limit_strategy="NO_RESET",
+        tag=None,
+        active_internal_squads=[],
+        external_squad_uuid=None,
+    )
+    assert panel_config(cast(Any, user)).traffic_limit == expected_gb
 
 
 def _config(**overrides: object) -> PanelConfigDto:
@@ -53,7 +81,11 @@ def _use_case(
         subscription_repository,
         uow,
         publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
+        unused_sdk(),
+        SettingsRepository(subscription_repository.session),
     )
 
 

@@ -10,6 +10,7 @@ import {
   blockUser,
   clearEmailUndeliverable,
   deleteUser,
+  resetUserBotMenu,
   setUserTrialAvailability,
   unbindUserTelegram,
   unblockUser,
@@ -36,6 +37,7 @@ export type UserAction =
   | "unblock"
   | "resetReferralCode"
   | "clearEmailUndeliverable"
+  | "resetBotMenu"
   | "toggleTrial"
   | "merge"
   | "deleteSubscriptions"
@@ -91,8 +93,6 @@ export function useUserActions({
       | "deleteSubscriptions"
       | "delete";
     user: UserBase;
-    /** the merge counterpart, preset when a Telegram ID turned out taken */
-    other?: UserBase;
   } | null>(null);
 
   const available = (user: UserBase): UserAction[] => {
@@ -126,8 +126,10 @@ export function useUserActions({
         ? ["demote" as const]
         : []),
       // bound: only unbinding is offered; a new id goes on after that. Staff link
-      // Telegram from their profile by signing in with it, never by a typed id
-      ...(user.telegram_id === null && user.role === "USER" && permissions.includes("USERS_TELEGRAM_BIND")
+      // Telegram from their profile by signing in with it; only the owner types their own
+      ...(user.telegram_id === null &&
+      (user.role === "USER" || (isSelf && currentRole === "OWNER")) &&
+      permissions.includes("USERS_TELEGRAM_BIND")
         ? ["bindTelegram" as const]
         : []),
       ...(user.telegram_id !== null && canTouchStaff && permissions.includes("USERS_TELEGRAM_UNBIND")
@@ -145,6 +147,9 @@ export function useUserActions({
         : []),
       ...(user.email_undeliverable_at && (canManage || isSelf) && permissions.includes("USERS_EMAIL_UNDELIVERABLE_CLEAR")
         ? ["clearEmailUndeliverable" as const]
+        : []),
+      ...(user.telegram_id !== null && !user.is_blocked && !user.is_bot_blocked && canManage && permissions.includes("USERS_BOT_MENU_RESET")
+        ? ["resetBotMenu" as const]
         : []),
       ...(canManageOwn && permissions.includes("USERS_TRIAL_MANAGE") ? ["toggleTrial" as const] : []),
       ...(canTouchStaff &&
@@ -200,6 +205,15 @@ export function useUserActions({
     }
   };
 
+  const resetBotMenu = async (user: UserBase) => {
+    try {
+      await resetUserBotMenu(user.id);
+      toast.success(t("users.botMenu.done"));
+    } catch (err) {
+      toast.error(getErrorMessage(err, t("common.errors.generic")));
+    }
+  };
+
   const toggleTrial = async (user: UserBase) => {
     const allow = !user.is_trial_available;
     try {
@@ -234,6 +248,7 @@ export function useUserActions({
   const run = (action: UserAction, user: UserBase) => {
     if (action === "unblock") void setBlocked(user, false);
     else if (action === "clearEmailUndeliverable") void clearUndeliverable(user);
+    else if (action === "resetBotMenu") void resetBotMenu(user);
     else if (action === "toggleTrial") void toggleTrial(user);
     // blocking an admin also demotes them and drops their sessions, so confirm first
     else if (action === "block") {
@@ -264,15 +279,15 @@ export function useUserActions({
       <BindTelegramDialog
         user={pending.user}
         onBound={onUpdated}
-        onMergeWith={(other) =>
-          setPending({ action: "merge", user: pending.user, other })
-        }
+        onMerged={(merged, removed) => {
+          onUpdated(merged);
+          onDeleted(removed);
+        }}
         onClose={close}
       />
     ) : pending.action === "merge" ? (
       <MergeAccountsDialog
         user={pending.user}
-        initialOther={pending.other}
         onMerged={(merged, removed) => {
           onUpdated(merged);
           onDeleted(removed);

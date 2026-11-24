@@ -1,5 +1,6 @@
 from aiogram.enums import ParseMode
 from aiogram_dialog import Dialog, Window
+from aiogram_dialog.widgets.input import MessageInput
 from aiogram_dialog.widgets.kbd import Button, ListGroup, SwitchTo
 from aiogram_dialog.widgets.media import DynamicMedia
 from aiogram_dialog.widgets.text import Format
@@ -13,6 +14,8 @@ from app.telegram.routers.subscriptions.getters import (
     device_confirm_delete_all_getter,
     device_confirm_delete_getter,
     device_confirm_reissue_getter,
+    device_getter,
+    device_rename_getter,
     devices_getter,
     subscription_card_getter,
     subscription_recurring_terms_getter,
@@ -20,7 +23,8 @@ from app.telegram.routers.subscriptions.getters import (
 )
 from app.telegram.routers.subscriptions.handlers import (
     on_auto_renew,
-    on_device_delete_request,
+    on_device_name_input,
+    on_device_selected,
     on_subscription_selected,
 )
 from app.telegram.states import Subscriptions
@@ -97,7 +101,7 @@ devices = Window(
         Button(
             text=Format("{item[label]}"),
             id="device_item",
-            on_click=on_device_delete_request,
+            on_click=on_device_selected,
             style=LabelIcon("item", "label"),
         ),
         id="devices_list",
@@ -109,6 +113,25 @@ devices = Window(
     parse_mode=ParseMode.HTML,
     state=Subscriptions.DEVICES,
     getter=with_window_banner("menu.devices", devices_getter),
+)
+
+device = Window(
+    DynamicMedia("banner"),
+    Format("{window_text}"),
+    ConfigKeyboard(window_key="menu.device"),
+    parse_mode=ParseMode.HTML,
+    state=Subscriptions.DEVICE,
+    getter=with_window_banner("menu.device", device_getter),
+)
+
+device_rename = Window(
+    DynamicMedia("banner"),
+    Format("{window_text}"),
+    MessageInput(on_device_name_input),
+    ConfigKeyboard(window_key="menu.device_rename"),
+    parse_mode=ParseMode.HTML,
+    state=Subscriptions.DEVICE_RENAME,
+    getter=with_window_banner("menu.device_rename", device_rename_getter),
 )
 
 device_confirm_delete = Window(
@@ -143,6 +166,8 @@ router = Dialog(
     subscription_card,
     recurring_terms,
     devices,
+    device,
+    device_rename,
     device_confirm_delete,
     device_confirm_delete_all,
     device_confirm_reissue,

@@ -6,13 +6,13 @@ from loguru import logger
 from app.core.db.uow import UnitOfWork
 from app.core.enums import PaymentGatewayType, TransactionStatus
 from app.core.exceptions import PaymentGatewayError
+from app.core.ports import EventPublisher
 from app.core.utils.time import datetime_now
 from app.modules.gateways import GatewayRepository
 from app.modules.recurring_payments.dto import RecurringPaymentDto, RecurringTerms
 from app.modules.recurring_payments.lifecycle import RecurringLifecycle
 from app.modules.recurring_payments.policy import (
     PENDING_TIMEOUT_HOURS,
-    RecurringReason,
 )
 from app.modules.recurring_payments.repository import RecurringPaymentRepository
 from app.modules.subscriptions import PurchaseSubscriptionDispatch
@@ -24,6 +24,7 @@ from app.modules.transactions import (
     YooKassaGateway,
     settle_verified_payment,
 )
+from app.modules.users import UserRepository
 
 
 def pending_expired(
@@ -43,6 +44,8 @@ class RecurringPoller:
         gateway_repository: GatewayRepository,
         gateway_factory: PaymentGatewayFactory,
         purchase_dispatch: PurchaseSubscriptionDispatch,
+        user_repository: UserRepository,
+        event_publisher: EventPublisher,
         uow: UnitOfWork,
     ) -> None:
         self._recurring = recurring_repository
@@ -51,6 +54,8 @@ class RecurringPoller:
         self._gateways = gateway_repository
         self._factory = gateway_factory
         self._dispatch = purchase_dispatch
+        self._users = user_repository
+        self._event_publisher = event_publisher
         self._uow = uow
 
     async def gateway(self) -> YooKassaGateway:
@@ -75,7 +80,13 @@ class RecurringPoller:
             raise PaymentGatewayError("YooKassa returned a payment for a different order")
         if gateway.payment_matches(order, payment):
             moved = await settle_verified_payment(
-                order, payment, self._transactions, self._uow, self._dispatch
+                order,
+                payment,
+                transaction_repository=self._transactions,
+                user_repository=self._users,
+                event_publisher=self._event_publisher,
+                uow=self._uow,
+                dispatch=self._dispatch,
             )
             if moved:
                 logger.info(f"Recurring order '{order.id}' confirmed by YooKassa")
@@ -96,4 +107,7 @@ class RecurringPoller:
                     and mandate.pending_transaction_id == order.id
                     and pending_expired(mandate, order, terms)
                 ):
-                    await self._lifecycle.pause(subscription_id, RecurringReason.PENDING_TIMEOUT)
+                    # outcome unknown: ends the attempt, so the customer may pay by hand
+                    await self._lifecycle.retire_pending(
+                        subscription_id, order.id, force_unknown=True
+                    )

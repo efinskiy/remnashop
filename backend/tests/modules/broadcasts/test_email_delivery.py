@@ -30,6 +30,7 @@ from app.core.metrics import WORKER_METRICS_REGISTRY
 from app.core.utils.time import datetime_now
 from app.modules.broadcasts.dto import BroadcastDto, BroadcastEmailContentDto
 from app.modules.broadcasts.events import BroadcastCompletedEvent
+from app.modules.broadcasts.recipient_repository import BroadcastRecipientRepository
 from app.modules.broadcasts.repository import BroadcastRepository
 from app.modules.broadcasts.storage import email_image_path
 from app.modules.broadcasts.usecases import DeliverBroadcastEmailBatchUseCase
@@ -43,6 +44,7 @@ from app.modules.email import (
     smtp_pause_key,
 )
 from app.modules.promocodes.repository import PromocodeRepository
+from app.modules.referrals.repository import ReferralRepository
 from app.modules.settings import GetPublicAppearanceImageUseCase
 from app.modules.settings.appearance_storage import appearance_image_path
 from app.modules.settings.dto import SmtpProfileDto, UpdateEmailSettingsDto
@@ -152,8 +154,10 @@ def make_deliver(
         cfg = config or media_config
         return DeliverBroadcastEmailBatchUseCase(
             broadcast_repository,
+            BroadcastRecipientRepository(broadcast_repository.session),
             settings_repository,
             promocode_repository,
+            ReferralRepository(promocode_repository.session),
             translation_repository,
             user_repository,
             GetPublicAppearanceImageUseCase(settings_repository, cfg, uow),

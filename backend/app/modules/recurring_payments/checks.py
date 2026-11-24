@@ -15,7 +15,7 @@ from app.modules.recurring_payments.policy import (
 )
 from app.modules.recurring_payments.repository import RecurringPaymentRepository
 from app.modules.settings import SettingsRepository
-from app.modules.transactions import TransactionDto
+from app.modules.transactions import TransactionDto, YooKassaGateway
 
 
 class RecurringDebitChecks:
@@ -44,6 +44,22 @@ class RecurringDebitChecks:
             else timedelta(minutes=minutes)
         )
         await self._lifecycle.defer(subscription_id, datetime_now() + delay, error)
+
+    async def will_renew(self, subscription_id: int) -> bool:
+        """Whether the next charge would go out as things stand, so the customer hears
+        "renew in advance" from nothing but a working mandate."""
+        mandate = await self._recurring.get(subscription_id)
+        if (
+            mandate is None
+            or not mandate.enabled
+            or mandate.last_error is not None
+            or not mandate.payment_method_id
+            or not await self.enabled()
+            or await self._recurring.consent_terms(mandate.consent_id) is None
+        ):
+            return False
+        settings = await self._gateways.get_raw_settings(PaymentGatewayType.YOOKASSA)
+        return YooKassaGateway.shop_takes_payments(settings, mandate.shop_id)
 
     async def policy(self) -> RecurringPolicy:
         return recurring_policy(await self._gateways.get_raw_settings(PaymentGatewayType.YOOKASSA))

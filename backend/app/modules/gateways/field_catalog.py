@@ -1,17 +1,22 @@
 from dataclasses import dataclass
 from enum import StrEnum, auto
 from typing import Final, Literal, Optional, cast, get_args, get_origin
+from urllib.parse import urlsplit
 
 from pydantic import SecretStr
 from pydantic.fields import FieldInfo
 
 from app.core.enums import Currency, PaymentGatewayType
 from app.core.error_codes import ErrorCode
-from app.core.exceptions import ValidationError
+from app.core.exceptions import PaymentGatewayError, ValidationError
 from app.modules.gateways.gateway_settings import (
+    FIELD_GROUP_KEY,
     GATEWAY_SETTINGS,
     HIDDEN_WHEN_KEY,
     RECURRING_TIMINGS,
+    REQUIRED_UNLESS_KEY,
+    REQUIRES_ALL_CHANNELS_KEY,
+    HttpsUrlStr,
     NumericStr,
 )
 
@@ -29,6 +34,7 @@ class GatewayFieldKind(StrEnum):
     SECRET = auto()
     NUMBER = auto()
     BOOLEAN = auto()
+    URL = auto()
     CHOICE = auto()
 
 
@@ -38,6 +44,12 @@ class GatewayFieldSpec:
     kind: GatewayFieldKind
     required: bool = True
     default: str = ""
+    # the boolean field that shows this one (itself, for the switch); None: always shown
+    group: Optional[str] = None
+    # a group's switch shown only while every channel is on (or the switch is)
+    requires_all_channels: bool = False
+    # a field the dashboard asks for while this switch is off (the model decides when it's set)
+    required_unless: Optional[str] = None
     options: tuple[str, ...] = ()
     # (other field key, value): the dashboard hides this field while that one holds the value
     hidden_when: Optional[tuple[str, str]] = None
@@ -48,6 +60,7 @@ _KIND_BY_TYPE: Final[dict[object, GatewayFieldKind]] = {
     SecretStr: GatewayFieldKind.SECRET,
     NumericStr: GatewayFieldKind.NUMBER,
     bool: GatewayFieldKind.BOOLEAN,
+    HttpsUrlStr: GatewayFieldKind.URL,
 }
 
 
@@ -67,8 +80,17 @@ def _field_spec(key: str, field: FieldInfo) -> GatewayFieldSpec:
     declared = [arg for arg in get_args(field.annotation) if arg is not type(None)]
     kind = _KIND_BY_TYPE[declared[0] if declared else field.annotation]
     default = str(field.default).lower() if kind is GatewayFieldKind.BOOLEAN else ""
+    group = extra.get(FIELD_GROUP_KEY)
+    required_unless = extra.get(REQUIRED_UNLESS_KEY)
     return GatewayFieldSpec(
-        key=key, kind=kind, required=field.is_required(), default=default, hidden_when=hidden_when
+        key=key,
+        kind=kind,
+        required=field.is_required(),
+        default=default,
+        group=group if isinstance(group, str) else None,
+        requires_all_channels=extra.get(REQUIRES_ALL_CHANNELS_KEY) is True,
+        required_unless=required_unless if isinstance(required_unless, str) else None,
+        hidden_when=hidden_when,
     )
 
 
@@ -78,27 +100,49 @@ GATEWAY_FIELD_CATALOG: Final[dict[PaymentGatewayType, tuple[GatewayFieldSpec, ..
 }
 
 
-def is_gateway_configured(gateway_type: PaymentGatewayType, values: dict[str, str]) -> bool:
-    return all(
+def gateway_settings_error(
+    gateway_type: PaymentGatewayType, values: dict[str, str]
+) -> Optional[ErrorCode]:
+    """Why these settings can't take payments, or None when they can."""
+    if not all(
         values.get(field_spec.key, "").strip() != ""
         for field_spec in GATEWAY_FIELD_CATALOG[gateway_type]
         if field_spec.required
-    )
+    ):
+        return ErrorCode.GATEWAY_SETTINGS_INCOMPLETE
+    # a model may require fields only in some modes (YooKassa's relay)
+    try:
+        GATEWAY_SETTINGS[gateway_type].from_values(values)
+    except PaymentGatewayError as error:
+        if error.code is ErrorCode.PAYMENT_GATEWAY_ERROR:
+            return ErrorCode.GATEWAY_SETTINGS_INCOMPLETE
+        return error.code
+    return None
+
+
+def is_gateway_configured(gateway_type: PaymentGatewayType, values: dict[str, str]) -> bool:
+    return gateway_settings_error(gateway_type, values) is None
+
+
+def gateway_splits_channels(gateway_type: PaymentGatewayType, values: dict[str, str]) -> bool:
+    try:
+        return GATEWAY_SETTINGS[gateway_type].from_values(values).splits_channels
+    except PaymentGatewayError:
+        return False
 
 
 def gateway_flags(gateway_type: PaymentGatewayType, values: dict[str, str]) -> dict[str, bool]:
     # unlike every other field these aren't secrets, so the dashboard reads
     # them back and renders switches
-    flags = {
+    return {
         field_spec.key: (values.get(field_spec.key) or field_spec.default) == "true"
         for field_spec in GATEWAY_FIELD_CATALOG[gateway_type]
         if field_spec.kind is GatewayFieldKind.BOOLEAN
     }
-    return flags
 
 
 _READABLE_KINDS: Final[frozenset[GatewayFieldKind]] = frozenset(
-    {GatewayFieldKind.TEXT, GatewayFieldKind.NUMBER, GatewayFieldKind.CHOICE}
+    {GatewayFieldKind.TEXT, GatewayFieldKind.NUMBER, GatewayFieldKind.CHOICE, GatewayFieldKind.URL}
 )
 
 
@@ -136,27 +180,35 @@ def validate_gateway_field_values(gateway_type: PaymentGatewayType, values: dict
             )
 
     for field_spec in GATEWAY_FIELD_CATALOG[gateway_type]:
-        _validate_field_value(gateway_type, field_spec, values.get(field_spec.key))
+        _validate_field_value(gateway_type, field_spec, values)
 
 
 def _validate_field_value(
-    gateway_type: PaymentGatewayType, field_spec: GatewayFieldSpec, raw_value: Optional[str]
+    gateway_type: PaymentGatewayType, field_spec: GatewayFieldSpec, values: dict[str, str]
 ) -> None:
     if field_spec.kind is GatewayFieldKind.CHOICE:
-        if raw_value is not None and raw_value not in field_spec.options:
-            raise ValidationError(
-                f"Invalid choice for '{field_spec.key}'",
-                code=ErrorCode.GATEWAY_FIELD_INVALID_CHOICE,
-            )
+        _validate_choice(field_spec, values.get(field_spec.key))
         return
     if field_spec.kind is GatewayFieldKind.BOOLEAN:
-        if raw_value is not None and raw_value not in _BOOLEAN_VALUES:
+        raw_flag = values.get(field_spec.key)
+        if raw_flag is not None and raw_flag not in _BOOLEAN_VALUES:
             raise ValidationError(
                 f"Field '{field_spec.key}' for {gateway_type.value} must be 'true' or 'false'",
                 code=ErrorCode.GATEWAY_FIELD_NOT_BOOLEAN,
             )
         return
-    if field_spec.kind is not GatewayFieldKind.NUMBER or not raw_value or not raw_value.strip():
+    if field_spec.kind is GatewayFieldKind.URL:
+        raw_url = values.get(field_spec.key, "").strip()
+        if raw_url and not _is_base_https_url(raw_url):
+            raise ValidationError(
+                f"Field '{field_spec.key}' for {gateway_type.value} must be an https:// URL",
+                code=ErrorCode.URL_NOT_HTTPS,
+            )
+        return
+    if field_spec.kind is not GatewayFieldKind.NUMBER:
+        return
+    raw_value = values.get(field_spec.key, "").strip()
+    if not raw_value:
         return
     try:
         number = int(raw_value)
@@ -172,3 +224,21 @@ def _validate_field_value(
             f"Field '{field_spec.key}' must be between {bounds[1]} and {bounds[2]}",
             code=ErrorCode.GATEWAY_FIELD_OUT_OF_RANGE,
         )
+
+
+def _validate_choice(field_spec: GatewayFieldSpec, raw_choice: Optional[str]) -> None:
+    if raw_choice is not None and raw_choice not in field_spec.options:
+        raise ValidationError(
+            f"Invalid choice for '{field_spec.key}'",
+            code=ErrorCode.GATEWAY_FIELD_INVALID_CHOICE,
+        )
+
+
+def _is_base_https_url(value: str) -> bool:
+    # a base address: paths are appended to it, so no query or fragment
+    try:
+        parsed = urlsplit(value)
+        hostname = parsed.hostname
+    except ValueError:
+        return False
+    return parsed.scheme == "https" and bool(hostname) and not parsed.query and not parsed.fragment

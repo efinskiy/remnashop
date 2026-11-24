@@ -39,6 +39,8 @@ export interface UserBase {
   personal_discount: number;
   purchase_discount: number;
   loyalty_discount: number;
+  /** admin only, the customer never sees it */
+  markup_percent: number;
   referral_code?: string | null;
   points: string;
   bonus_days: number;
@@ -125,6 +127,12 @@ export function deleteUser(userId: number): Promise<void> {
   return apiDelete<void>(`/users/${userId}`);
 }
 
+export function setUserMarkup(userId: number, markupPercent: number): Promise<UserListItem> {
+  return apiPatch<UserListItem, { markup_percent: number }>(`/users/${userId}/markup`, {
+    markup_percent: markupPercent,
+  });
+}
+
 export function setUserDiscount(
   userId: number,
   discounts: { personal_discount?: number; purchase_discount?: number },
@@ -140,6 +148,11 @@ export function setUserTrialAvailability(userId: number, isTrialAvailable: boole
   return apiPatch<UserListItem, { is_trial_available: boolean }>(`/users/${userId}/trial`, {
     is_trial_available: isTrialAvailable,
   });
+}
+
+/** drops the customer's bot dialog and sends them a fresh main menu */
+export function resetUserBotMenu(userId: number): Promise<void> {
+  return apiPost<void, Record<string, never>>(`/users/${userId}/actions/reset-bot-menu`, {});
 }
 
 export function clearEmailUndeliverable(userId: number): Promise<UserListItem> {

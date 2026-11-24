@@ -6,6 +6,7 @@ from typing import Final, Optional
 
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ValidationError
+from app.modules.broadcasts.content import URL_VARIABLES, VARIABLE_RE
 
 EMAIL_IMAGE_SRC_PREFIX: Final[str] = "bc-image:"
 _ALLOWED_TAGS: Final[frozenset[str]] = frozenset(
@@ -66,6 +67,11 @@ def _invalid(reason: str) -> ValidationError:
     )
 
 
+def _is_url_variable(href: str) -> bool:
+    match = VARIABLE_RE.fullmatch(href)
+    return match is not None and match.group(1) in URL_VARIABLES
+
+
 class _Walker(HTMLParser):
     # void tags never get an end tag, so subclasses only see their start
     def handle_startendtag(self, tag: str, attrs: _Attrs) -> None:
@@ -91,7 +97,9 @@ class _Validator(_Walker):
                 raise _invalid(f"attribute {name} is not supported on <{tag}>")
         if tag == "a":
             href = values.get("href") or ""
-            if not href.startswith(_LINK_SCHEMES) or _UNSAFE_URL_CHAR_RE.search(href):
+            if not _is_url_variable(href) and (
+                not href.startswith(_LINK_SCHEMES) or _UNSAFE_URL_CHAR_RE.search(href)
+            ):
                 raise _invalid("link must be an https://, http:// or mailto: address")
         elif tag == "img":
             if not _IMAGE_SRC_RE.fullmatch(values.get("src") or ""):
@@ -149,6 +157,20 @@ def email_image_ids(html: str) -> set[int]:
     walker.feed(html)
     walker.close()
     return walker.ids
+
+
+# only an <img> src, never the same token in the text
+_IMAGE_SRC_ATTR_RE: Final[re.Pattern[str]] = re.compile(
+    rf"""(<img\b[^>]*\bsrc=(["']?)){re.escape(EMAIL_IMAGE_SRC_PREFIX)}([0-9]+)(?=\2)"""
+)
+
+
+def replace_email_image_ids(html: str, new_ids: dict[int, int]) -> str:
+    def _swap(match: re.Match[str]) -> str:
+        image_id = new_ids.get(int(match.group(3)), int(match.group(3)))
+        return f"{match.group(1)}{EMAIL_IMAGE_SRC_PREFIX}{image_id}"
+
+    return _IMAGE_SRC_ATTR_RE.sub(_swap, html)
 
 
 class _Styler(_Walker):

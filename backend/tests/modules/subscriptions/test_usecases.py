@@ -3,6 +3,7 @@ from uuid import uuid4
 
 import pytest
 from remnapy import RemnawaveSDK
+from remnapy.exceptions import NotFoundError as RemnawaveNotFoundError
 
 from app.core.constants import GB_TO_BYTES
 from app.core.db.uow import UnitOfWork
@@ -10,6 +11,8 @@ from app.core.enums import AddOnType, Locale, Role, SubscriptionStatus
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import PermissionDeniedError, ValidationError
 from app.core.utils.time import datetime_now, truncate_to_ms
+from app.modules.settings.repository import SettingsRepository
+from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
 from app.modules.subscriptions.dto import (
     CreateSubscriptionDto,
     ListSubscriptionsDto,
@@ -62,7 +65,10 @@ def _update_use_case(
         remnawave_sdk,
         event_publisher,
         uow,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
+        SettingsRepository(subscription_repository.session),
     )
 
 
@@ -323,7 +329,7 @@ async def test_update_keeps_db_unchanged_when_panel_fails(
     user = await user_repository.create(CreateUserDto(name="buyer", telegram_id=9502))
     created = await subscription_repository.create(_create_dto(user.id, 9502))  # no panel user
 
-    with pytest.raises(KeyError):  # the fake panel has no such user
+    with pytest.raises(RemnawaveNotFoundError):  # the fake panel has no such user
         await _update_use_case(subscription_repository, remnawave_sdk, event_publisher, uow)(
             OWNER, UpdateSubscriptionDto(subscription_id=created.id, traffic_limit=999)
         )

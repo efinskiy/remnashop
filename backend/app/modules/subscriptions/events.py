@@ -27,7 +27,7 @@ SubscriptionEditAction: TypeAlias = Literal[
     "update",
 ]
 
-StatusSyncSource: TypeAlias = Literal["admin_pull", "panel_sync", "webhook"]
+StatusSyncSource: TypeAlias = Literal["admin_pull", "panel_sync", "webhook", "grace_sweep"]
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -39,6 +39,8 @@ class SubscriptionPurchasedEvent(UserEvent):
     # The paid order's idempotency key; None for trial/promocode/referral grants.
     payment_key: Optional[str] = None
     is_trial: bool = False
+    # the days the term really holds
+    added_days: Optional[int] = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -46,6 +48,8 @@ class SubscriptionRenewedEvent(UserEvent):
     category: ClassVar[EventCategory] = EventCategory.SUBSCRIPTION
     subscription_id: int
     duration_days: int
+    # what the term really added
+    added_days: Optional[int] = None
     payment_key: Optional[str] = None
 
 
@@ -56,6 +60,8 @@ class SubscriptionChangedEvent(UserEvent):
     previous_subscription_id: int
     previous_plan_snapshot: dict[str, Any]
     payment_key: Optional[str] = None
+    # the new term's own days, without the credit carried over
+    added_days: Optional[int] = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -111,6 +117,7 @@ class PanelSyncCompletedEvent(SystemEvent):
     missing: int
     recreated: int = 0
     imported: int = 0
+    users_created: int = 0
     deleted: int = 0
 
 
@@ -128,6 +135,15 @@ class SubscriptionExpiredEvent(UserEvent):
 
 
 @dataclass(frozen=True, kw_only=True)
+class SubscriptionGraceStartedEvent(UserEvent):
+    category: ClassVar[EventCategory] = EventCategory.SUBSCRIPTION
+    subscription_id: int
+    # ISO 8601, as event payloads carry dates
+    grace_until: str
+    traffic_limit_mb: int
+
+
+@dataclass(frozen=True, kw_only=True)
 class SubscriptionTrafficLimitedEvent(UserEvent):
     category: ClassVar[EventCategory] = EventCategory.SUBSCRIPTION
     subscription_id: int
@@ -137,6 +153,8 @@ class SubscriptionTrafficLimitedEvent(UserEvent):
 class SubscriptionTrafficThresholdEvent(UserEvent):
     category: ClassVar[EventCategory] = EventCategory.SUBSCRIPTION
     subscription_id: int
+    # the panel's threshold reached, as a percentage of the limit; 0 in rows stored before it
+    percent: int = 0
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -198,6 +216,8 @@ class TorrentBlockerReportEvent(UserEvent):
     node_name: str
     destination: str
     blocked_until: str
+    # 0 = blocked for good; defaulted: rows stored before the field still load
+    block_duration_s: Optional[int] = None
 
 
 @dataclass(frozen=True, kw_only=True)

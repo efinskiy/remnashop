@@ -9,6 +9,7 @@ import {
   Mail,
   Package,
   PackageMinus,
+  PackageX,
   PackageCheck,
   Receipt,
   Repeat,
@@ -175,6 +176,8 @@ function TransactionDetailsDialogBody({
   const subscriptionId = order.target_subscription_id ?? order.fulfilled_subscription_id;
   const targetSubscription = subscriptionId !== null ? `#${subscriptionId}` : undefined;
   const missingSubscription = order.status === "PAID" ? t("transactions.details.notIssued") : none;
+  const held = order.fulfillment_hold !== null && order.status === "PAID" && order.fulfilled_subscription_id === null;
+  const hold = held ? t(`transactions.details.hold.${order.fulfillment_hold}` as ParseKeys) : null;
   const createdAt = formatDateTime(order.created_at, i18n.language);
   const { user } = order;
   const username = user?.username ? `@${user.username}` : undefined;
@@ -198,20 +201,25 @@ function TransactionDetailsDialogBody({
               value={money(order.final_price)}
               valueSuffix={(hasDiscount(order) || hasCredit) && <s>{money(order.base_price)}</s>}
               hint={
-                hasDiscount(order) || hasCredit
-                  ? [
-                      hasCredit && t("transactions.details.changeCredit", { amount: money(order.change_credit) }),
-                      order.plan_discount_percent > 0 &&
-                        t("transactions.details.planDiscount", { percent: order.plan_discount_percent }),
-                      order.discount_percent > 0 &&
-                        t("transactions.details.discount", {
-                          percent: order.discount_percent,
-                          source: t(`transactions.discountSource.${order.discount_source}`),
-                        }),
-                    ]
-                      .filter(Boolean)
-                      .join(" + ")
-                  : t("transactions.details.noDiscount")
+                <>
+                  {order.markup_percent > 0 && (
+                    <span className="block">{t("transactions.details.markup", { percent: order.markup_percent })}</span>
+                  )}
+                  {hasDiscount(order) || hasCredit
+                    ? [
+                        hasCredit && t("transactions.details.changeCredit", { amount: money(order.change_credit) }),
+                        order.plan_discount_percent > 0 &&
+                          t("transactions.details.planDiscount", { percent: order.plan_discount_percent }),
+                        order.discount_percent > 0 &&
+                          t("transactions.details.discount", {
+                            percent: order.discount_percent,
+                            source: t(`transactions.discountSource.${order.discount_source}`),
+                          }),
+                      ]
+                        .filter(Boolean)
+                        .join(" + ")
+                    : order.markup_percent === 0 && t("transactions.details.noDiscount")}
+                </>
               }
             />
             <KpiTile glass label={t("transactions.details.period")} value={period} hint={purchaseType} />
@@ -266,6 +274,11 @@ function TransactionDetailsDialogBody({
             <InfoRow icon={Captions} label={t("transactions.details.targetSubscription")} copyValue={targetSubscription} mono>
               <DetailValue value={targetSubscription ?? missingSubscription} />
             </InfoRow>
+            {hold && (
+              <InfoRow icon={PackageX} label={t("transactions.details.holdLabel")} copyValue={hold}>
+                <DetailValue value={hold} />
+              </InfoRow>
+            )}
           </DialogCard>
 
           <DialogCard title={t("transactions.details.sections.user")} icon={User}>

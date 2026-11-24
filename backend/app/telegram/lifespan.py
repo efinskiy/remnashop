@@ -25,7 +25,7 @@ from app.core.utils.time import datetime_now
 from app.modules.dialogs import DialogRepository, ensure_dialogs_seeded
 from app.modules.settings import BotStatusKind, ReportBotStatusDto, ReportBotStatusUseCase
 from app.modules.translations import BotCommandsSync, TranslationRepository
-from app.telegram.bot_signals import live_update_handlers, payment_outcome_handlers
+from app.telegram.bot_signals import customer_dialog_handlers, live_update_handlers
 from app.telegram.dialogs.config_cache import DialogConfigCache
 from app.telegram.i18n import read_translator_hub
 from app.telegram.signal_listener import listen_for_bot_signals
@@ -82,7 +82,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         async with uow:
             await lock_startup_seeding(await startup_container.get(AsyncSession))
             await ensure_dialogs_seeded(dialog_repository, translation_repository)
-        await (await startup_container.get(BotCommandsSync)).push()
+        # forced: a menu edited in BotFather since the last push is put back
+        await (await startup_container.get(BotCommandsSync)).push(force=True)
 
         report_status = await startup_container.get(ReportBotStatusUseCase)
         webhook_url = config.bot.webhook_url(config.domain).get_secret_value()
@@ -117,7 +118,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             await container.get(TranslatorHub),
             partial(read_translator_hub, config),
         ),
-        **payment_outcome_handlers(app.state.bot, await container.get(BgManagerFactory)),
+        **customer_dialog_handlers(app.state.bot, await container.get(BgManagerFactory)),
     }
     bot_signals_task = asyncio.create_task(listen_for_bot_signals(redis, handlers))
     runtime_heartbeat_task = asyncio.create_task(

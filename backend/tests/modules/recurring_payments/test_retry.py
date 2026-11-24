@@ -224,10 +224,11 @@ async def test_a_cancellation_webhook_before_cron_still_schedules_a_bank_retry(
     assert after.next_attempt_at == after.first_failure_at + timedelta(hours=1)
 
 
-async def test_a_long_pending_payment_is_parked_without_releasing_the_debit_lock(
+async def test_a_payment_pending_past_the_timeout_is_closed_as_unknown(
     case,
     session,
     uow,
+    transaction_repository,
 ):
     case.provider.status = "pending"
     await case.worker.system()
@@ -239,19 +240,13 @@ async def test_a_long_pending_payment_is_parked_without_releasing_the_debit_lock
             .values(pending_since=datetime_now() - timedelta(hours=25))
         )
     await tick_again(case, uow)
-    parked = await case.repository.get(case.subscription.id)
-    assert parked.last_error == "pending_timeout"
-    assert parked.enabled and parked.pending_transaction_id == initial.pending_transaction_id
-    count = len(case.provider.requests)
-    future = datetime_now() + timedelta(minutes=5)
-    assert case.subscription.id not in await case.repository.list_due(
-        future, due_before=future, limit=100
-    )
-    later = datetime_now() + timedelta(hours=2)
-    assert case.subscription.id in await case.repository.list_due(
-        later, due_before=later, limit=100
-    )
-    assert len(case.provider.requests) == count
+    closed = await case.repository.get(case.subscription.id)
+    # the manual checkout is no longer held back by a payment nobody can resolve
+    assert closed.pending_transaction_id is None
+    assert not closed.enabled and closed.last_error == "payment_status_unknown"
+    order = await transaction_repository.get_by_id(initial.pending_transaction_id)
+    assert order.status is TransactionStatus.FAILED
+    await tick_again(case, uow)
     assert len(case.provider.posts) == 1
 
 
@@ -464,44 +459,6 @@ async def test_a_late_decline_skips_retry_slots_that_have_already_passed(
     assert len(case.provider.posts) == 2
 
 
-async def test_switching_off_and_on_cannot_erase_a_pending_timeout(
-    case,
-    session,
-    uow,
-):
-    case.provider.status = "pending"
-    await case.worker.system()
-    original = await case.repository.get(case.subscription.id)
-    async with uow:
-        await session.execute(
-            update(RecurringPayment)
-            .where(RecurringPayment.subscription_id == case.subscription.id)
-            .values(pending_since=datetime_now() - timedelta(hours=25))
-        )
-    await tick_again(case, uow)
-    assert (await case.repository.get(case.subscription.id)).last_error == "pending_timeout"
-    disabled = await case.set_state(
-        case.user,
-        SetRecurringPaymentDto(
-            subscription_id=case.subscription.id, enabled=False, channel=PurchaseChannel.CABINET
-        ),
-    )
-    assert disabled.customer_disabled and not disabled.enabled and disabled.available
-    assert disabled.last_error == "customer_disabled"
-    await case.set_state(
-        case.user,
-        SetRecurringPaymentDto(
-            subscription_id=case.subscription.id,
-            enabled=True,
-            terms_id=disabled.terms.terms_id,
-            channel=PurchaseChannel.CABINET,
-        ),
-    )
-    after = await case.repository.get(case.subscription.id)
-    assert after.pending_transaction_id == original.pending_transaction_id
-    assert len(case.provider.posts) == 1
-
-
 async def test_late_verified_success_resumes_the_original_authorization_without_a_new_charge(
     case,
     transaction_repository,
@@ -626,32 +583,6 @@ async def test_overdue_mandate_has_a_terminal_state_and_leaves_the_queue(case, s
         now + timedelta(days=30), due_before=now + timedelta(days=31), limit=100
     )
     assert await notice_types(session) == notices
-
-
-@pytest.mark.usefixtures("production_session_mode")
-async def test_pending_timeout_continues_hourly_poll_and_recovers_without_webhook(
-    case, session, uow
-):
-    case.provider.status = "pending"
-    await case.worker.system()
-    initial = await case.repository.get(case.subscription.id)
-    async with uow:
-        await session.execute(
-            update(RecurringPayment)
-            .where(RecurringPayment.subscription_id == case.subscription.id)
-            .values(pending_since=datetime_now() - timedelta(hours=25))
-        )
-    await tick_again(case, uow)
-    parked = await case.repository.get(case.subscription.id)
-    assert parked.last_error == "pending_timeout"
-    assert parked.pending_transaction_id == initial.pending_transaction_id
-    assert parked.next_attempt_at > datetime_now() + timedelta(minutes=55)
-    case.provider.status = "canceled"
-    await tick_again(case, uow)
-    recovered = await case.repository.get(case.subscription.id)
-    assert recovered.pending_transaction_id is None
-    assert recovered.last_error == "bank_declined"
-    assert len(case.provider.posts) == 1
 
 
 @pytest.mark.usefixtures("production_session_mode")

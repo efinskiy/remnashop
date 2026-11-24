@@ -64,7 +64,10 @@ class ProcessRecurringPaymentUseCase(UseCase[ProcessRecurringPaymentDto, None]):
                     and order.external_payment_id
                     and pending_expired(mandate, order, terms)
                 ):
-                    await self._lifecycle.pause(subscription_id, RecurringReason.PENDING_TIMEOUT)
+                    # outcome unknown: ends the attempt, so the customer may pay by hand
+                    await self._lifecycle.retire_pending(
+                        subscription_id, order.id, force_unknown=True
+                    )
                 else:
                     merchant = isinstance(
                         error, httpx.HTTPStatusError

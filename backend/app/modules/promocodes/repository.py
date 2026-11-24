@@ -6,11 +6,10 @@ from sqlalchemy.exc import IntegrityError, NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db.errors import constraint_name
-from app.core.db.filters import in_ids
+from app.core.db.filters import in_ids, visible_rows
 from app.core.db.models.promocode import Promocode, PromocodeActivation
-from app.core.db.models.user import User
 from app.core.db.partial_update import apply_partial_update
-from app.core.enums import PromocodeRewardType, PromocodeStatus, Role
+from app.core.enums import PromocodeRewardType, PromocodeStatus
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.utils.time import datetime_now
@@ -54,6 +53,7 @@ class PromocodeRepository:
             reward_duration_days=row.reward_duration_days,
             availability=row.availability,
             allowed_user_ids=list(row.allowed_user_ids or []),
+            prior_customers_only=row.prior_customers_only,
             allowed_plan_ids=list(row.allowed_plan_ids or []),
             expires_at=row.expires_at,
             max_activations=row.max_activations,
@@ -150,6 +150,7 @@ class PromocodeRepository:
             reward_duration_days=data.reward_duration_days,
             availability=data.availability,
             allowed_user_ids=data.allowed_user_ids,
+            prior_customers_only=data.prior_customers_only,
             allowed_plan_ids=data.allowed_plan_ids,
             expires_at=data.expires_at,
             max_activations=data.max_activations,
@@ -341,13 +342,9 @@ class PromocodeRepository:
     ) -> tuple[list[PromocodeActivationDto], int]:
         condition = PromocodeActivation.promocode_id == promocode_id
         if hide_staff_from is not None:
-            # same rule as visible_user: staff rows are hidden, the viewer's own is not
             condition = and_(
                 condition,
-                or_(
-                    PromocodeActivation.user_id.in_(select(User.id).where(User.role == Role.USER)),
-                    PromocodeActivation.user_id == hide_staff_from,
-                ),
+                visible_rows(PromocodeActivation.user_id, hide_staff_from),
             )
         total = await self.session.scalar(
             select(func.count()).select_from(PromocodeActivation).where(condition)

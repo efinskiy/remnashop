@@ -1,14 +1,17 @@
+import type { TrafficLimitStrategy } from "@entities/subscriptions/api";
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "@shared/api/http";
 
 export interface BotSettings {
   is_configured: boolean;
   is_proxy_configured: boolean;
   drop_pending_updates: boolean;
+  remove_reply_keyboard: boolean;
 }
 
 export interface UpdateBotSettingsPayload {
   token?: string;
   drop_pending_updates?: boolean;
+  remove_reply_keyboard?: boolean;
 }
 
 export function getBotSettings(signal?: AbortSignal): Promise<BotSettings> {
@@ -180,6 +183,7 @@ export interface CabinetAuthSettings {
   email_enabled: boolean;
   restrict_email_domains: boolean;
   allowed_email_domains: string[];
+  email_required: boolean;
   captcha_enabled: boolean;
   captcha_provider: CaptchaProvider;
   captcha_site_key: string | null;
@@ -220,6 +224,8 @@ export interface ShopSettings {
   payment_email: string | null;
   // off: a plan change is paid in full, the old term's unused part is dropped
   plan_change_credit_enabled: boolean;
+  // on: a traffic limit that never resets caps the credit of the term running now
+  plan_change_traffic_cap_enabled: boolean;
 }
 
 // a PATCH: only the fields sent change (the support card saves its two on their own)
@@ -266,4 +272,26 @@ export function updateBotRequirements(payload: BotRequirements): Promise<BotRequ
 
 export function getPaymentWaitlistCount(signal?: AbortSignal): Promise<{ total: number }> {
   return apiGet<{ total: number }>("/transactions/waitlist", signal);
+}
+
+export interface GraceSettings {
+  enabled: boolean;
+  internal_squads: string[];
+  external_squad: string | null;
+  // MB, 0 = unlimited
+  traffic_limit_mb: number;
+  traffic_limit_strategy: TrafficLimitStrategy;
+  tag: string | null;
+  // 0 = no end
+  duration_days: number;
+}
+
+export type UpdateGraceSettingsPayload = Partial<GraceSettings>;
+
+export function getGraceSettings(signal?: AbortSignal): Promise<GraceSettings> {
+  return apiGet<GraceSettings>("/settings/grace", signal);
+}
+
+export function updateGraceSettings(payload: UpdateGraceSettingsPayload): Promise<GraceSettings> {
+  return apiPatch<GraceSettings, UpdateGraceSettingsPayload>("/settings/grace", payload);
 }

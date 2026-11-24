@@ -6,6 +6,7 @@ from remnapy.models.webhook import (
     LoginAttemptDto,
     TorrentBlockerReportDto,
     UserHwidDeviceEventDto,
+    WebhookMetaDto,
     WebhookNodeDto,
     WebhookPayloadDto,
 )
@@ -49,11 +50,11 @@ from app.modules.users import UserDto, UserRepository
 _PLAIN_USER_EVENTS: Final[dict[str, Callable[..., BaseEvent]]] = {
     "user.expired": SubscriptionExpiredEvent,
     "user.limited": SubscriptionTrafficLimitedEvent,
-    "user.bandwidth_usage_threshold_reached": SubscriptionTrafficThresholdEvent,
     "user.first_connected": SubscriptionFirstConnectedEvent,
     "user.traffic_reset": SubscriptionTrafficResetEvent,
     "user.revoked": SubscriptionRevokedEvent,
 }
+_MUTED_IN_GRACE: Final[frozenset[str]] = frozenset({"user.expiration", "user.limited"})
 _NODE_EVENTS: Final[dict[str, Callable[..., BaseEvent]]] = {
     "node.connection_restored": NodeConnectionRestoredEvent,
     "node.traffic_notify": NodeTrafficReachedEvent,
@@ -95,21 +96,39 @@ def _system_event(payload: WebhookPayloadDto) -> Optional[BaseEvent]:
     return None
 
 
+def _expiration_event(
+    meta: Optional[WebhookMetaDto], owner: UserDto, subscription_id: int
+) -> Optional[BaseEvent]:
+    hours = meta.expiration if meta else None
+    if not hours:
+        # 0 is the moment of expiry, which user.expired already reports
+        return None
+    # the panel sends hours since expiry: negative = still ahead
+    if hours < 0:
+        return SubscriptionExpiringEvent(user=owner, subscription_id=subscription_id, hours=-hours)
+    return SubscriptionExpiredAgoEvent(user=owner, subscription_id=subscription_id, hours=hours)
+
+
+def _traffic_threshold_event(
+    data: object, owner: UserDto, subscription_id: int
+) -> Optional[BaseEvent]:
+    percent = 0
+    if isinstance(data, WebhookUserDto):
+        # a limited subscription already got "traffic used up": nothing left to warn about
+        if data.status == SubscriptionStatus.LIMITED:
+            return None
+        percent = data.last_triggered_threshold
+    return SubscriptionTrafficThresholdEvent(
+        user=owner, subscription_id=subscription_id, percent=percent
+    )
+
+
 def _user_event(
     payload: WebhookPayloadDto, owner: UserDto, subscription_id: int
 ) -> Optional[BaseEvent]:
     event, data, meta = payload.event, payload.data, payload.meta
     if event == "user.expiration":
-        hours = meta.expiration if meta else None
-        if not hours:
-            # 0 is the moment of expiry, which user.expired already reports
-            return None
-        # the panel sends hours since expiry: negative = still ahead
-        if hours < 0:
-            return SubscriptionExpiringEvent(
-                user=owner, subscription_id=subscription_id, hours=-hours
-            )
-        return SubscriptionExpiredAgoEvent(user=owner, subscription_id=subscription_id, hours=hours)
+        return _expiration_event(meta, owner, subscription_id)
     if event == "user.not_connected":
         hours = meta.not_connected_after_hours if meta else None
         if not hours:
@@ -117,6 +136,8 @@ def _user_event(
         return SubscriptionNotConnectedEvent(
             user=owner, subscription_id=subscription_id, hours=hours
         )
+    if event == "user.bandwidth_usage_threshold_reached":
+        return _traffic_threshold_event(data, owner, subscription_id)
     plain = _PLAIN_USER_EVENTS.get(event)
     if plain is not None:
         return plain(user=owner, subscription_id=subscription_id)
@@ -144,6 +165,7 @@ def _user_event(
             node_name=data.node.name,
             destination=data.report.xray_report.destination,
             blocked_until=action.will_unblock_at.isoformat(),
+            block_duration_s=round(action.block_duration),
             ip_address=action.ip,
         )
     return None
@@ -181,6 +203,9 @@ class PublishPanelEventUseCase(UseCase[PublishPanelEventDto, None]):
                 remnawave_user_id
             )
             if subscription is None or subscription.status is SubscriptionStatus.DELETED:
+                return
+            # the panel counts these from the grace end, and grace traffic runs out by design
+            if subscription.grace_until is not None and payload.event in _MUTED_IN_GRACE:
                 return
             owner = await self._user_repository.find_by_id(subscription.user_id)
             if owner is None:

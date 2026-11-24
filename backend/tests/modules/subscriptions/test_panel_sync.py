@@ -1,22 +1,36 @@
 import asyncio
 from datetime import timedelta
+from unittest.mock import AsyncMock
 
 import pytest
 from redis.asyncio import Redis
 from remnapy import RemnawaveSDK
+from remnapy.exceptions import ApiErrorResponse
+from remnapy.exceptions import NotFoundError as RemnawaveNotFoundError
 from remnapy.models import UserResponseDto
 
 from app.core.config import AppConfig
 from app.core.constants import GB_TO_BYTES
 from app.core.db.uow import UnitOfWork
-from app.core.enums import Locale, PanelSyncDirection, PlanType, Role, SubscriptionStatus
+from app.core.enums import (
+    BlacklistKind,
+    Locale,
+    PanelSyncDirection,
+    PlanType,
+    Role,
+    SubscriptionStatus,
+)
+from app.core.error_codes import ErrorCode
 from app.core.exceptions import ConflictError
 from app.core.ports import EventPublisher
 from app.core.security.permissions import TOKEN_GRANTABLE_PERMISSIONS, Permission
 from app.core.utils.time import datetime_now
+from app.modules.blacklist.repository import BlacklistRepository
 from app.modules.plans.dto import CreatePlanDto
 from app.modules.plans.repository import PlanRepository
+from app.modules.settings import SettingsRepository
 from app.modules.subscriptions import panel_sync
+from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
 from app.modules.subscriptions.dto import (
     CreateSubscriptionDto,
     PushSubscriptionToPanelDto,
@@ -41,11 +55,12 @@ from app.modules.subscriptions.usecases import (
     SyncAllToPanelUseCase,
     SyncSubscriptionStatusUseCase,
 )
+from app.modules.translations.repository import TranslationRepository
 from app.modules.users.dto import CreateUserDto, UserDto
 from app.modules.users.repository import UserRepository
 from tests.fakes.dispatch import RecordingDispatch
 from tests.fakes.panel_squads import FixedPanelSquads
-from tests.fakes.remnawave import FakeUserStore, _user_payload
+from tests.fakes.remnawave import FakeUserStore, _user_payload, unused_sdk
 from tests.modules.subscriptions.factories import create_subscription, make_eligibility
 
 _FROM = SyncFromPanelOptionsDto(adopt_unnamed=True, respect_subscription_limit=True)
@@ -74,7 +89,11 @@ def _sync(
         subscription_repository,
         uow,
         publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
+        unused_sdk(),
+        SettingsRepository(subscription_repository.session),
     )
 
 
@@ -96,7 +115,12 @@ async def test_a_second_start_while_running_is_refused(
         with pytest.raises(ConflictError):
             await start(OWNER, _FROM)
         assert dispatch.messages == [
-            {"direction": "FROM_PANEL", "adopt_unnamed": True, "respect_subscription_limit": True}
+            {
+                "direction": "FROM_PANEL",
+                "adopt_unnamed": True,
+                "respect_subscription_limit": True,
+                "create_users": False,
+            }
         ]
         status = await GetPanelSyncStatusUseCase(redis)(OWNER)
         assert status.from_panel.running is True
@@ -127,6 +151,7 @@ async def test_a_long_run_keeps_its_running_mark(
 async def test_sync_to_panel_skips_a_row_deleted_while_it_ran(
     subscription_repository: SubscriptionRepository,
     user_repository: UserRepository,
+    settings_repository: SettingsRepository,
     remnawave_sdk: RemnawaveSDK,
     remnawave_store: FakeUserStore,
     uow: UnitOfWork,
@@ -155,6 +180,7 @@ async def test_sync_to_panel_skips_a_row_deleted_while_it_ran(
         redis,
         event_publisher,
         AppConfig.get(),
+        settings_repository,
     ).system(_TO)
 
     assert remnawave_store[89_011]["trafficLimitBytes"] == 10 * GB_TO_BYTES
@@ -164,6 +190,7 @@ async def test_sync_to_panel_skips_a_row_deleted_while_it_ran(
 async def test_sync_to_panel_pushes_rows_that_differ_and_recreates_missing(
     subscription_repository: SubscriptionRepository,
     user_repository: UserRepository,
+    settings_repository: SettingsRepository,
     remnawave_sdk: RemnawaveSDK,
     remnawave_store: FakeUserStore,
     uow: UnitOfWork,
@@ -192,6 +219,7 @@ async def test_sync_to_panel_pushes_rows_that_differ_and_recreates_missing(
         redis,
         event_publisher,
         AppConfig.get(),
+        settings_repository,
     ).system(_TO)
 
     assert remnawave_store[89_001]["trafficLimitBytes"] == 100 * GB_TO_BYTES
@@ -207,6 +235,7 @@ async def test_sync_to_panel_pushes_rows_that_differ_and_recreates_missing(
 async def test_push_disables_the_panel_user_of_a_disabled_row(
     subscription_repository: SubscriptionRepository,
     user_repository: UserRepository,
+    settings_repository: SettingsRepository,
     remnawave_sdk: RemnawaveSDK,
     remnawave_store: FakeUserStore,
     uow: UnitOfWork,
@@ -228,6 +257,7 @@ async def test_push_disables_the_panel_user_of_a_disabled_row(
         event_publisher,
         uow,
         AppConfig.get(),
+        settings_repository,
     )(OWNER, PushSubscriptionToPanelDto(subscription_id=created.id))
 
     assert remnawave_store[89_011]["status"] == "DISABLED"
@@ -236,6 +266,7 @@ async def test_push_disables_the_panel_user_of_a_disabled_row(
 async def test_sync_to_panel_fills_the_owners_contacts_and_keeps_unknown_ones(
     subscription_repository: SubscriptionRepository,
     user_repository: UserRepository,
+    settings_repository: SettingsRepository,
     remnawave_sdk: RemnawaveSDK,
     remnawave_store: FakeUserStore,
     uow: UnitOfWork,
@@ -258,6 +289,7 @@ async def test_sync_to_panel_fills_the_owners_contacts_and_keeps_unknown_ones(
         redis,
         event_publisher,
         AppConfig.get(),
+        settings_repository,
     ).system(_TO)
 
     assert result.updated >= 1
@@ -328,6 +360,8 @@ async def test_sync_from_panel_imports_a_shop_users_panel_user(
         event_publisher,
         make_eligibility(subscription_repository.session),
         AppConfig.get(),
+        BlacklistRepository(subscription_repository.session),
+        TranslationRepository(subscription_repository.session),
     ).system(_FROM)
 
     imported = await subscription_repository.find_by_remnawave_user_id(89_051)
@@ -344,6 +378,7 @@ async def test_sync_from_panel_imports_a_shop_users_panel_user(
 async def test_sync_to_panel_deletes_a_shop_users_panel_user_without_a_subscription(
     subscription_repository: SubscriptionRepository,
     user_repository: UserRepository,
+    settings_repository: SettingsRepository,
     remnawave_sdk: RemnawaveSDK,
     remnawave_store: FakeUserStore,
     uow: UnitOfWork,
@@ -376,6 +411,7 @@ async def test_sync_to_panel_deletes_a_shop_users_panel_user_without_a_subscript
         redis,
         event_publisher,
         AppConfig.get(),
+        settings_repository,
     ).system(_TO)
 
     assert 89_061 not in remnawave_store
@@ -387,6 +423,7 @@ async def test_sync_to_panel_deletes_a_shop_users_panel_user_without_a_subscript
 async def test_push_without_a_panel_user_creates_one_from_the_row(
     subscription_repository: SubscriptionRepository,
     user_repository: UserRepository,
+    settings_repository: SettingsRepository,
     remnawave_sdk: RemnawaveSDK,
     remnawave_store: FakeUserStore,
     uow: UnitOfWork,
@@ -407,6 +444,7 @@ async def test_push_without_a_panel_user_creates_one_from_the_row(
         event_publisher,
         uow,
         AppConfig.get(),
+        settings_repository,
     )(OWNER, PushSubscriptionToPanelDto(subscription_id=created.id))
 
     panel_user = remnawave_store[pushed.remnawave_user_id]
@@ -418,6 +456,40 @@ async def test_push_without_a_panel_user_creates_one_from_the_row(
     assert (await subscription_repository.get_by_id(created.id)).remnawave_user_id == (
         pushed.remnawave_user_id
     )
+
+
+async def test_push_does_not_recreate_on_another_not_found(
+    monkeypatch: pytest.MonkeyPatch,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    remnawave_sdk: RemnawaveSDK,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+) -> None:
+    created = await create_subscription(
+        subscription_repository, user_repository, telegram_id=89_022, remnawave_user_id=89_022
+    )
+    squad_missing = RemnawaveNotFoundError(
+        404, ApiErrorResponse(message="Internal squad not found", code="A107")
+    )
+    monkeypatch.setattr(remnawave_sdk.users, "update_user", AsyncMock(side_effect=squad_missing))
+    create_user = AsyncMock()
+    monkeypatch.setattr(remnawave_sdk.users, "create_user", create_user)
+
+    with pytest.raises(RemnawaveNotFoundError):
+        await PushSubscriptionToPanelUseCase(
+            subscription_repository,
+            user_repository,
+            remnawave_sdk,
+            event_publisher,
+            uow,
+            AppConfig.get(),
+            settings_repository,
+        )(OWNER, PushSubscriptionToPanelDto(subscription_id=created.id))
+
+    create_user.assert_not_awaited()
+    assert (await subscription_repository.get_by_id(created.id)).remnawave_user_id == 89_022
 
 
 async def test_diff_lists_fields_that_differ_and_pull_takes_them(
@@ -461,7 +533,7 @@ async def test_diff_lists_fields_that_differ_and_pull_takes_them(
     assert (pulled.device_limit, pulled.tag) == (7, "VIP")
 
 
-async def test_pull_marks_a_subscription_gone_from_the_panel_deleted(
+async def test_pull_refuses_a_subscription_gone_from_the_panel(
     subscription_repository: SubscriptionRepository,
     user_repository: UserRepository,
     remnawave_sdk: RemnawaveSDK,
@@ -472,16 +544,19 @@ async def test_pull_marks_a_subscription_gone_from_the_panel_deleted(
         subscription_repository, user_repository, telegram_id=89_041, remnawave_user_id=89_041
     )
 
-    pulled = await PullSubscriptionFromPanelUseCase(
-        subscription_repository,
-        user_repository,
-        remnawave_sdk,
-        _sync(subscription_repository, uow, event_publisher),
-        event_publisher,
-        uow,
-    )(OWNER, created.id)
+    with pytest.raises(ConflictError) as error:
+        await PullSubscriptionFromPanelUseCase(
+            subscription_repository,
+            user_repository,
+            remnawave_sdk,
+            _sync(subscription_repository, uow, event_publisher),
+            event_publisher,
+            uow,
+        )(OWNER, created.id)
 
-    assert pulled.status is SubscriptionStatus.DELETED
+    assert error.value.code is ErrorCode.SUBSCRIPTION_MISSING_IN_PANEL
+    # deleting it is the admin's call, not the pull's
+    assert (await subscription_repository.get_by_id(created.id)).status is SubscriptionStatus.ACTIVE
 
 
 def _named(username: str, **overrides: object) -> UserResponseDto:
@@ -531,6 +606,7 @@ async def test_match_shop_user_ignores_other_names(
 async def test_orphans_are_deleted_only_when_the_shop_named_them(
     subscription_repository: SubscriptionRepository,
     user_repository: UserRepository,
+    settings_repository: SettingsRepository,
     remnawave_sdk: RemnawaveSDK,
     remnawave_store: FakeUserStore,
     uow: UnitOfWork,
@@ -562,6 +638,7 @@ async def test_orphans_are_deleted_only_when_the_shop_named_them(
         redis,
         event_publisher,
         AppConfig.get(),
+        settings_repository,
     ).system(_TO)
 
     assert not {89_091, 89_092, 89_093} & set(remnawave_store)
@@ -601,6 +678,8 @@ async def test_sync_from_panel_adopts_unnamed_panel_users_only_when_asked(
         event_publisher,
         make_eligibility(subscription_repository.session),
         AppConfig.get(),
+        BlacklistRepository(subscription_repository.session),
+        TranslationRepository(subscription_repository.session),
     ).system(SyncFromPanelOptionsDto(adopt_unnamed=adopt_unnamed, respect_subscription_limit=True))
 
     assert await subscription_repository.find_by_remnawave_user_id(89_111) is not None
@@ -608,9 +687,76 @@ async def test_sync_from_panel_adopts_unnamed_panel_users_only_when_asked(
     assert (adopted is not None) is adopt_unnamed
 
 
+@pytest.mark.parametrize("create_users", [True, False])
+async def test_sync_from_panel_creates_customers_only_when_asked(
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    plan_repository: PlanRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    redis: Redis,
+    blacklist_repository: BlacklistRepository,
+    create_users: bool,
+) -> None:
+    named = await user_repository.create(CreateUserDto(name="named", telegram_id=89_151))
+    await user_repository.create(CreateUserDto(name="mail", email="taken@example.com"))
+    await blacklist_repository.add_entry(BlacklistKind.TELEGRAM_ID, "89152")
+    remnawave_store[89_161] = _panel_user(
+        89_161, username="old_bot_1", telegramId=89_150, createdAt=_old()
+    )
+    remnawave_store[89_162] = _panel_user(
+        89_162, username="old_bot_2", telegramId=89_152, createdAt=_old()
+    )
+    remnawave_store[89_163] = _panel_user(89_163, username="old_bot_3", createdAt=_old())
+    # its keys point at two different shop users
+    remnawave_store[89_164] = _panel_user(
+        89_164,
+        username=f"rs_{named.id}_0123abcd",
+        telegramId=89_154,
+        email="taken@example.com",
+        createdAt=_old(),
+    )
+
+    result = await SyncAllFromPanelUseCase(
+        subscription_repository,
+        user_repository,
+        plan_repository,
+        remnawave_sdk,
+        _sync(subscription_repository, uow, event_publisher),
+        uow,
+        redis,
+        event_publisher,
+        make_eligibility(subscription_repository.session),
+        AppConfig.get(),
+        BlacklistRepository(subscription_repository.session),
+        TranslationRepository(subscription_repository.session),
+    ).system(
+        SyncFromPanelOptionsDto(
+            adopt_unnamed=True, respect_subscription_limit=True, create_users=create_users
+        )
+    )
+
+    created = await user_repository.find_by_telegram_id(89_150)
+    imported = await subscription_repository.find_by_remnawave_user_id(89_161)
+    if create_users:
+        assert created is not None and imported is not None
+        assert imported.user_id == created.id
+        assert (created.role, created.name, created.email) == (Role.USER, "", None)
+    else:
+        assert created is None and imported is None
+    assert await user_repository.find_by_telegram_id(89_152) is None
+    assert await user_repository.find_by_telegram_id(89_154) is None
+    for skipped in (89_162, 89_163, 89_164):
+        assert await subscription_repository.find_by_remnawave_user_id(skipped) is None
+    assert (result.imported, result.users_created) == (int(create_users), int(create_users))
+
+
 async def test_sync_to_panel_can_skip_recreating_and_deleting(
     subscription_repository: SubscriptionRepository,
     user_repository: UserRepository,
+    settings_repository: SettingsRepository,
     remnawave_sdk: RemnawaveSDK,
     remnawave_store: FakeUserStore,
     uow: UnitOfWork,
@@ -633,6 +779,7 @@ async def test_sync_to_panel_can_skip_recreating_and_deleting(
         redis,
         event_publisher,
         AppConfig.get(),
+        settings_repository,
     ).system(SyncToPanelOptionsDto(recreate_missing=False, delete_orphans=False))
 
     assert (result.recreated, result.deleted) == (0, 0)
@@ -644,6 +791,7 @@ async def test_sync_to_panel_can_skip_recreating_and_deleting(
 async def test_sync_to_panel_leaves_another_prefixs_panel_users_alone(
     subscription_repository: SubscriptionRepository,
     user_repository: UserRepository,
+    settings_repository: SettingsRepository,
     remnawave_sdk: RemnawaveSDK,
     remnawave_store: FakeUserStore,
     uow: UnitOfWork,
@@ -670,6 +818,7 @@ async def test_sync_to_panel_leaves_another_prefixs_panel_users_alone(
         redis,
         event_publisher,
         shop_b,
+        settings_repository,
     ).system(_TO)
 
     assert 89_131 in remnawave_store
@@ -726,6 +875,8 @@ async def test_sync_from_panel_imports_past_the_subscription_cap_only_when_asked
         event_publisher,
         make_eligibility(subscription_repository.session),
         AppConfig.get(),
+        BlacklistRepository(subscription_repository.session),
+        TranslationRepository(subscription_repository.session),
     ).system(SyncFromPanelOptionsDto(adopt_unnamed=True, respect_subscription_limit=respect_limit))
 
     imported = [
@@ -738,3 +889,42 @@ async def test_sync_from_panel_imports_past_the_subscription_cap_only_when_asked
     else:
         assert all(row is not None for row in imported)
         assert (result.imported, result.over_limit) == (2, 0)
+
+
+async def test_sync_from_panel_fills_a_missing_reset_anchor_without_counting_it(
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    plan_repository: PlanRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    redis: Redis,
+) -> None:
+    row = await create_subscription(
+        subscription_repository, user_repository, telegram_id=89_131, remnawave_user_id=89_131
+    )
+    created = _old()
+    remnawave_store[89_131] = _panel_user(
+        89_131, expireAt=row.expire_at.isoformat(), createdAt=created
+    )
+
+    result = await SyncAllFromPanelUseCase(
+        subscription_repository,
+        user_repository,
+        plan_repository,
+        remnawave_sdk,
+        _sync(subscription_repository, uow, event_publisher),
+        uow,
+        redis,
+        event_publisher,
+        make_eligibility(subscription_repository.session),
+        AppConfig.get(),
+        BlacklistRepository(subscription_repository.session),
+        TranslationRepository(subscription_repository.session),
+    ).system(_FROM)
+
+    assert result.updated == 0
+    stored = await subscription_repository.get_by_id(row.id)
+    assert stored.panel_created_at is not None
+    assert stored.panel_created_at.isoformat()[:19] == created[:19]

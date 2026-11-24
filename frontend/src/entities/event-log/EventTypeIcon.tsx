@@ -12,6 +12,7 @@ import {
   CalendarClock,
   CalendarPlus,
   CalendarX,
+  ChartColumn,
   CheckCircle2,
   Clock,
   Coins,
@@ -25,6 +26,7 @@ import {
   GaugeCircle,
   Gift,
   History,
+  Hourglass,
   Image,
   KeyRound,
   Languages,
@@ -88,6 +90,9 @@ import {
   Users,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+
+import type { EventLogEntry } from "@entities/event-log/api";
+import { isTrialActivation } from "@entities/event-log/describe-entry";
 
 const EVENT_ICONS: Record<string, LucideIcon> = {
   LoginSucceededEvent: LogIn,
@@ -155,9 +160,11 @@ const EVENT_ICONS: Record<string, LucideIcon> = {
   UserPointsAdjustedEvent: Star,
   UserBonusDaysAdjustedEvent: CalendarPlus,
   UserPersonalDiscountChangedEvent: Percent,
+  UserMarkupChangedEvent: Percent,
   UserPurchaseDiscountChangedEvent: Percent,
   UserUnblockedEvent: LockOpen,
   UserEmailUndeliverableClearedEvent: MailCheck,
+  UserBotMenuResetEvent: RotateCcw,
   UserTrialAvailabilityChangedEvent: Gift,
   UsersBulkUnblockedEvent: LockOpen,
   TransactionRefundedEvent: Undo2,
@@ -186,10 +193,12 @@ const EVENT_ICONS: Record<string, LucideIcon> = {
   EmailSettingsChangedEvent: Mail,
   CabinetAuthSettingsChangedEvent: LogIn,
   BotRequirementsChangedEvent: Bot,
+  GraceSettingsChangedEvent: Hourglass,
   ShopSettingsChangedEvent: Store,
   SubscriptionGrantedEvent: Gift,
   SubscriptionExpiringEvent: Clock,
   SubscriptionExpiredEvent: CalendarX,
+  SubscriptionGraceStartedEvent: Hourglass,
   SubscriptionTrafficLimitedEvent: Gauge,
   SubscriptionTrafficThresholdEvent: GaugeCircle,
   SubscriptionPlanChangedByAdminEvent: ArrowLeftRight,
@@ -241,6 +250,7 @@ const EVENT_ICONS: Record<string, LucideIcon> = {
   PasskeyRenamedEvent: Fingerprint,
   AdLinkAttributedEvent: Megaphone,
   BackupCompletedEvent: DatabaseBackup,
+  DailyReportEvent: ChartColumn,
   LegalDocumentChangedEvent: FileText,
   PaidOrderNotFulfilledEvent: PackageX,
   PanelSyncStartedEvent: RefreshCcw,
@@ -248,7 +258,13 @@ const EVENT_ICONS: Record<string, LucideIcon> = {
   SubscriptionConfigSyncedEvent: RefreshCcw,
 };
 
-export function EventTypeIcon({ eventType, className }: { eventType: string; className?: string }) {
-  const Icon = EVENT_ICONS[eventType] ?? History;
+export function EventTypeIcon({
+  entry,
+  className,
+}: {
+  entry: Pick<EventLogEntry, "event_type" | "payload">;
+  className?: string;
+}) {
+  const Icon = isTrialActivation(entry) ? Gift : (EVENT_ICONS[entry.event_type] ?? History);
   return <Icon className={className} />;
 }

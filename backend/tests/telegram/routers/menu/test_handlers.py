@@ -1,8 +1,10 @@
 from datetime import datetime, timezone
 from decimal import Decimal
+from typing import Optional
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from aiogram.types import ReplyKeyboardRemove
 from aiogram_dialog import StartMode
 from remnapy.enums import TrafficLimitStrategy
 
@@ -10,10 +12,11 @@ from app.core.constants import USER_KEY
 from app.core.enums import Currency, PurchaseType, SubscriptionStatus
 from app.modules.subscriptions.dto import GetAvailableTrialDto
 from app.telegram.dialogs.context import SELECTED_SUBSCRIPTION_KEY
+from app.telegram.routers.menu import handlers
 from app.telegram.routers.menu.handlers import (
-    next_traffic_reset,
     on_get_trial,
     on_show_connect_problem,
+    on_start_command,
 )
 from app.telegram.routers.purchase.handlers import PLAN_CODE_KEY
 from app.telegram.states import Purchase, Subscriptions
@@ -79,47 +82,24 @@ async def test_a_paid_trial_opens_its_purchase() -> None:
 _NOW = datetime(2026, 11, 12, 15, 30, tzinfo=timezone.utc)  # a Thursday
 
 
-@pytest.mark.parametrize(
-    ("strategy", "created", "expected"),
-    [
-        (TrafficLimitStrategy.NO_RESET, None, None),
-        (TrafficLimitStrategy.DAY, None, datetime(2026, 11, 13, tzinfo=timezone.utc)),
-        (TrafficLimitStrategy.WEEK, None, datetime(2026, 11, 16, tzinfo=timezone.utc)),
-        (TrafficLimitStrategy.MONTH, None, datetime(2026, 12, 1, tzinfo=timezone.utc)),
-        (
-            TrafficLimitStrategy.MONTH_ROLLING,
-            datetime(2026, 1, 20, tzinfo=timezone.utc),
-            datetime(2026, 11, 20, tzinfo=timezone.utc),
-        ),
-        (
-            TrafficLimitStrategy.MONTH_ROLLING,
-            datetime(2026, 1, 5, tzinfo=timezone.utc),
-            datetime(2026, 12, 5, tzinfo=timezone.utc),
-        ),
-        # the 31st in a 30-day month falls on its last day
-        (
-            TrafficLimitStrategy.MONTH_ROLLING,
-            datetime(2026, 1, 31, tzinfo=timezone.utc),
-            datetime(2026, 11, 30, tzinfo=timezone.utc),
-        ),
-    ],
-)
-def test_next_traffic_reset(
-    strategy: TrafficLimitStrategy, created: object, expected: object
-) -> None:
-    assert next_traffic_reset(strategy, created, _NOW) == expected  # type: ignore[arg-type]
-
-
-def _subscription(status: SubscriptionStatus, *, is_trial: bool = False) -> MagicMock:
+def _subscription(
+    status: SubscriptionStatus,
+    *,
+    is_trial: bool = False,
+    strategy: TrafficLimitStrategy = TrafficLimitStrategy.NO_RESET,
+) -> MagicMock:
     return MagicMock(
+        id=7,
         status=status,
         is_trial=is_trial,
-        traffic_limit_strategy=TrafficLimitStrategy.NO_RESET,
+        traffic_limit_strategy=strategy,
         created_at=_NOW,
     )
 
 
-async def _show(subscription: MagicMock, manager: MagicMock) -> MagicMock:
+async def _show(
+    subscription: MagicMock, manager: MagicMock, anchor: Optional[AsyncMock] = None
+) -> MagicMock:
     callback = MagicMock(answer=AsyncMock())
     runner = MagicMock(get=lambda key, **kwargs: f"{key}{sorted(kwargs.items())}")
     await on_show_connect_problem.__dishka_orig_func__(
@@ -128,6 +108,7 @@ async def _show(subscription: MagicMock, manager: MagicMock) -> MagicMock:
         manager,
         list_own_active_subscriptions=AsyncMock(return_value=[subscription]),
         list_own_subscriptions=AsyncMock(return_value=[subscription]),
+        get_traffic_reset_anchor=anchor or AsyncMock(return_value=None),
         i18n=MagicMock(get_translator_by_locale=MagicMock(return_value=runner)),
     )
     return callback
@@ -151,3 +132,49 @@ async def test_a_warning_left_after_the_fix_just_redraws_the_menu() -> None:
 
     callback.answer.assert_not_awaited()
     manager.show.assert_awaited_once()
+
+
+async def test_a_rolling_reset_counts_from_the_panel_user(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[object] = []
+
+    def _reset(strategy: object, created_at: object, now: object) -> None:
+        seen.append(created_at)
+
+    monkeypatch.setattr("app.telegram.routers.menu.handlers.next_traffic_reset", _reset)
+    panel_created = datetime(2025, 3, 31, tzinfo=timezone.utc)
+    limited = SubscriptionStatus.LIMITED
+    anchor = AsyncMock(return_value=panel_created)
+
+    await _show(
+        _subscription(limited, strategy=TrafficLimitStrategy.MONTH_ROLLING), _manager(), anchor
+    )
+    # no anchor anywhere: no date rather than our own row's
+    await _show(_subscription(limited, strategy=TrafficLimitStrategy.MONTH_ROLLING), _manager())
+    # other strategies don't need one
+    await _show(_subscription(limited, strategy=TrafficLimitStrategy.MONTH), _manager(), anchor)
+
+    assert seen == [panel_created, None, None]
+    assert anchor.await_count == 1
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+async def test_start_takes_away_an_old_bot_s_keyboard_only_when_enabled(
+    enabled: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(handlers, "get_translator", MagicMock())
+    monkeypatch.setattr(handlers, "render_window_text", lambda runner, key: key)
+    message = MagicMock(answer=AsyncMock())
+    manager = _manager()
+
+    await on_start_command(
+        message, MagicMock(), manager, remove_reply_keyboard=enabled, i18n=MagicMock()
+    )
+
+    if enabled:
+        message.answer.assert_awaited_once()
+        args, kwargs = message.answer.await_args
+        assert args == ("msg-start-welcome",)
+        assert isinstance(kwargs["reply_markup"], ReplyKeyboardRemove)
+    else:
+        message.answer.assert_not_awaited()
+    manager.start.assert_awaited_once()

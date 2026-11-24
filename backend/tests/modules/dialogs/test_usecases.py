@@ -16,6 +16,7 @@ from app.modules.dialogs.dto import (
     UpdateDialogWindowButtonsDto,
 )
 from app.modules.dialogs.repository import DialogRepository
+from app.modules.dialogs.seed import upsert_seed_window
 from app.modules.dialogs.usecases import (
     CreateCustomDialogWindowUseCase,
     DeleteCustomDialogWindowUseCase,
@@ -65,7 +66,7 @@ def _catalog():
 
 
 async def _seed(repo: DialogRepository) -> None:
-    await repo.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    await upsert_seed_window(repo, "menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
 
 
 async def test_non_admin_denied(
@@ -149,7 +150,7 @@ async def test_seed_window_cannot_be_disabled(
         await use_case(OWNER, ConfigureDialogWindowDto(key="menu.main", is_enabled=False))
 
 
-async def test_system_button_cannot_be_hidden(
+async def test_only_a_required_system_button_cannot_be_hidden(
     dialog_repository, translation_repository, settings_repository, uow, redis
 ) -> None:
     await _seed(dialog_repository)
@@ -168,11 +169,29 @@ async def test_system_button_cannot_be_hidden(
         link_type=ButtonLinkType.ACTION,
         action_key="get_trial",
     )
-    kept = await use_case(OWNER, UpdateDialogWindowButtonsDto(key="menu.main", buttons=[system]))
-    assert kept.buttons[0].is_system is True
-    hidden = DialogButtonInputDto(**{**system.__dict__, "is_hidden": True})
-    with pytest.raises(ValidationError):
-        await use_case(OWNER, UpdateDialogWindowButtonsDto(key="menu.main", buttons=[hidden]))
+    hidden = DialogButtonInputDto(
+        **{**system.__dict__, "is_hidden": True, "visibility_condition": "is_trial_eligible"}
+    )
+    kept = await use_case(OWNER, UpdateDialogWindowButtonsDto(key="menu.main", buttons=[hidden]))
+    assert [(b.is_system, b.is_hidden, b.visibility_condition) for b in kept.buttons] == [
+        (True, True, "is_trial_eligible")
+    ]
+
+    [button] = _SNAPSHOT["buttons"]
+    required = {**_SNAPSHOT, "buttons": [{**button, "required": True}]}
+    # committed: each refusal below rolls its transaction back
+    async with uow:
+        await upsert_seed_window(dialog_repository, "menu.main", DialogFlow.MENU, "menu", required)
+    shown = DialogButtonInputDto(**{**hidden.__dict__, "is_hidden": False})
+    for buttons, code in (
+        ([hidden], ErrorCode.DIALOG_SYSTEM_BUTTON_NOT_HIDEABLE),
+        ([shown], ErrorCode.DIALOG_REQUIRED_BUTTON_CONDITION_LOCKED),
+        ([], ErrorCode.DIALOG_REQUIRED_BUTTON_MISSING),
+    ):
+        with pytest.raises(ValidationError) as error:
+            await use_case(OWNER, UpdateDialogWindowButtonsDto(key="menu.main", buttons=buttons))
+        assert error.value.code is code
+    await use_case(OWNER, UpdateDialogWindowButtonsDto(key="menu.main", buttons=[system]))
 
 
 async def test_update_buttons_rejects_unknown_action(
@@ -553,6 +572,32 @@ async def test_reset_window_restores_snapshot(dialog_repository, uow, redis) -> 
     assert [b.text_key for b in result.buttons] == ["btn-menu.trial"]
 
 
+async def test_reset_window_rejects_a_custom_window(dialog_repository, uow, redis) -> None:
+    await dialog_repository.create_custom_window("custom.faq", CreateCustomWindowDto())
+    with pytest.raises(ValidationError) as error:
+        await ResetDialogWindowUseCase(
+            dialog_repository, uow, RedisBotSignals(redis), RecordingEventPublisher()
+        )(OWNER, "custom.faq")
+    assert error.value.code is ErrorCode.DIALOG_WINDOW_NOT_RESETTABLE
+
+
+async def test_delete_rejects_a_seed_window(
+    dialog_repository, banner_repository, config, uow, redis
+) -> None:
+    await _seed(dialog_repository)
+    use_case = DeleteCustomDialogWindowUseCase(
+        dialog_repository,
+        banner_repository,
+        config,
+        uow,
+        RedisBotSignals(redis),
+        RecordingEventPublisher(),
+    )
+    with pytest.raises(ValidationError) as error:
+        await use_case(OWNER, "menu.main")
+    assert error.value.code is ErrorCode.DIALOG_WINDOW_NOT_DELETABLE
+
+
 async def test_reset_all_restores_every_seed_window(
     dialog_repository,
     translation_repository,
@@ -578,7 +623,7 @@ async def test_reset_all_restores_every_seed_window(
     assert [b.text_key for b in window.buttons] == ["btn-menu.trial"]
 
 
-async def test_reset_all_restores_an_edited_button_label(
+async def test_reset_all_restores_an_edited_button_label_and_icon(
     dialog_repository,
     translation_repository,
     settings_repository,
@@ -609,6 +654,8 @@ async def test_reset_all_restores_an_edited_button_label(
         await translation_repository.add_active_locale(Locale.EN)
     await translation_repository.seed_missing(Locale.EN, "btn-menu", "trial", "Try for free")
     await translation_repository.update_value(Locale.EN, "btn-menu", "trial", "Edited")
+    await translation_repository.seed_missing(Locale.EN, "btn-menu", "trial-icon", "")
+    await translation_repository.update_value(Locale.EN, "btn-menu", "trial-icon", "🎁")
 
     use_case = ResetAllDialogsUseCase(
         dialog_repository,
@@ -624,6 +671,9 @@ async def test_reset_all_restores_an_edited_button_label(
     restored = await translation_repository.get(Locale.EN, "btn-menu", "trial")
     assert restored is not None
     assert restored.value == "Try for free"
+    icon = await translation_repository.get(Locale.EN, "btn-menu", "trial-icon")
+    assert icon is not None
+    assert icon.value == ""
 
 
 async def test_update_dialog_text_rejects_a_dotted_message_id(
@@ -1114,8 +1164,12 @@ async def test_update_dialog_text_rejects_invalid_html(
     redis,
 ) -> None:
     _register_text_window("msg-window-html")
-    await dialog_repository.upsert_seed(
-        "menu.text_window", DialogFlow.MENU, None, {"banner_name": None, "buttons": []}
+    await upsert_seed_window(
+        dialog_repository,
+        "menu.text_window",
+        DialogFlow.MENU,
+        None,
+        {"banner_name": None, "buttons": []},
     )
     if Locale.EN not in await translation_repository.list_active_locales():
         await translation_repository.add_active_locale(Locale.EN)

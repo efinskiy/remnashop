@@ -10,6 +10,9 @@ _POSTGRES_NAME_LIMIT: Final[int] = 63
 _CHECK_NAMES: Final[frozenset[str]] = frozenset(
     {
         "ck_ad_links_revenue_share_percent_range",
+        "ck_ad_links_some_channel",
+        "ck_credit_segments_paid_non_negative",
+        "ck_credit_segments_seconds_non_negative",
         "ck_addons_base_price_positive",
         "ck_currency_rates_charm_ending_range",
         "ck_currency_rates_min_amount_nonneg",
@@ -17,10 +20,12 @@ _CHECK_NAMES: Final[frozenset[str]] = frozenset(
         "ck_plan_durations_base_price_non_negative",
         "ck_plans_discount_percent_range",
         "ck_referrals_level_range",
+        "ck_transactions_paid_has_paid_at",
         "ck_users_bonus_days_non_negative",
         "ck_users_email_lowercase",
         "ck_users_login_charset",
         "ck_users_loyalty_discount_range",
+        "ck_users_markup_percent_range",
         "ck_users_personal_discount_range",
         "ck_users_points_non_negative",
         "ck_users_purchase_discount_range",

@@ -24,6 +24,7 @@ export interface Promocode {
   reward_duration_days: number | null;
   availability: PromocodeAvailability;
   allowed_user_ids: number[];
+  prior_customers_only: boolean;
   allowed_plan_ids: number[];
   expires_at: string | null;
   max_activations: number | null;
@@ -34,6 +35,8 @@ export interface Promocode {
 }
 
 export const DEFAULT_PAGE_SIZE = 50;
+// the backend's MAX_PAGE_SIZE: a picker lists a shop's live promocodes in one page
+export const PICKER_PAGE_SIZE = 200;
 
 export interface PromocodeListFilters {
   status?: string;
@@ -93,6 +96,7 @@ export interface CreatePromocodeRequest {
   reward_duration_days?: number | null;
   availability: PromocodeAvailability;
   allowed_user_ids: number[];
+  prior_customers_only: boolean;
   allowed_plan_ids: number[];
   expires_at?: string | null;
   max_activations?: number | null;
@@ -107,6 +111,7 @@ export interface UpdatePromocodeRequest {
   is_active?: boolean;
   availability?: PromocodeAvailability;
   allowed_user_ids?: number[];
+  prior_customers_only?: boolean;
   allowed_plan_ids?: number[];
   expires_at?: string | null;
   max_activations?: number | null;

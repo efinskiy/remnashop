@@ -8,6 +8,7 @@ from app.modules.broadcasts.dispatch import (
     RecallBroadcastDispatch,
     StartBroadcastDispatch,
 )
+from app.modules.broadcasts.recipient_repository import BroadcastRecipientRepository
 from app.modules.broadcasts.repository import BroadcastRepository
 from app.modules.broadcasts.tasks import (
     deliver_broadcast_email_task,
@@ -24,6 +25,7 @@ from app.modules.broadcasts.usecases import (
     DeleteBroadcastUseCase,
     DeliverBroadcastBatchUseCase,
     DeliverBroadcastEmailBatchUseCase,
+    DuplicateBroadcastUseCase,
     GetBroadcastEmailImageUseCase,
     GetBroadcastPromocodeUseCase,
     GetBroadcastSummaryUseCase,
@@ -50,9 +52,11 @@ class BroadcastsProvider(Provider):
     scope = Scope.REQUEST
 
     broadcast_repository = provide(BroadcastRepository)
+    broadcast_recipient_repository = provide(BroadcastRecipientRepository)
     telegram_client_factory = provide(TelegramClientFactory, scope=Scope.APP)
     use_cases = provide_all(
         CreateBroadcastUseCase,
+        DuplicateBroadcastUseCase,
         UpdateBroadcastUseCase,
         DeleteBroadcastUseCase,
         GetBroadcastUseCase,

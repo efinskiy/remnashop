@@ -6,6 +6,7 @@ from app.modules.broadcasts.content import render_text
 from app.modules.broadcasts.email_html import (
     email_image_ids,
     email_text,
+    replace_email_image_ids,
     style_email_html,
     validate_email_html,
 )
@@ -35,6 +36,7 @@ def test_accepts_tiptap_output() -> None:
         '<a href="https://a.example/ x">x</a>',
         '<a href="https://a.example/\tx">x</a>',
         '<a href="https://a.example/\x00x">x</a>',
+        '<a href="{ $name }">x</a>',
         '<img src="mailto:a@b.example">',
         "<script>alert(1)</script>",
         "<iframe></iframe>",
@@ -50,6 +52,13 @@ def test_rejects_foreign_and_scripted_markup(html: str) -> None:
 
 def test_mailto_link_allowed() -> None:
     validate_email_html('<p><a href="mailto:help@shop.example">help</a></p>')
+
+
+def test_referral_link_variable_is_a_link_target() -> None:
+    html = '<p><a data-button="" href="{ $referral_link }">Invite</a></p>'
+    validate_email_html(html)
+    rendered = render_text(html, {"referral_link": "https://c.example/?ref=a&b"})
+    assert 'href="https://c.example/?ref=a&amp;b"' in rendered
 
 
 def test_image_ids() -> None:
@@ -128,3 +137,10 @@ def test_styler_drops_foreign_tags() -> None:
     )
     assert "tg-emoji" not in styled
     assert ">a x<" in styled
+
+
+def test_replace_email_image_ids_touches_only_img_src() -> None:
+    html = '<p>bc-image:1</p><img src="bc-image:1" alt=""><img alt="x" src=\'bc-image:12\'>'
+    assert replace_email_image_ids(html, {1: 9, 12: 7}) == (
+        '<p>bc-image:1</p><img src="bc-image:9" alt=""><img alt="x" src=\'bc-image:7\'>'
+    )

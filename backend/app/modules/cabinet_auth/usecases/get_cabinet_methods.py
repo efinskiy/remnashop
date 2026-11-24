@@ -4,7 +4,7 @@ from app.core.config import AppConfig
 from app.core.db.uow import UnitOfWork
 from app.core.enums import OAuthProvider
 from app.modules.cabinet_auth.dto import CabinetMethodsDto, CaptchaWidgetDto
-from app.modules.settings import SettingsRepository, fetch_bot_username
+from app.modules.settings import SettingsRepository, bot_username
 
 
 class GetCabinetMethodsUseCase:
@@ -23,6 +23,7 @@ class GetCabinetMethodsUseCase:
             email = await self._settings_repository.get_email_settings()
         telegram = cabinet.telegram_enabled and bot.is_configured
         deeplink = cabinet.telegram_deeplink_enabled and bot.is_configured
+        email_sign_in = cabinet.email_enabled and email.is_configured
         providers: list[OAuthProvider] = []
         # authorize needs the cabinet URL for its redirect
         has_cabinet_url = bool(self._config.cabinet.url)
@@ -33,13 +34,13 @@ class GetCabinetMethodsUseCase:
         if has_cabinet_url and cabinet.yandex_enabled and oauth.is_yandex_configured:
             providers.append(OAuthProvider.YANDEX)
         # outside the transaction: the network call must not hold a connection
-        bot_username: Optional[str] = None
+        username: Optional[str] = None
         if telegram and bot.token is not None:
-            bot_username = await fetch_bot_username(bot.token.get_secret_value(), bot.proxy)
+            username = await bot_username(bot)
         return CabinetMethodsDto(
             telegram_webapp=telegram,
             telegram_deeplink=deeplink,
-            email=cabinet.email_enabled and email.is_configured,
+            email=email_sign_in,
             oauth=providers,
             allowed_email_domains=(
                 cabinet.allowed_email_domains if cabinet.restrict_email_domains else None
@@ -51,5 +52,7 @@ class GetCabinetMethodsUseCase:
                 if cabinet.captcha_enabled and cabinet.captcha_site_key is not None
                 else None
             ),
-            bot_username=bot_username,
+            bot_username=username,
+            # without email sign-in the code can't be sent
+            email_required=email_sign_in and cabinet.email_required,
         )

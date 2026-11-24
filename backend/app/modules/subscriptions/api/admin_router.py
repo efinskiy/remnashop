@@ -11,6 +11,7 @@ from app.core.constants import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, SEARCH_MAX_LENG
 from app.core.enums import SubscriptionStatus
 from app.modules.subscriptions.api.schemas import (
     ChangeSubscriptionPlanRequest,
+    CreditSegmentResponse,
     DeletedSubscriptionsResponse,
     DeviceListResponse,
     DeviceResponse,
@@ -104,6 +105,7 @@ async def start_panel_sync_from_panel(
         SyncFromPanelOptionsDto(
             adopt_unnamed=body.adopt_unnamed,
             respect_subscription_limit=body.respect_subscription_limit,
+            create_users=body.create_users,
         ),
     )
     return PanelSyncDirectionStatusResponse.model_validate(result, from_attributes=True)
@@ -311,6 +313,10 @@ async def get_subscription(
             "online_at": details.activity.online_at,
             "sub_last_opened_at": details.activity.sub_last_opened_at,
             "sub_last_user_agent": details.activity.sub_last_user_agent,
+            "credit_segments": [
+                CreditSegmentResponse.model_validate(segment, from_attributes=True)
+                for segment in details.credit_segments
+            ],
         }
     )
 
@@ -485,7 +491,7 @@ async def get_subscription_panel_diff(
 @router.post(
     "/{subscription_id:int}/actions/pull-from-panel",
     response_model=SubscriptionResponse,
-    responses=error_responses(400, 404, 503),
+    responses=error_responses(400, 404, 409, 503),
 )
 @inject
 async def pull_subscription_from_panel(

@@ -52,13 +52,16 @@ def test_mandate_state_follows_one_ordered_policy(
         ("insufficient_funds", RecurringReason.INSUFFICIENT_FUNDS),
         ("permission_revoked", RecurringReason.PERMISSION_REVOKED),
         ("general_decline", RecurringReason.BANK_DECLINED),
+        # YooKassa's or the shop's side: not the customer's card
+        ("internal_timeout", RecurringReason.PROVIDER_UNAVAILABLE),
+        ("canceled_by_merchant", RecurringReason.MERCHANT_UNAVAILABLE),
         # our own stop reasons never come from a webhook
         ("admin_closed", RecurringReason.BANK_DECLINED),
         ("retries_exhausted", RecurringReason.BANK_DECLINED),
         (None, RecurringReason.BANK_DECLINED),
     ],
 )
-def test_a_provider_code_maps_only_to_bank_and_card_reasons(provider, expected):
+def test_a_provider_code_maps_to_a_reason_of_its_side(provider, expected):
     assert provider_cancellation_reason(provider) is expected
 
 

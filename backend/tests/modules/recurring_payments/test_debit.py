@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 from dataclasses import fields, replace
 from datetime import timedelta
@@ -13,6 +14,7 @@ from sqlalchemy import text, update
 import app.modules.recurring_payments.debit as worker_module
 import app.modules.recurring_payments.repository as recurring_repository_module
 from app.core.db.models import (
+    RecurringPayment,
     Subscription,
     Transaction,
 )
@@ -47,6 +49,8 @@ from app.modules.transactions.dto import (
     MarkOrderFulfilledDto,
     WebhookRequest,
 )
+from app.modules.transactions.gateways.yookassa import RELAY_ACCOUNT
+from app.modules.transactions.unpaid_orders import PaidOrderHolder
 from app.modules.transactions.usecases import (
     HandlePaymentWebhookUseCase,
     MarkOrderFulfilledUseCase,
@@ -182,6 +186,79 @@ async def test_changing_shop_never_uses_a_method_from_another_merchant(
     assert not case.provider.posts
 
 
+_CABINET_SHOP: dict[str, str] = {
+    "cabinet_shop_enabled": "true",
+    "cabinet_shop_id": "2000",
+    "cabinet_api_key": "cabinet-key",
+}
+
+
+async def _move_mandate_to(session, subscription_id: int, shop_id: str, uow) -> None:
+    async with uow:
+        await session.execute(
+            update(RecurringPayment)
+            .where(RecurringPayment.subscription_id == subscription_id)
+            .values(shop_id=shop_id)
+        )
+
+
+async def test_a_card_saved_in_the_cabinet_shop_is_charged_there(
+    case, gateway_repository, transaction_repository, session, uow
+) -> None:
+    async with uow:
+        await gateway_repository.update_settings(PaymentGatewayType.YOOKASSA, _CABINET_SHOP)
+    await _move_mandate_to(session, case.subscription.id, "2000", uow)
+
+    await case.worker.system()
+
+    (post,) = case.provider.posts
+    expected = "Basic " + base64.b64encode(b"2000:cabinet-key").decode()
+    assert post.headers["Authorization"] == expected
+    mandate = await case.repository.get(case.subscription.id)
+    assert mandate is not None and mandate.pending_transaction_id is not None
+    order = await transaction_repository.get_by_id(mandate.pending_transaction_id)
+    assert order.gateway_account == "2000"
+
+
+async def test_a_card_of_a_switched_off_cabinet_shop_is_not_charged(
+    case, gateway_repository, session, uow
+) -> None:
+    async with uow:
+        await gateway_repository.update_settings(
+            PaymentGatewayType.YOOKASSA, {**_CABINET_SHOP, "cabinet_shop_enabled": "false"}
+        )
+    await _move_mandate_to(session, case.subscription.id, "2000", uow)
+
+    await case.worker.system()
+
+    assert not case.provider.posts
+    mandate = await case.repository.get(case.subscription.id)
+    assert mandate is not None and mandate.last_error is RecurringReason.SHOP_CHANGED
+
+
+async def test_a_card_saved_through_paygate_is_charged_through_it(
+    case, gateway_repository, session, uow
+) -> None:
+    async with uow:
+        await gateway_repository.update_settings(
+            PaymentGatewayType.YOOKASSA,
+            {
+                "relay_enabled": "true",
+                "relay_url": "https://agg.example",
+                "relay_ingress_secret": "ingress",
+                "relay_forward_secret": "forward",
+            },
+        )
+    await _move_mandate_to(session, case.subscription.id, RELAY_ACCOUNT, uow)
+
+    await case.worker.system()
+
+    (post,) = case.provider.posts
+    assert str(post.url) == "https://agg.example/agg/v1/payments"
+    assert "Authorization" not in post.headers and "X-Signature" in post.headers
+    assert json.loads(post.content)["payment_method_id"] == "method-token"
+
+
 async def test_recurring_payment_runs_the_real_subscription_fulfillment_once(
     case,
     remnawave_store,
@@ -200,7 +277,11 @@ async def test_recurring_payment_runs_the_real_subscription_fulfillment_once(
     await case.worker.system()
     task = purchase_subscription_task.original_func.__dishka_orig_func__
     fulfill = FulfillPurchaseUseCase(
-        user_repository, purchase_subscription_use_case, transaction_repository, uow
+        user_repository,
+        purchase_subscription_use_case,
+        transaction_repository,
+        PaidOrderHolder(transaction_repository, RecordingEventPublisher()),
+        uow,
     )
     await task(**case.dispatch.messages[0], use_case=fulfill)
     first = await subscription_repository.get_by_id(case.subscription.id)

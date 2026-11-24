@@ -1,10 +1,12 @@
 import secrets
 from dataclasses import replace
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Any, Optional, Union, cast
 
 import pytest
 from redis.asyncio import Redis
+from remnapy.enums import TrafficLimitStrategy
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,11 +15,13 @@ from app.core.constants import REDIS_KEY_PREFIX
 from app.core.db.models import CustomerNotification, PaymentGateway, RecurringPayment
 from app.core.db.uow import UnitOfWork
 from app.core.enums import (
+    Currency,
     Locale,
     PaymentGatewayType,
     PaymentOutcome,
     PlanType,
     PurchaseChannel,
+    PurchaseType,
     SessionAudience,
     SubscriptionStatus,
 )
@@ -37,12 +41,13 @@ from app.modules.notifications.dto import PushMessage
 from app.modules.notifications.render import NotificationRenderer
 from app.modules.notifications.repository import NotificationRepository
 from app.modules.plans import PlanRepository
-from app.modules.plans.dto import CreatePlanDto
-from app.modules.recurring_payments import (
-    RecurringPaymentRepository,
-)
+from app.modules.plans.dto import CreatePlanDto, SetPlanDurationDto, SetPlanDurationsDto
+from app.modules.recurring_payments import RecurringDebitChecks
+from app.modules.recurring_payments.policy import recurring_policy
+from app.modules.recurring_payments.repository import RecurringPaymentRepository
+from app.modules.recurring_payments.terms import build_recurring_terms
 from app.modules.settings import SettingsRepository
-from app.modules.settings.dto import UpdateShopSettingsDto
+from app.modules.settings.dto import UpdateAccessSettingsDto, UpdateShopSettingsDto
 from app.modules.subscriptions import SubscriptionRepository
 from app.modules.subscriptions.dto import CreateSubscriptionDto
 from app.modules.transactions import (
@@ -51,6 +56,7 @@ from app.modules.transactions import (
 from app.modules.users.dto import CreateUserDto, UserDto
 from app.modules.users.repository import UserRepository
 from tests.fakes.dispatch import RecordingDispatch
+from tests.fakes.recurring import ShippedRecurringTermsTexts, make_recurring_lifecycle
 from tests.modules.customer_notifications.factories import FakeBotSignals, create_order
 from tests.modules.subscriptions.factories import make_plan_snapshot
 from tests.modules.transactions.test_usecases import _seed_subscription
@@ -88,6 +94,8 @@ ntf-customer-torrent-blocker-report = Torrents are forbidden.
     .title = Torrents
 ntf-customer-payments-restored = Payments are back.
     .title = Payments
+ntf-customer-subscription-traffic-threshold = Used { $percent }%. Renew { $can_renew }.
+    .title = Traffic
 """
 _PURCHASED = "SubscriptionPurchasedEvent"
 
@@ -152,8 +160,12 @@ class _Fixture:
             redis,
             config,
             uow,
-            RecurringPaymentRepository(orders.session),
-            GatewayRepository(orders.session),
+            RecurringDebitChecks(
+                RecurringPaymentRepository(orders.session),
+                make_recurring_lifecycle(orders.session),
+                GatewayRepository(orders.session),
+                settings,
+            ),
         )
 
     async def create(self, **fields: Any) -> UserDto:
@@ -171,6 +183,7 @@ class _Fixture:
         subscription_id: Optional[int] = None,
         telegram_refused: bool = False,
         args: Optional[dict[str, Union[str, int]]] = None,
+        cooldown_until: Optional[str] = None,
     ) -> None:
         await self.use_case.system(
             NotifyCustomerDto(
@@ -181,6 +194,7 @@ class _Fixture:
                 payment_key=payment_key,
                 subscription_id=subscription_id,
                 telegram_refused=telegram_refused,
+                cooldown_until=cooldown_until,
             )
         )
 
@@ -248,6 +262,7 @@ async def test_telegram_and_email_both_queued(fx: _Fixture) -> None:
                 "payment_key": None,
                 "subscription_id": None,
                 "telegram_refused": False,
+                "cooldown_until": None,
             },
             "html": True,
         }
@@ -360,15 +375,61 @@ def test_counter_is_in_the_worker_registry() -> None:
     )
 
 
-async def test_torrent_warning_is_sent_once_a_day_per_user(fx: _Fixture) -> None:
+def _block(minutes: int = 5) -> str:
+    return (datetime_now() + timedelta(minutes=minutes)).isoformat()
+
+
+async def test_torrent_warning_is_sent_once_per_block_per_user(fx: _Fixture) -> None:
     first = await fx.create(name="a", telegram_id=8101)
     second = await fx.create(name="b", telegram_id=8102)
 
-    await fx.notify(first, "TorrentBlockerReportEvent", outbox_id=11)
-    await fx.notify(first, "TorrentBlockerReportEvent", outbox_id=12)
-    await fx.notify(second, "TorrentBlockerReportEvent", outbox_id=13)
+    await fx.notify(first, "TorrentBlockerReportEvent", cooldown_until=_block(), outbox_id=11)
+    await fx.notify(first, "TorrentBlockerReportEvent", cooldown_until=_block(), outbox_id=12)
+    await fx.notify(second, "TorrentBlockerReportEvent", cooldown_until=_block(), outbox_id=13)
 
     assert [m["user_id"] for m in fx.telegram.messages] == [first.id, second.id]
+
+
+def _torrent_cooldown_key(user: UserDto) -> str:
+    return f"{REDIS_KEY_PREFIX}customer_cooldown:TorrentBlockerReportEvent:{user.id}"
+
+
+async def test_a_new_torrent_block_after_the_last_one_ended_is_told(
+    fx: _Fixture, redis: Redis
+) -> None:
+    user = await fx.create(name="a", telegram_id=8105)
+
+    await fx.notify(user, "TorrentBlockerReportEvent", cooldown_until=_block(60), outbox_id=14)
+    # lasts as long as the block
+    assert 59 * 60 < await redis.ttl(_torrent_cooldown_key(user)) <= 60 * 60
+    # the first block ran out
+    await redis.delete(_torrent_cooldown_key(user))
+    await fx.notify(user, "TorrentBlockerReportEvent", cooldown_until=_block(60), outbox_id=15)
+
+    assert len(fx.telegram.messages) == 2
+
+
+@pytest.mark.parametrize("until", [-1, 1, "garbage", "2026-01-01T00:00:00"])
+async def test_a_torrent_cooldown_never_drops_below_the_floor(
+    fx: _Fixture, redis: Redis, until: Union[int, str]
+) -> None:
+    # minutes from now, computed here and not at collection
+    until = _block(until) if isinstance(until, int) else until
+    user = await fx.create(name="a", telegram_id=8106)
+
+    await fx.notify(user, "TorrentBlockerReportEvent", cooldown_until=until, outbox_id=18)
+    await fx.notify(user, "TorrentBlockerReportEvent", cooldown_until=until, outbox_id=19)
+
+    assert len(fx.telegram.messages) == 1
+    assert 14 * 60 < await redis.ttl(_torrent_cooldown_key(user)) <= 15 * 60
+
+
+async def test_a_long_torrent_block_is_quiet_for_a_day_at_most(fx: _Fixture, redis: Redis) -> None:
+    user = await fx.create(name="a", telegram_id=8107)
+
+    await fx.notify(user, "TorrentBlockerReportEvent", cooldown_until=_block(30 * 24 * 60))
+
+    assert 23 * 3600 < await redis.ttl(_torrent_cooldown_key(user)) <= 24 * 3600
 
 
 async def test_failed_torrent_warning_can_be_retried(fx: _Fixture) -> None:
@@ -380,10 +441,10 @@ async def test_failed_torrent_warning_can_be_retried(fx: _Fixture) -> None:
     original = fx.telegram.kiq
     fx.telegram.kiq = boom  # type: ignore[method-assign]
     with pytest.raises(RetryableTaskError):
-        await fx.notify(user, "TorrentBlockerReportEvent", outbox_id=21)
+        await fx.notify(user, "TorrentBlockerReportEvent", cooldown_until=_block(), outbox_id=21)
 
     fx.telegram.kiq = original  # type: ignore[method-assign]
-    await fx.notify(user, "TorrentBlockerReportEvent", outbox_id=21)
+    await fx.notify(user, "TorrentBlockerReportEvent", cooldown_until=_block(), outbox_id=21)
 
     assert len(fx.telegram.messages) == 1
 
@@ -402,13 +463,25 @@ async def test_bot_blocked_customer_gets_email_instead(fx: _Fixture) -> None:
 async def test_a_refused_telegram_send_goes_out_by_email(fx: _Fixture) -> None:
     user = await fx.create(name="a", telegram_id=8202, email="a@example.com")
     # the cooldown run already took its slot when Telegram refused
-    await fx.notify(user, "TorrentBlockerReportEvent", outbox_id=41)
+    await fx.notify(user, "TorrentBlockerReportEvent", cooldown_until=_block(), outbox_id=41)
     assert fx.email.messages == []
     async with fx.uow:
         await fx.users.set_bot_blocked(user.id, True)
 
-    await fx.notify(user, "TorrentBlockerReportEvent", outbox_id=41, telegram_refused=True)
-    await fx.notify(user, "TorrentBlockerReportEvent", outbox_id=41, telegram_refused=True)
+    await fx.notify(
+        user,
+        "TorrentBlockerReportEvent",
+        cooldown_until=_block(),
+        outbox_id=41,
+        telegram_refused=True,
+    )
+    await fx.notify(
+        user,
+        "TorrentBlockerReportEvent",
+        cooldown_until=_block(),
+        outbox_id=41,
+        telegram_refused=True,
+    )
 
     assert len(fx.telegram.messages) == 1
     assert [m["to"] for m in fx.email.messages] == ["a@example.com"]
@@ -435,11 +508,11 @@ async def test_a_torrent_warning_that_failed_before_sending_is_retried(
 
     monkeypatch.setattr(fx.tokens, "get_bot_token", unavailable)
     with pytest.raises(RetryableTaskError):
-        await fx.notify(user, "TorrentBlockerReportEvent", outbox_id=31)
+        await fx.notify(user, "TorrentBlockerReportEvent", cooldown_until=_block(), outbox_id=31)
     monkeypatch.undo()
 
     # the failed run left no cooldown behind for the retry to trip over
-    await fx.notify(user, "TorrentBlockerReportEvent", outbox_id=31)
+    await fx.notify(user, "TorrentBlockerReportEvent", cooldown_until=_block(), outbox_id=31)
 
     assert len(fx.telegram.messages) == 1
 
@@ -674,8 +747,8 @@ async def test_feed_not_duplicated_on_retry_after_channel_failure(
 async def test_feed_respects_cooldown(fx: _Fixture) -> None:
     user = await fx.create(name="f", telegram_id=8303)
 
-    await fx.notify(user, "TorrentBlockerReportEvent", outbox_id=61)
-    await fx.notify(user, "TorrentBlockerReportEvent", outbox_id=62)
+    await fx.notify(user, "TorrentBlockerReportEvent", cooldown_until=_block(), outbox_id=61)
+    await fx.notify(user, "TorrentBlockerReportEvent", cooldown_until=_block(), outbox_id=62)
 
     assert len(await fx.feed_rows(user)) == 1
 
@@ -856,16 +929,37 @@ async def _subscription_with_mandate(
         plan_id=plan.id,
     )
     async with fx.uow:
+        consent_id = await RecurringPaymentRepository(fx.orders.session).record_consent(
+            await build_recurring_terms(
+                texts=ShippedRecurringTermsTexts(),
+                policy=recurring_policy({}),
+                user_id=user.id,
+                plan_id=plan.id,
+                target_subscription_id=subscription_id,
+                purchase_type=PurchaseType.NEW,
+                initial_amount=Decimal("500"),
+                amount_limit=Decimal("500"),
+                currency=Currency.RUB,
+                duration_days=30,
+                locale=user.language,
+            ),
+            channel=PurchaseChannel.BOT,
+            telegram_id=user.telegram_id,
+        )
         fx.orders.session.add(
             RecurringPayment(
                 subscription_id=subscription_id,
                 enabled=enabled,
                 last_error=last_error,
                 next_attempt_at=datetime_now(),
+                payment_method_id="method-token",
+                shop_id="1000",
+                consent_id=consent_id,
             )
         )
         await GatewayRepository(fx.orders.session).update_settings(
-            PaymentGatewayType.YOOKASSA, {"payment_mode": payment_mode}
+            PaymentGatewayType.YOOKASSA,
+            {"shop_id": "1000", "api_key": "test-key", "payment_mode": payment_mode},
         )
         await fx.orders.session.execute(
             update(PaymentGateway)
@@ -904,6 +998,18 @@ async def test_expiring_reminder_sent_while_auto_renewal_is_paused(fx: _Fixture)
     assert len(fx.telegram.messages) == 1
 
 
+async def test_expiring_reminder_sent_while_payments_are_off(fx: _Fixture) -> None:
+    # the charge would be skipped, and that skip is never told to the customer
+    user = await fx.create(name="payments-off", telegram_id=8305)
+    subscription_id = await _subscription_with_mandate(fx, user, enabled=True)
+    async with fx.uow:
+        await fx.settings.update_access_settings(UpdateAccessSettingsDto(payments_enabled=False))
+
+    await fx.notify(user, "SubscriptionExpiringEvent", subscription_id=subscription_id)
+
+    assert len(fx.telegram.messages) == 1
+
+
 async def test_expiring_reminder_sent_when_the_shop_turned_auto_renewal_off(fx: _Fixture) -> None:
     user = await fx.create(name="restored", telegram_id=8304)
     subscription_id = await _subscription_with_mandate(
@@ -913,3 +1019,185 @@ async def test_expiring_reminder_sent_when_the_shop_turned_auto_renewal_off(fx: 
     await fx.notify(user, "SubscriptionExpiringEvent", subscription_id=subscription_id)
 
     assert len(fx.telegram.messages) == 1
+
+
+async def _traffic_subscription(
+    fx: _Fixture,
+    user: UserDto,
+    remnawave_user_id: int,
+    *,
+    status: SubscriptionStatus = SubscriptionStatus.ACTIVE,
+    strategy: TrafficLimitStrategy = TrafficLimitStrategy.NO_RESET,
+    plan_id: int = 1,
+    is_trial: bool = False,
+    expire_at: Optional[datetime] = None,
+) -> int:
+    async with fx.uow:
+        subscription = await SubscriptionRepository(fx.orders.session).create(
+            CreateSubscriptionDto(
+                user_id=user.id,
+                remnawave_user_id=remnawave_user_id,
+                status=status,
+                is_trial=is_trial,
+                traffic_limit=100,
+                traffic_limit_strategy=strategy,
+                device_limit=0,
+                expire_at=expire_at or datetime_now() + timedelta(days=20),
+                url="https://example.test/sub",
+                plan_snapshot=make_plan_snapshot(plan_id=plan_id),
+            )
+        )
+    return subscription.id
+
+
+async def _plan(fx: _Fixture, code: str, price: str, *, allow_renewal: bool = True) -> int:
+    plans = PlanRepository(fx.orders.session)
+    plan = await plans.create(
+        CreatePlanDto(
+            public_code=code,
+            name=code,
+            type=PlanType.BOTH,
+            traffic_limit=100,
+            device_limit=1,
+            allow_renewal=allow_renewal,
+        )
+    )
+    await plans.set_durations(
+        SetPlanDurationsDto(
+            plan_id=plan.id,
+            durations=[SetPlanDurationDto(days=30, order_index=0, base_price=Decimal(price))],
+        )
+    )
+    return plan.id
+
+
+async def test_traffic_threshold_names_the_reset_date_and_renewal(fx: _Fixture) -> None:
+    user = await fx.create(name="tt", telegram_id=8401)
+    plan_id = await _plan(fx, "tt-plan", "5")
+    subscription_id = await _traffic_subscription(
+        fx, user, 880_401, strategy=TrafficLimitStrategy.DAY, plan_id=plan_id
+    )
+
+    await fx.notify(
+        user,
+        "SubscriptionTrafficThresholdEvent",
+        subscription_id=subscription_id,
+        args={"percent": 80},
+    )
+
+    (row,) = await fx.feed_rows(user)
+    tomorrow = (datetime_now() + timedelta(days=1)).strftime("%d.%m.%Y")
+    assert row.args == {
+        "percent": 80,
+        "is_trial": "no",
+        "reset_date": tomorrow,
+        "can_renew": "yes",
+    }
+
+
+@pytest.mark.parametrize(
+    ("price", "allow_renewal"), [("5", False), ("0", True)], ids=["closed", "free"]
+)
+async def test_traffic_threshold_offers_no_renewal_a_plan_cant_give(
+    price: str, allow_renewal: bool, fx: _Fixture
+) -> None:
+    user = await fx.create(name="tn", telegram_id=8402)
+    plan_id = await _plan(fx, f"tn-{price}", price, allow_renewal=allow_renewal)
+    subscription_id = await _traffic_subscription(fx, user, 880_402, plan_id=plan_id)
+
+    await fx.notify(
+        user,
+        "SubscriptionTrafficThresholdEvent",
+        subscription_id=subscription_id,
+        args={"percent": 95},
+    )
+
+    (row,) = await fx.feed_rows(user)
+    # NO_RESET: the counter never comes back on its own
+    assert (row.args["reset_date"], row.args["can_renew"]) == ("none", "no")
+    # and no "Renew" button under a text that doesn't suggest it
+    (message,) = fx.telegram.messages
+    assert [button["text"] for button in message["buttons"]] == ["Close"]
+
+
+async def test_traffic_threshold_gets_a_renew_button_where_it_suggests_renewing(
+    fx: _Fixture,
+) -> None:
+    user = await fx.create(name="tb", telegram_id=8404)
+    plan_id = await _plan(fx, "tb-plan", "5")
+    subscription_id = await _traffic_subscription(fx, user, 880_404, plan_id=plan_id)
+
+    await fx.notify(
+        user,
+        "SubscriptionTrafficThresholdEvent",
+        subscription_id=subscription_id,
+        args={"percent": 80},
+    )
+
+    (message,) = fx.telegram.messages
+    assert [button["text"] for button in message["buttons"]] == ["Renew", "Close"]
+
+
+@pytest.mark.parametrize(
+    ("expire_at", "plan_exists"),
+    [(datetime(2099, 1, 1, tzinfo=timezone.utc), True), (None, False)],
+    ids=["unlimited", "plan-deleted"],
+)
+async def test_traffic_threshold_offers_no_renewal_without_a_renewable_subscription(
+    expire_at: Optional[datetime], plan_exists: bool, fx: _Fixture
+) -> None:
+    user = await fx.create(name="tu", telegram_id=8405)
+    plan_id = await _plan(fx, "tu-plan", "5") if plan_exists else 999_999
+    subscription_id = await _traffic_subscription(
+        fx, user, 880_405, plan_id=plan_id, expire_at=expire_at
+    )
+
+    await fx.notify(
+        user,
+        "SubscriptionTrafficThresholdEvent",
+        subscription_id=subscription_id,
+        args={"percent": 80},
+    )
+
+    (row,) = await fx.feed_rows(user)
+    assert row.args["can_renew"] == "no"
+    (message,) = fx.telegram.messages
+    assert [button["text"] for button in message["buttons"]] == ["Close"]
+
+
+async def test_traffic_threshold_offers_a_trial_to_buy(fx: _Fixture) -> None:
+    user = await fx.create(name="tt2", telegram_id=8406)
+    subscription_id = await _traffic_subscription(fx, user, 880_406, is_trial=True)
+
+    await fx.notify(
+        user,
+        "SubscriptionTrafficThresholdEvent",
+        subscription_id=subscription_id,
+        args={"percent": 80},
+    )
+
+    (row,) = await fx.feed_rows(user)
+    assert (row.args["is_trial"], row.args["can_renew"]) == ("yes", "no")
+    (message,) = fx.telegram.messages
+    assert [button["text"] for button in message["buttons"]] == ["Buy", "Close"]
+
+
+@pytest.mark.parametrize(
+    "status",
+    [SubscriptionStatus.LIMITED, SubscriptionStatus.EXPIRED, SubscriptionStatus.DISABLED],
+)
+async def test_traffic_threshold_is_dropped_once_the_subscription_is_not_active(
+    status: SubscriptionStatus, fx: _Fixture
+) -> None:
+    user = await fx.create(name="tl", telegram_id=8403)
+    subscription_id = await _traffic_subscription(fx, user, 880_403, status=status)
+
+    await fx.notify(
+        user,
+        "SubscriptionTrafficThresholdEvent",
+        subscription_id=subscription_id,
+        args={"percent": 95},
+    )
+
+    assert await fx.feed_rows(user) == []
+    assert fx.telegram.messages == []

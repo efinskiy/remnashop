@@ -20,9 +20,23 @@ export interface PlanSnapshot {
   internal_squads: string[];
   external_squad: string | null;
   tag?: string | null;
-  /** money and days behind the current credit, in the snapshot's currency; absent on an old snapshot */
-  credit_paid?: string | null;
-  credit_days?: number | null;
+}
+
+export type CreditSegmentKind = "PURCHASE" | "CARRIED" | "BONUS" | "LEGACY";
+
+/** a stretch of the term and what was paid for it; a plan change credits what's left of each */
+export interface CreditSegment {
+  id: number;
+  kind: CreditSegmentKind;
+  paid: string;
+  currency: string;
+  seconds: number;
+  /** null: an unlimited term */
+  ends_at: string | null;
+  replaced_expire_at: string | null;
+  /** replaced by an unlimited term: credits nothing until that term is refunded */
+  superseded_by_id: number | null;
+  created_at: string;
 }
 
 export interface AddOnEntitlement {
@@ -48,6 +62,8 @@ export interface SubscriptionListItem {
   internal_squads: string[];
   external_squad: string | null;
   expire_at: string;
+  /** end of the grace period the subscription is in; null outside one */
+  grace_until: string | null;
   created_at: string | null;
   first_connected_at: string | null;
   /** the client's own last device removal, removal of all devices and link reissue */
@@ -74,6 +90,7 @@ export interface SubscriptionDetail extends SubscriptionListItem {
   online_at: string | null;
   sub_last_opened_at: string | null;
   sub_last_user_agent: string | null;
+  credit_segments: CreditSegment[];
 }
 
 export const SUBSCRIPTION_STATUS_BADGE_TONE: Record<SubscriptionStatus, BadgeTone> = {
@@ -218,8 +235,12 @@ export const reissueSubscriptionLink = (subscriptionId: number) => subscriptionA
 
 export interface SubscriptionDevice {
   hwid: string;
+  // the customer's own name for it
+  name: string | null;
   platform: string | null;
+  os_version: string | null;
   device_model: string | null;
+  app: string | null;
   user_agent: string | null;
   created_at: string;
 }
@@ -251,6 +272,7 @@ export interface PanelSyncResult {
   missing: number;
   recreated: number;
   imported: number;
+  users_created: number;
   deleted: number;
   over_limit: number;
   finished_at: string;
@@ -316,9 +338,9 @@ export async function getPanelSyncStatus(signal?: AbortSignal): Promise<PanelSyn
   return apiGet<PanelSyncStatus>("/subscriptions/panel-sync", signal);
 }
 
-/** each direction reads its own: pull adopt_unnamed and respect_subscription_limit, push recreate_missing and delete_orphans */
+/** each direction reads its own: pull adopt_unnamed, respect_subscription_limit and create_users, push recreate_missing and delete_orphans */
 export type PanelSyncOptions = Record<
-  "adopt_unnamed" | "respect_subscription_limit" | "recreate_missing" | "delete_orphans",
+  "adopt_unnamed" | "respect_subscription_limit" | "create_users" | "recreate_missing" | "delete_orphans",
   boolean
 >;
 

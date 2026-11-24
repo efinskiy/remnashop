@@ -46,11 +46,13 @@ class UserDto(BaseDto, TimestampMixin):
     purchase_discount_promocode_id: Optional[int] = None
     loyalty_discount: int = 0
     loyalty_excluded: bool = False
+    markup_percent: int = 0
     marketing_opt_out: bool = False
     is_bot_blocked: bool = False
     email_undeliverable_at: Optional[datetime] = None
 
     referral_code: Optional[str] = None
+    referral_code_reset_at: Optional[datetime] = None
     points: Decimal = ZERO_AMOUNT
     bonus_days: int = 0
     notifications_seen_at: Optional[datetime] = None
@@ -135,6 +137,7 @@ class UpdateUserDto:
     purchase_discount_promocode_id: Optional[int] = None
     is_trial_available: Optional[bool] = None
     loyalty_excluded: Optional[bool] = None
+    markup_percent: Optional[int] = None
     language: Optional[Locale] = None
 
 
@@ -151,6 +154,13 @@ class SetUserDiscountDto:
     client_ip: str
     personal_discount: Optional[int] = None
     purchase_discount: Optional[int] = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class SetUserMarkupDto:
+    user_id: int
+    client_ip: str
+    markup_percent: int
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -415,6 +425,12 @@ class AdminWithPasswordDto:
 
 @dataclass(frozen=True, kw_only=True)
 class BlockUserDto:
+    user_id: int
+    client_ip: str
+
+
+@dataclass(frozen=True, kw_only=True)
+class ResetBotMenuDto:
     user_id: int
     client_ip: str
 

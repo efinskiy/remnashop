@@ -8,7 +8,7 @@ from dishka.integrations.aiogram_dialog import inject
 from fluentogram import TranslatorHub, TranslatorRunner
 
 from app.core.config import AppConfig
-from app.core.constants import USER_KEY
+from app.core.constants import DEVICE_NAME_MAX_LENGTH, USER_KEY
 from app.core.enums import SubscriptionStatus
 from app.core.exceptions import NotFoundError, ValidationError
 from app.modules.banners import GetBannerForDisplayUseCase
@@ -26,6 +26,7 @@ from app.modules.subscriptions import (
     ListOwnSubscriptionsUseCase,
     SubscriptionDto,
     SubscriptionRefDto,
+    is_unlimited_expiry,
 )
 from app.modules.users import UserDto
 from app.telegram.banners import window_banner
@@ -41,16 +42,59 @@ from app.telegram.dialogs.rendering import (
     render_window_text,
     resolve_variable_kwargs,
 )
-from app.telegram.i18n import format_date, format_datetime, format_expiry, get_translator
+from app.telegram.i18n import (
+    expiry_unix_time,
+    format_date,
+    format_date_tag,
+    format_datetime,
+    format_expiry,
+    format_expiry_tag,
+    get_translator,
+    unix_time,
+)
 from app.telegram.recurring import consent_callback_id
-from app.telegram.routers.subscriptions.handlers import SINGLE_RESET_KEY
+from app.telegram.routers.subscriptions.handlers import SELECTED_HWID_KEY
+
+# the open device card's title and whether the customer named it, for the rename window
+DEVICE_TITLE_KEY: Final[str] = "device_title"
+DEVICE_HAS_NAME_KEY: Final[str] = "device_has_name"
 
 _KNOWN_PLATFORMS: Final[frozenset[str]] = frozenset({"ios", "android", "windows", "macos", "linux"})
+
+
+def card_grace(runner: TranslatorRunner, subscription: SubscriptionDto) -> str:
+    """The grace line set off from the limits by an empty line. The empty line can't
+    live in the template: with no grace the line drops and the gap would stay."""
+    line = grace_line(runner, subscription, "frg-subscription-card-grace")
+    return TrustedHtml(f"\n{line}") if line else ""
 
 
 def _platform_icon_key(platform: Optional[str]) -> str:
     normalized = (platform or "default").lower()
     return normalized if normalized in _KNOWN_PLATFORMS else "default"
+
+
+def grace_line(
+    runner: TranslatorRunner,
+    subscription: SubscriptionDto,
+    key: str = "frg-subscription-grace",
+) -> str:
+    """A grace-period line from `key`; empty (so the line drops) outside a grace."""
+    if subscription.grace_until is None:
+        return ""
+    return TrustedHtml(
+        render_window_text(
+            runner,
+            key,
+            grace_until="none"
+            if is_unlimited_expiry(subscription.grace_until)
+            else format_date(subscription.grace_until),
+        )
+    )
+
+
+def device_title(device: DeviceDto) -> str:
+    return device.name or device.device_model or device.platform or device.hwid[:8]
 
 
 def _subscription_label(
@@ -242,9 +286,13 @@ async def subscription_card_getter(
             status=subscription.status.value,
             is_trial=int(subscription.is_trial),
             expire_at=format_expiry(runner, subscription.expire_at),
+            expire_at_local=format_expiry_tag(runner, subscription.expire_at),
+            expire_at_unix=expiry_unix_time(subscription.expire_at),
+            is_unlimited=int(subscription.is_unlimited),
             traffic_limit=subscription.effective_traffic_limit,
             device_limit=subscription.effective_device_limit,
             auto_renew=TrustedHtml(_auto_renew_block(recurring, runner)),
+            grace=card_grace(runner, subscription),
             **resolve_variable_kwargs(data),
         )
     data["buttons"] = await render_dialog_buttons(
@@ -266,8 +314,6 @@ async def devices_getter(
     user: UserDto = dialog_manager.middleware_data[USER_KEY]
     runner = get_translator(i18n, user)
     shop = await get_shop_settings.system()
-    # a tap on a device opens nothing while single resets are off
-    dialog_manager.dialog_data[SINGLE_RESET_KEY] = shop.device_single_reset_enabled
     unavailable: set[str] = set()
     if not shop.device_all_reset_enabled:
         unavailable |= {"menu.device_confirm_delete_all", "delete_all_devices"}
@@ -293,6 +339,7 @@ async def devices_getter(
                 runner,
                 "btn-devices.item",
                 platform_icon=runner.get(f"platform-icon.{_platform_icon_key(device.platform)}"),
+                device_name=device_title(device),
                 platform=device.platform or "?",
                 device_model=device.device_model or "?",
                 created_at=format_date(device.created_at),
@@ -321,6 +368,84 @@ async def devices_getter(
         UNAVAILABLE_BUTTONS_KEY: unavailable,
     }
     data["buttons"] = await render_dialog_buttons("menu.devices", dialog_config_cache, runner, data)
+    return data
+
+
+@inject
+async def device_getter(
+    dialog_manager: DialogManager,
+    list_devices: FromDishka[ListDevicesUseCase],
+    get_shop_settings: FromDishka[GetShopSettingsUseCase],
+    i18n: FromDishka[TranslatorHub],
+    dialog_config_cache: FromDishka[DialogConfigCache],
+    **kwargs: Any,
+) -> dict[str, Any]:
+    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    runner = get_translator(i18n, user)
+    subscription_id = selected_subscription_id(dialog_manager)
+    hwid = dialog_manager.dialog_data.get(SELECTED_HWID_KEY)
+    device: Optional[DeviceDto] = None
+    if subscription_id is not None and hwid:
+        try:
+            devices = await list_devices(user, SubscriptionRefDto(subscription_id=subscription_id))
+        except (NotFoundError, ValidationError):
+            devices = []
+        device = next((d for d in devices if d.hwid == hwid), None)
+
+    unavailable: set[str] = set()
+    if device is None:
+        # removed while the window stayed open: only "back" is left
+        unavailable |= {"menu.device_rename", "menu.device_confirm_delete"}
+        window_text = render_window_text(runner, "msg-window-gone")
+    else:
+        if not (await get_shop_settings.system()).device_single_reset_enabled:
+            unavailable.add("menu.device_confirm_delete")
+        dialog_manager.dialog_data[DEVICE_TITLE_KEY] = device_title(device)
+        dialog_manager.dialog_data[DEVICE_HAS_NAME_KEY] = device.name is not None
+        window_text = render_window_text(
+            runner,
+            "msg-menu-device",
+            device_name=device_title(device),
+            # the title already is the model while the customer gave no name
+            device_model=device.device_model if device.name else "",
+            device_system=" ".join(filter(None, (device.platform, device.os_version))),
+            device_app=device.app or "",
+            device_created_at=format_date(device.created_at),
+            device_created_at_local=format_date_tag(device.created_at),
+            device_created_at_unix=unix_time(device.created_at),
+            **resolve_variable_kwargs({}),
+        )
+    data: dict[str, Any] = {
+        "window_text": window_text,
+        "device_has_name": device is not None and device.name is not None,
+        UNAVAILABLE_BUTTONS_KEY: unavailable,
+    }
+    data["buttons"] = await render_dialog_buttons("menu.device", dialog_config_cache, runner, data)
+    return data
+
+
+@inject
+async def device_rename_getter(
+    dialog_manager: DialogManager,
+    i18n: FromDishka[TranslatorHub],
+    dialog_config_cache: FromDishka[DialogConfigCache],
+    **kwargs: Any,
+) -> dict[str, Any]:
+    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    runner = get_translator(i18n, user)
+    data: dict[str, Any] = {
+        "window_text": render_window_text(
+            runner,
+            "msg-menu-device-rename",
+            device_name=dialog_manager.dialog_data.get(DEVICE_TITLE_KEY, ""),
+            device_name_max_length=DEVICE_NAME_MAX_LENGTH,
+            **resolve_variable_kwargs({}),
+        ),
+        "device_has_name": bool(dialog_manager.dialog_data.get(DEVICE_HAS_NAME_KEY)),
+    }
+    data["buttons"] = await render_dialog_buttons(
+        "menu.device_rename", dialog_config_cache, runner, data
+    )
     return data
 
 

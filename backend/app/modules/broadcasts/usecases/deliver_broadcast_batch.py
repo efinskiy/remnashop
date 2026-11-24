@@ -8,7 +8,7 @@ from typing import Final, Optional
 
 from redis.asyncio import Redis
 from redis.asyncio.lock import Lock
-from redis.exceptions import LockNotOwnedError
+from redis.exceptions import LockNotOwnedError, RedisError
 
 from app.core.actor import Actor
 from app.core.config import AppConfig
@@ -32,6 +32,8 @@ from app.modules.broadcasts.pacing import (
     MAX_FLOOD_WAIT_S,
     MAX_RETRY_AFTER_S,
 )
+from app.modules.broadcasts.recipient_repository import BroadcastRecipientRepository
+from app.modules.broadcasts.referral import cabinet_links_allowed, referral_link_bases
 from app.modules.broadcasts.render import BroadcastRenderer, outgoing_media
 from app.modules.broadcasts.repository import BroadcastRepository
 from app.modules.broadcasts.telegram_api import (
@@ -43,11 +45,14 @@ from app.modules.broadcasts.telegram_api import (
 )
 from app.modules.broadcasts.validation import promocode_is_usable
 from app.modules.promocodes import PromocodeRepository
+from app.modules.referrals import ReferralRepository
 from app.modules.settings import SettingsRepository
 from app.modules.users import UserRepository, mark_bot_blocked
 
 _TOKEN_REJECTED: Final[str] = "Bot token was rejected"
 _MEDIA_MISSING: Final[str] = "Media file is missing"
+# how stale the dashboard's progress counters may get mid-broadcast
+_RECOUNT_EVERY_S: Final[int] = 15
 
 
 class DeliverBroadcastBatchUseCase(UseCase[int, None]):
@@ -56,9 +61,11 @@ class DeliverBroadcastBatchUseCase(UseCase[int, None]):
     def __init__(
         self,
         broadcast_repository: BroadcastRepository,
+        recipient_repository: BroadcastRecipientRepository,
         user_repository: UserRepository,
         settings_repository: SettingsRepository,
         promocode_repository: PromocodeRepository,
+        referral_repository: ReferralRepository,
         client_factory: TelegramClientFactory,
         config: AppConfig,
         deliver_dispatch: DeliverBroadcastDispatch,
@@ -68,9 +75,11 @@ class DeliverBroadcastBatchUseCase(UseCase[int, None]):
         redis: Redis,
     ) -> None:
         self._broadcast_repository = broadcast_repository
+        self._recipient_repository = recipient_repository
         self._user_repository = user_repository
         self._settings_repository = settings_repository
         self._promocode_repository = promocode_repository
+        self._referral_repository = referral_repository
         self._client_factory = client_factory
         self._config = config
         self._deliver_dispatch = deliver_dispatch
@@ -105,7 +114,7 @@ class DeliverBroadcastBatchUseCase(UseCase[int, None]):
                 return False
             if broadcast.status is not BroadcastStatus.SENDING:
                 return False
-            pending = await self._broadcast_repository.claim_pending(
+            pending = await self._recipient_repository.claim_pending(
                 data,
                 BATCH_SIZE,
                 CLAIM_LEASE,
@@ -113,13 +122,13 @@ class DeliverBroadcastBatchUseCase(UseCase[int, None]):
             )
             if not pending:
                 # rows still leased by a crashed chain: the stall watchdog re-kicks later
-                if not await self._broadcast_repository.has_pending(data):
+                if not await self._recipient_repository.has_pending(data):
                     await complete_broadcast(
                         self._broadcast_repository, self._event_publisher, data
                     )
                 return False
             bot = await self._settings_repository.get_bot_settings()
-            contexts = await self._broadcast_repository.recipient_contexts(
+            contexts = await self._recipient_repository.recipient_contexts(
                 [p.user_id for p in pending]
             )
             code = (
@@ -127,12 +136,21 @@ class DeliverBroadcastBatchUseCase(UseCase[int, None]):
                 if broadcast.promocode_id is not None
                 else None
             )
+            cabinet_allowed = await cabinet_links_allowed(
+                broadcast, self._referral_repository, self._settings_repository
+            )
         if bot.token is None:
             await self._fail(data, "Bot token is not set")
             return False
 
         token = bot.token.get_secret_value()
-        renderer = BroadcastRenderer(broadcast, promocode_code=code)
+        renderer = BroadcastRenderer(
+            broadcast,
+            promocode_code=code,
+            referral_bases=await referral_link_bases(
+                cabinet_allowed, bot, self._config.cabinet.url
+            ),
+        )
         media = outgoing_media(self._config.media_dir, broadcast)
         now = datetime_now()
         queue = list(pending)
@@ -145,9 +163,26 @@ class DeliverBroadcastBatchUseCase(UseCase[int, None]):
             if not await self._send_groups(data, queue, media, send):
                 return False
 
-        async with self._uow:
-            await self._broadcast_repository.refresh_counts(data)
+        if await self._recount_due(data):
+            async with self._uow:
+                await self._broadcast_repository.refresh_counts(data)
         return True
+
+    async def _recount_due(self, broadcast_id: int) -> bool:
+        # a recount reads every recipient: once per window, not per batch of 100;
+        # completion, failure and cancel recount in full
+        try:
+            return bool(
+                await self._redis.set(
+                    f"{REDIS_KEY_PREFIX}broadcast_counts:{broadcast_id}",
+                    "1",
+                    nx=True,
+                    ex=_RECOUNT_EVERY_S,
+                )
+            )
+        except RedisError:
+            # the batch is sent: recount rather than drop the chain over a throttle
+            return True
 
     async def _send_groups(
         self,
@@ -273,20 +308,20 @@ class DeliverBroadcastBatchUseCase(UseCase[int, None]):
 
     async def _record_one(self, recipient: PendingRecipientDto, result: SendResult) -> None:
         if result.outcome is SendOutcome.SENT:
-            await self._broadcast_repository.mark_recipient(
+            await self._recipient_repository.mark_recipient(
                 recipient.id, BroadcastRecipientStatus.SENT, message_id=result.message_id
             )
         elif result.outcome is SendOutcome.BLOCKED:
-            await self._broadcast_repository.mark_recipient(
+            await self._recipient_repository.mark_recipient(
                 recipient.id, BroadcastRecipientStatus.BLOCKED, error=result.error
             )
             await mark_bot_blocked(self._user_repository, self._event_publisher, recipient.user_id)
         elif result.outcome is SendOutcome.FAILED:
-            await self._broadcast_repository.mark_recipient(
+            await self._recipient_repository.mark_recipient(
                 recipient.id, BroadcastRecipientStatus.FAILED, error=result.error
             )
         else:
-            await self._broadcast_repository.bump_attempt(
+            await self._recipient_repository.bump_attempt(
                 recipient.id, MAX_ATTEMPTS, result.error or "retry"
             )
 
@@ -307,5 +342,9 @@ class DeliverBroadcastBatchUseCase(UseCase[int, None]):
     async def _fail(self, broadcast_id: int, error: str) -> None:
         async with self._uow:
             await fail_broadcast(
-                self._broadcast_repository, self._event_publisher, broadcast_id, error
+                self._broadcast_repository,
+                self._recipient_repository,
+                self._event_publisher,
+                broadcast_id,
+                error,
             )

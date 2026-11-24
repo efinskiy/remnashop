@@ -8,6 +8,7 @@ from app.core.constants import RECURRING_TERMS_ID_PATTERN
 from app.core.enums import (
     Currency,
     DiscountSource,
+    FulfillmentHold,
     Locale,
     PaymentGatewayType,
     PurchaseChannel,
@@ -92,11 +93,15 @@ class TransactionResponse(BaseModel):
     discount_percent: int
     discount_source: DiscountSource
     plan_discount_percent: int
+    # admin only: the customer never learns of a markup
+    markup_percent: int
     final_price: Decimal
     change_credit: Decimal
     customer_email: Optional[str]
     idempotency_key: str
     is_test: bool
+    # set: paid, left to an admin to issue or refund
+    fulfillment_hold: Optional[FulfillmentHold]
     expires_at: datetime
     # the subscription the order provisioned, once reconciliation has seen it
     fulfilled_subscription_id: Optional[int]
@@ -144,6 +149,7 @@ class UnratedAnchorCountListResponse(BaseModel):
 
 class CreateTestPaymentRequest(BaseModel):
     gateway_type: PaymentGatewayType
+    channel: PurchaseChannel = PurchaseChannel.BOT
 
 
 class TestPaymentResponse(BaseModel):

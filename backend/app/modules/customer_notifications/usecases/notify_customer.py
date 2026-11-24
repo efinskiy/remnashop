@@ -1,4 +1,6 @@
+import math
 from dataclasses import asdict, replace
+from datetime import datetime
 from html import escape
 from typing import Final, Optional
 
@@ -12,19 +14,21 @@ from app.core.constants import (
     CUSTOMER_NOTIFICATION_CLOSE_CALLBACK,
     CUSTOMER_NOTIFICATION_RENEW_PREFIX,
     CUSTOMER_NOTIFICATION_REVOKE_SESSIONS_CALLBACK,
+    DATE_FORMAT,
     ICON_ID_KEY_SUFFIX,
     ICON_KEY_SUFFIX,
     REDIS_KEY_PREFIX,
     TTL_1D,
     TTL_7D,
+    TTL_15M,
 )
 from app.core.db.uow import UnitOfWork
 from app.core.enums import (
     Locale,
-    PaymentGatewayType,
     PaymentOutcome,
     PurchaseChannel,
     SessionAudience,
+    SubscriptionStatus,
 )
 from app.core.exceptions import NotFoundError, RetryableTaskError
 from app.core.ports import BotSignals
@@ -34,6 +38,7 @@ from app.core.utils.telegram_text import (
     premium_emoji_glyphs,
     premium_emoji_html,
 )
+from app.core.utils.time import datetime_now
 from app.modules.cabinet_auth import CabinetNewDeviceSignInEvent
 from app.modules.customer_notifications.dispatch import SendCustomerTelegramDispatch
 from app.modules.customer_notifications.dto import NotifyCustomerDto
@@ -48,7 +53,6 @@ from app.modules.customer_notifications.routing import (
 )
 from app.modules.customer_notifications.waitlist import PAYMENTS_RESTORED
 from app.modules.email import SendEmailDispatch, load_email_brand, render_email
-from app.modules.gateways import GatewayRepository, yookassa_recurring_enabled
 from app.modules.notifications import (
     BotTokenSource,
     NotificationRenderer,
@@ -61,10 +65,10 @@ from app.modules.notifications import (
 )
 from app.modules.plans import PlanRepository
 from app.modules.recurring_payments import (
+    RecurringDebitChecks,
     RecurringPaymentExhaustedEvent,
     RecurringPaymentFailedEvent,
     RecurringPaymentPausedEvent,
-    RecurringPaymentRepository,
 )
 from app.modules.settings import SettingsRepository
 from app.modules.subscriptions import (
@@ -73,6 +77,7 @@ from app.modules.subscriptions import (
     SubscriptionExpiredAgoEvent,
     SubscriptionExpiredEvent,
     SubscriptionExpiringEvent,
+    SubscriptionGraceStartedEvent,
     SubscriptionGrantedEvent,
     SubscriptionNotConnectedEvent,
     SubscriptionPurchasedEvent,
@@ -81,7 +86,9 @@ from app.modules.subscriptions import (
     SubscriptionTrafficLimitedEvent,
     SubscriptionTrafficThresholdEvent,
     TorrentBlockerReportEvent,
+    can_renew,
     current_plan_snapshots,
+    next_traffic_reset,
 )
 from app.modules.transactions import (
     PaidOrderNotFulfilledEvent,
@@ -91,8 +98,10 @@ from app.modules.users import UserDto, UserRepository
 
 # outlives the sweep's retries of one outbox row
 _DEDUP_TTL_S: Final[int] = TTL_7D
-# a torrent client trips the blocker on every connection; one warning a day is enough
-_COOLDOWNS: Final[dict[str, int]] = {TorrentBlockerReportEvent.__name__: TTL_1D}
+# a lagging queue delivers reports of blocks already over; they must not all go out
+_MIN_COOLDOWN_S: Final[int] = TTL_15M
+# a long block an admin lifts early must not silence the next one for weeks
+_MAX_COOLDOWN_S: Final[int] = TTL_1D
 # a bot order shows these in the bot's own window instead of a Telegram text
 _OUTCOMES: Final[dict[str, PaymentOutcome]] = {
     SubscriptionPurchasedEvent.__name__: PaymentOutcome.SUCCEEDED,
@@ -107,6 +116,7 @@ _RENEWABLE: Final[frozenset[str]] = frozenset(
     for event in (
         SubscriptionExpiringEvent,
         SubscriptionExpiredEvent,
+        SubscriptionGraceStartedEvent,
         SubscriptionExpiredAgoEvent,
         SubscriptionTrafficLimitedEvent,
         RecurringPaymentFailedEvent,
@@ -136,10 +146,14 @@ _SHOWS_PLAN: Final[frozenset[str]] = frozenset({SubscriptionChangedEvent.__name_
 _TRIAL_AWARE: Final[frozenset[str]] = _RENEWABLE | {SubscriptionTrafficThresholdEvent.__name__}
 
 
-def _cooldown_key(event_type: str, user_id: int) -> Optional[str]:
-    if event_type not in _COOLDOWNS:
-        return None
-    return f"{REDIS_KEY_PREFIX}customer_cooldown:{event_type}:{user_id}"
+def _cooldown_s(until: Optional[str]) -> int:
+    if until is None:
+        return 0
+    try:
+        remaining = math.ceil((datetime.fromisoformat(until) - datetime_now()).total_seconds())
+    except (TypeError, ValueError):
+        return _MIN_COOLDOWN_S
+    return min(max(remaining, _MIN_COOLDOWN_S), _MAX_COOLDOWN_S)
 
 
 class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
@@ -163,8 +177,7 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
         redis: Redis,
         config: AppConfig,
         uow: UnitOfWork,
-        recurring_repository: RecurringPaymentRepository,
-        gateway_repository: GatewayRepository,
+        recurring_debit_checks: RecurringDebitChecks,
     ) -> None:
         self._user_repository = user_repository
         self._settings_repository = settings_repository
@@ -182,8 +195,7 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
         self._redis = redis
         self._config = config
         self._uow = uow
-        self._recurring_repository = recurring_repository
-        self._gateway_repository = gateway_repository
+        self._recurring_debit_checks = recurring_debit_checks
 
     async def _execute(self, actor: Actor, data: NotifyCustomerDto) -> None:
         # the outbox row is already processed, so only a retry can save a failed run;
@@ -198,11 +210,7 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
         if data.event_type != SubscriptionExpiringEvent.__name__ or data.subscription_id is None:
             return False
         async with self._uow:
-            mandate = await self._recurring_repository.get(data.subscription_id)
-            if mandate is None or not mandate.enabled or mandate.last_error is not None:
-                return False
-            gateway = await self._gateway_repository.get_by_type(PaymentGatewayType.YOOKASSA)
-        return bool(gateway.is_active and yookassa_recurring_enabled(gateway.values))
+            return await self._recurring_debit_checks.will_renew(data.subscription_id)
 
     async def _notify(self, data: NotifyCustomerDto) -> None:
         if not should_notify_customer(data.event_type, data.args):
@@ -217,15 +225,10 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
         ):
             return
         if data.event_type in _TRIAL_AWARE and data.subscription_id is not None:
-            subscription = await self._find_subscription(data.subscription_id)
-            # stored with the feed row, the bell renders it again later
-            args = {
-                **data.args,
-                "is_trial": "yes" if subscription and subscription.is_trial else "no",
-            }
-            if data.event_type == SubscriptionTrafficLimitedEvent.__name__ and subscription:
-                args["traffic_strategy"] = subscription.traffic_limit_strategy.value
-            data = replace(data, args=args)
+            with_subscription = await self._with_subscription_args(data, data.subscription_id)
+            if with_subscription is None:
+                return
+            data = with_subscription
         if data.event_type == SubscriptionGrantedEvent.__name__:
             data = await self._with_plan_name(data, user.language)
         renderer = await self._renderer_factory.build()
@@ -239,16 +242,15 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
             return
         # taken before the channels: the feed row obeys it too; a requeue after
         # Telegram refused already holds the slot
-        cooldown_key = None if data.telegram_refused else _cooldown_key(data.event_type, user.id)
-        if cooldown_key is not None and not await self._redis.set(
-            cooldown_key, "1", nx=True, ex=_COOLDOWNS[data.event_type]
-        ):
+        cooldown_s = 0 if data.telegram_refused else _cooldown_s(data.cooldown_until)
+        cooldown_key = f"{REDIS_KEY_PREFIX}customer_cooldown:{data.event_type}:{user.id}"
+        if cooldown_s > 0 and not await self._redis.set(cooldown_key, "1", nx=True, ex=cooldown_s):
             return
         try:
             await self._send(data, user, renderer, title, body)
         except Exception:
             # the retry must not find its own cooldown and give up
-            if cooldown_key is not None:
+            if cooldown_s > 0:
                 await self._redis.delete(cooldown_key)
             raise
 
@@ -418,7 +420,12 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
     ) -> list[dict[str, str]]:
         # (label key, "callback_data" or "url", value)
         buttons: list[tuple[str, str, str]] = []
-        if data.event_type in _RENEWABLE and data.subscription_id is not None:
+        # the traffic warning offers it only where its text does
+        renewable = data.event_type in _RENEWABLE or (
+            data.event_type == SubscriptionTrafficThresholdEvent.__name__
+            and (data.args.get("is_trial") == "yes" or data.args.get("can_renew") == "yes")
+        )
+        if renewable and data.subscription_id is not None:
             # a trial isn't renewed: a purchase replaces it and keeps its link
             if subscription is not None and subscription.is_trial:
                 buttons.append(
@@ -463,6 +470,38 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
             for key, kind, value in buttons
             if (button := _telegram_button(renderer, user.language, key, kind, value))
         ]
+
+    async def _with_subscription_args(
+        self, data: NotifyCustomerDto, subscription_id: int
+    ) -> Optional[NotifyCustomerDto]:
+        """None when the event no longer applies to the subscription."""
+        subscription = await self._find_subscription(subscription_id)
+        # stored with the feed row, the bell renders it again later
+        args = {**data.args, "is_trial": "yes" if subscription and subscription.is_trial else "no"}
+        if data.event_type == SubscriptionTrafficLimitedEvent.__name__ and subscription:
+            args["traffic_strategy"] = subscription.traffic_limit_strategy.value
+        if data.event_type == SubscriptionTrafficThresholdEvent.__name__:
+            # limited, expired or gone since the panel sent it: nothing left to warn about
+            if subscription is None or subscription.status is not SubscriptionStatus.ACTIVE:
+                return None
+            args |= await self._traffic_threshold_args(subscription)
+        return replace(data, args=args)
+
+    async def _traffic_threshold_args(self, subscription: SubscriptionDto) -> dict[str, str]:
+        anchor = subscription.panel_created_at
+        reset = next_traffic_reset(subscription.traffic_limit_strategy, anchor, datetime_now())
+        # paid renewals reset the traffic: worth suggesting only where renewing is open
+        plan = None
+        if not subscription.is_trial and not subscription.is_unlimited:
+            async with self._uow:
+                try:
+                    plan = await self._plan_repository.get_by_id(subscription.plan_snapshot.plan_id)
+                except NotFoundError:
+                    plan = None
+        return {
+            "reset_date": reset.strftime(DATE_FORMAT) if reset is not None else "none",
+            "can_renew": "yes" if can_renew(subscription, plan) else "no",
+        }
 
     async def _find_subscription(self, subscription_id: int) -> Optional[SubscriptionDto]:
         async with self._uow:

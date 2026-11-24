@@ -1,11 +1,14 @@
 from decimal import Decimal
-from typing import Optional
+from typing import Final, Optional
 from uuid import UUID
 
 from dishka.integrations.taskiq import FromDishka, inject
+from loguru import logger
+from redis.asyncio import Redis
 
 from app.core.broker import broker
 from app.core.enums import Currency, PanelSyncDirection, PurchaseType
+from app.core.utils.lock import cron_lock
 from app.modules.subscriptions.dto import (
     GrantAddOnDto,
     PlanSnapshot,
@@ -14,14 +17,20 @@ from app.modules.subscriptions.dto import (
     SyncFromPanelOptionsDto,
     SyncToPanelOptionsDto,
 )
+from app.modules.subscriptions.panel_sync import read_panel_sync_status
 from app.modules.subscriptions.usecases import (
     FulfillPurchaseUseCase,
     GrantAddOnUseCase,
     ProcessRemnawaveWebhookUseCase,
     PruneIdempotencyKeysUseCase,
+    RestoreDuePanelConfigsUseCase,
+    SweepGraceUseCase,
     SyncAllFromPanelUseCase,
     SyncAllToPanelUseCase,
 )
+
+# a minute cron's lock, short of its next run
+_MINUTE_CRON_LOCK_TTL_S: Final[int] = 55
 
 
 @broker.task(retry_on_error=True, max_retries=3)
@@ -38,6 +47,7 @@ async def purchase_subscription_task(
     base_price: Optional[str] = None,
     idempotency_key: Optional[str] = None,
     change_credit: Optional[str] = None,
+    renew_other_plan: bool = False,
 ) -> None:
     await use_case.system(
         PurchaseSubscriptionDto(
@@ -54,6 +64,7 @@ async def purchase_subscription_task(
             reset_traffic=True,
             apply_current_plan=True,
             change_credit=Decimal(change_credit) if change_credit is not None else None,
+            renew_other_plan=renew_other_plan,
         )
     )
 
@@ -87,18 +98,26 @@ async def run_panel_sync_task(
     direction: str,
     from_panel: FromDishka[SyncAllFromPanelUseCase],
     to_panel: FromDishka[SyncAllToPanelUseCase],
+    redis: FromDishka[Redis],
     # defaults for a message queued before the options existed
     adopt_unnamed: bool = True,
     respect_subscription_limit: bool = False,
+    create_users: bool = False,
     recreate_missing: bool = True,
     delete_orphans: bool = True,
     squad_replacements: Optional[dict[str, Optional[str]]] = None,
 ) -> None:
+    # the start set the running mark and the finish clears it: a message redelivered
+    # after the finish must not run a second, unclaimed sync
+    if not (await read_panel_sync_status(redis, PanelSyncDirection(direction))).running:
+        logger.info(f"Panel sync '{direction}' already finished, skipping a redelivered run")
+        return
     if PanelSyncDirection(direction) is PanelSyncDirection.FROM_PANEL:
         await from_panel.system(
             SyncFromPanelOptionsDto(
                 adopt_unnamed=adopt_unnamed,
                 respect_subscription_limit=respect_subscription_limit,
+                create_users=create_users,
             )
         )
     else:
@@ -120,3 +139,23 @@ async def prune_subscription_idempotency_task(
     use_case: FromDishka[PruneIdempotencyKeysUseCase],
 ) -> None:
     await use_case.system()
+
+
+@broker.task(schedule=[{"cron": "*/1 * * * *"}])
+@inject(patch_module=True)
+async def sweep_grace_task(
+    use_case: FromDishka[SweepGraceUseCase], redis: FromDishka[Redis]
+) -> None:
+    async with cron_lock(redis, "grace_sweep", ttl_seconds=_MINUTE_CRON_LOCK_TTL_S) as acquired:
+        if acquired:
+            await use_case.system()
+
+
+@broker.task(schedule=[{"cron": "*/1 * * * *"}])
+@inject(patch_module=True)
+async def restore_due_panel_configs_task(
+    use_case: FromDishka[RestoreDuePanelConfigsUseCase], redis: FromDishka[Redis]
+) -> None:
+    async with cron_lock(redis, "panel_restore", ttl_seconds=_MINUTE_CRON_LOCK_TTL_S) as acquired:
+        if acquired:
+            await use_case.system()

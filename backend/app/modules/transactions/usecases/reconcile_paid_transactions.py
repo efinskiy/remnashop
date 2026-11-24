@@ -13,7 +13,7 @@ from app.modules.subscriptions import (
 )
 from app.modules.transactions.dto import ReconcilePaidTransactionsDto, TransactionDto
 from app.modules.transactions.events import PaidOrderNotFulfilledEvent
-from app.modules.transactions.fulfillment import dispatch_fulfillment
+from app.modules.transactions.fulfillment import dispatch_fulfillment, link_fulfilled_order
 from app.modules.transactions.ports import RecurringOrderHooks
 from app.modules.transactions.repository import RECONCILE_WINDOW, TransactionRepository
 
@@ -53,7 +53,9 @@ class ReconcilePaidTransactionsUseCase(UseCase[ReconcilePaidTransactionsDto, Non
                     order.idempotency_key
                 )
                 if linked is not None:
-                    marked = await self._transaction_repository.mark_fulfilled(order.id, linked)
+                    marked = await link_fulfilled_order(
+                        self._transaction_repository, self._idempotency_repository, order, linked
+                    )
                     if marked is not None:
                         await self._recurring_hooks.on_fulfilled(marked, linked)
             if linked is not None:

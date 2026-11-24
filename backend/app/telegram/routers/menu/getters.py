@@ -32,7 +32,8 @@ from app.telegram.dialogs.rendering import (
     render_window_text,
     resolve_variable_kwargs,
 )
-from app.telegram.i18n import format_expiry, get_translator
+from app.telegram.i18n import expiry_unix_time, format_expiry, format_expiry_tag, get_translator
+from app.telegram.routers.subscriptions.getters import grace_line
 
 
 def menu_subscription(
@@ -68,6 +69,9 @@ def subscription_menu_values(
         "subscription_traffic_limit": "",
         "subscription_device_limit": "",
         "subscription_expire_at": "",
+        "subscription_expire_at_local": "",
+        "subscription_expire_at_unix": "",
+        "subscription_is_unlimited": 0,
     }
     if listed_elsewhere:
         # several subscriptions allowed: they sit behind "My subscriptions"
@@ -90,6 +94,11 @@ def subscription_menu_values(
             ),
             "subscription_device_limit": str(devices) if devices else unlimited,
             "subscription_expire_at": format_expiry(runner, subscription.expire_at, with_time=True),
+            "subscription_expire_at_local": format_expiry_tag(
+                runner, subscription.expire_at, with_time=True
+            ),
+            "subscription_expire_at_unix": expiry_unix_time(subscription.expire_at),
+            "subscription_is_unlimited": int(subscription.is_unlimited),
         }
     if subscription is None:
         block = render_window_text(
@@ -112,7 +121,11 @@ def subscription_menu_values(
         traffic_limit=values["subscription_traffic_limit"],
         device_limit=values["subscription_device_limit"],
         expire_at=values["subscription_expire_at"],
+        expire_at_local=values["subscription_expire_at_local"],
+        expire_at_unix=values["subscription_expire_at_unix"],
+        is_unlimited=values["subscription_is_unlimited"],
         extra_count=str(extra_count) if extra_count > 0 else "",
+        grace=grace_line(runner, subscription),
     )
     return {**values, "subscription_block": TrustedHtml(block)}
 
@@ -167,7 +180,13 @@ async def menu_getter(
     data["legal_available"] = bool(
         await list_visible_legal_documents.execute(PurchaseChannel.BOT, user.language)
     )
-    data[UNAVAILABLE_BUTTONS_KEY] = set() if data["legal_available"] else {"legal_documents"}
+    # off features hide their buttons whatever condition an admin gave them
+    unavailable: set[str] = set()
+    if not data["legal_available"]:
+        unavailable.add("legal_documents")
+    if not referral_enabled:
+        unavailable.add("referrals.main")
+    data[UNAVAILABLE_BUTTONS_KEY] = unavailable
     shown = menu_subscription(data["subscription"], owned)
     data["connect_problem"] = connect_problem(shown)
     subscription_values = subscription_menu_values(

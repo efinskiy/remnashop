@@ -20,6 +20,7 @@ class PaymentGatewayDto(BaseDto, TimestampMixin):
     flags: dict[str, bool] = Field(default_factory=dict)
     # non-secret settings as stored; secrets never leave the repository
     values: dict[str, str] = Field(default_factory=dict)
+    splits_channels: bool = False
     telegram_enabled: bool = False
     cabinet_enabled: bool = True
 

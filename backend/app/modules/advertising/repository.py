@@ -1,17 +1,16 @@
 from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy import ColumnElement, and_, func, or_, select
-from sqlalchemy.exc import IntegrityError, NoResultFound
+from sqlalchemy import ColumnElement, and_, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db.errors import constraint_name
-from app.core.db.filters import in_ids
+from app.core.db.filters import in_ids, visible_rows
 from app.core.db.models.ad_link import AdLink
 from app.core.db.models.ad_link_attribution import AdLinkAttribution
-from app.core.db.models.user import User
 from app.core.db.partial_update import apply_partial_update
-from app.core.enums import AdLinkChannel, Role
+from app.core.enums import AdLinkChannel
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.modules.advertising.dto import (
@@ -35,11 +34,11 @@ def _in_range(
     return filters
 
 
-def _ensure_some_channel(row: AdLink) -> None:
-    if not row.allow_bot and not row.allow_webcabinet:
+def _raise_if_no_channel(error: IntegrityError) -> None:
+    if constraint_name(error) == "ck_ad_links_some_channel":
         raise ValidationError(
             "AdLink must allow at least one channel", code=ErrorCode.AD_LINK_NO_CHANNEL
-        )
+        ) from error
 
 
 class AdLinkRepository:
@@ -95,12 +94,13 @@ class AdLinkRepository:
             allow_webcabinet=data.allow_webcabinet,
             note=data.note,
             created_by=data.created_by,
+            promocode_id=data.promocode_id,
         )
-        _ensure_some_channel(row)
         self.session.add(row)
         try:
             await self.session.flush()
         except IntegrityError as error:
+            _raise_if_no_channel(error)
             if constraint_name(error) != "ix_ad_links_code":
                 raise
             raise ConflictError(
@@ -111,36 +111,34 @@ class AdLinkRepository:
 
     async def update(self, data: UpdateAdLinkDto) -> AdLinkDto:
         row = await self._get_or_raise(data.ad_link_id)
-        apply_partial_update(row, data, skip=frozenset({"ad_link_id", "note"}))
+        apply_partial_update(row, data, skip=frozenset({"ad_link_id", "note", "clear_promocode"}))
         if data.note is not None:
             # "" clears it: None already means "leave unchanged"
             row.note = data.note or None
-        _ensure_some_channel(row)
-        await self.session.flush()
+        if data.clear_promocode:
+            row.promocode_id = None
+        try:
+            await self.session.flush()
+        except IntegrityError as error:
+            _raise_if_no_channel(error)
+            raise
         await self.session.refresh(row)
         return self._to_dto(row)
 
-    async def delete_if_no_attributions(self, ad_link_id: int) -> None:
+    async def get_by_id_for_update(self, ad_link_id: int) -> AdLinkDto:
         # a concurrent attribution INSERT takes FOR KEY SHARE on this row, so it
-        # waits for this transaction instead of racing the count-then-delete
-        locked = await self.session.execute(
+        # waits for this transaction instead of racing a count-then-delete
+        row = await self.session.scalar(
             select(AdLink).where(AdLink.id == ad_link_id).with_for_update()
         )
-        try:
-            row = locked.scalar_one()
-        except NoResultFound as error:
+        if row is None:
             raise NotFoundError(
                 f"AdLink '{ad_link_id}' not found", code=ErrorCode.AD_LINK_NOT_FOUND
-            ) from error
-
-        if await self.count_attributions(ad_link_id) > 0:
-            raise ConflictError(
-                f"AdLink '{ad_link_id}' has attributions and cannot be deleted -- "
-                "deactivate it instead",
-                code=ErrorCode.AD_LINK_HAS_ATTRIBUTIONS,
             )
+        return self._to_dto(row)
 
-        await self.session.delete(row)
+    async def delete(self, ad_link_id: int) -> None:
+        await self.session.delete(await self._get_or_raise(ad_link_id))
         await self.session.flush()
 
     async def list_user_links(self, user_ids: list[int]) -> list[tuple[int, int, str]]:
@@ -264,13 +262,9 @@ class AdLinkRepository:
     ) -> tuple[list[AdLinkAttributionDto], int]:
         condition: ColumnElement[bool] = AdLinkAttribution.ad_link_id == ad_link_id
         if hide_staff_from is not None:
-            # same rule as visible_user: staff rows are hidden, the viewer's own is not
             condition = and_(
                 condition,
-                or_(
-                    AdLinkAttribution.user_id.in_(select(User.id).where(User.role == Role.USER)),
-                    AdLinkAttribution.user_id == hide_staff_from,
-                ),
+                visible_rows(AdLinkAttribution.user_id, hide_staff_from),
             )
         total = await self.session.scalar(
             select(func.count()).select_from(AdLinkAttribution).where(condition)

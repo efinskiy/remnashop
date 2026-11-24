@@ -27,8 +27,10 @@ from app.core.db.models import (
 from app.core.db.uow import UnitOfWork
 from app.core.enums import (
     AddOnType,
+    CreditSegmentKind,
     Currency,
     DiscountSource,
+    FulfillmentHold,
     PaymentGatewayType,
     PlanType,
     PurchaseChannel,
@@ -41,7 +43,7 @@ from app.core.enums import (
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import PermissionDeniedError, ValidationError
 from app.core.ports import EventPublisher
-from app.core.utils.time import datetime_now
+from app.core.utils.time import add_term, datetime_now, truncate_to_ms
 from app.modules.plans.addon_repository import AddOnRepository
 from app.modules.plans.dto import (
     CreateAddOnDto,
@@ -57,6 +59,7 @@ from app.modules.pricing.dto import UpdateCurrencyRateDto
 from app.modules.pricing.repository import PricingRepository
 from app.modules.settings.dto import UpdateShopSettingsDto
 from app.modules.settings.repository import SettingsRepository
+from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
 from app.modules.subscriptions.dto import (
     CreateSubscriptionDto,
     GrantAddOnDto,
@@ -74,11 +77,14 @@ from app.modules.subscriptions.usecases import (
 )
 from app.modules.transactions.dto import CreateTransactionDto
 from app.modules.transactions.repository import TransactionRepository
+from app.modules.transactions.unpaid_orders import PaidOrderHolder
 from app.modules.users.dto import CreateUserDto, UpdateUserDto, UserDto
 from app.modules.users.repository import UserRepository
+from tests.fakes.events import RecordingEventPublisher
 from tests.fakes.recurring import make_recurring_lifecycle
 from tests.fakes.remnawave import FakeUserStore
 from tests.modules.subscriptions.factories import (
+    credit_summary,
     make_eligibility,
     make_plan_snapshot,
     snapshot_from_plan,
@@ -111,6 +117,11 @@ async def _create_plan(plan_repository: PlanRepository, public_code: str = "basi
     return await plan_repository.update(UpdatePlanDto(plan_id=plan.id, is_active=True))
 
 
+def _days_between(start: Optional[datetime], end: datetime) -> int:
+    assert start is not None
+    return round((end - start) / timedelta(days=1))
+
+
 async def test_new_purchase_creates_subscription_with_real_remnawave_identity(
     plan_repository: PlanRepository,
     subscription_repository: SubscriptionRepository,
@@ -129,7 +140,9 @@ async def test_new_purchase_creates_subscription_with_real_remnawave_identity(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -184,7 +197,9 @@ async def test_new_purchase_with_a_squad_gone_from_the_panel_never_touches_it(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -232,7 +247,9 @@ async def test_new_purchase_forbidden_for_a_different_users_actor(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -280,7 +297,9 @@ async def test_owner_can_purchase_on_behalf_of_another_user(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -324,7 +343,9 @@ async def test_new_purchase_rejects_target_subscription_id(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -368,7 +389,9 @@ async def test_new_purchase_blocked_at_concurrent_subscription_cap(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -413,7 +436,9 @@ async def test_new_purchase_at_the_cap_never_touches_the_panel(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -441,7 +466,7 @@ async def test_new_purchase_at_the_cap_never_touches_the_panel(
     assert len(remnawave_store) == panel_users_before
 
 
-async def test_renew_extends_expire_at_and_calls_remnawave_extend(
+async def test_renew_adds_a_calendar_month_or_exact_days(
     plan_repository: PlanRepository,
     subscription_repository: SubscriptionRepository,
     user_repository: UserRepository,
@@ -459,7 +484,9 @@ async def test_renew_extends_expire_at_and_calls_remnawave_extend(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -497,7 +524,100 @@ async def test_renew_extends_expire_at_and_calls_remnawave_extend(
     )
 
     assert renewed.id == original.id
-    assert renewed.expire_at == original.expire_at + timedelta(days=30)
+    assert abs(renewed.expire_at - add_term(original.expire_at, 30)) < timedelta(seconds=1)
+
+    # bonus days stay plain days, not a month
+    bonus = await use_case(
+        buyer,
+        PurchaseSubscriptionDto(
+            user_id=buyer.id,
+            plan_snapshot=renewed.plan_snapshot,
+            duration_days=30,
+            price_paid=Decimal("0"),
+            currency=Currency.RUB,
+            purchase_type=PurchaseType.RENEW,
+            target_subscription_id=original.id,
+            exact_days=True,
+        ),
+    )
+    assert abs(bonus.expire_at - (renewed.expire_at + timedelta(days=30))) < timedelta(seconds=1)
+
+
+async def test_monthly_renewals_come_back_to_the_anchor_day(
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    idempotency_repository: PurchaseIdempotencyRepository,
+    session: AsyncSession,
+) -> None:
+    buyer = await _create_buyer(user_repository, 413)
+    plan = await _create_plan(plan_repository, "renew-anchor")
+    use_case = PurchaseSubscriptionUseCase(
+        subscription_repository,
+        make_eligibility(subscription_repository.session),
+        remnawave_sdk,
+        uow,
+        event_publisher,
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
+        PricingRepository(subscription_repository.session),
+        idempotency_repository,
+        UserRepository(subscription_repository.session),
+        AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
+        make_recurring_lifecycle(subscription_repository.session),
+    )
+
+    def _order(purchase_type: PurchaseType, **extra: Any) -> PurchaseSubscriptionDto:
+        return PurchaseSubscriptionDto(
+            user_id=buyer.id,
+            plan_snapshot=snapshot_from_plan(
+                plan, price_paid=Decimal("299.00"), currency=Currency.RUB, duration_days=30
+            ),
+            duration_days=30,
+            price_paid=Decimal("299.00"),
+            currency=Currency.RUB,
+            purchase_type=purchase_type,
+            **extra,
+        )
+
+    original = await use_case(buyer, _order(PurchaseType.NEW))
+    assert original.term_anchor_day == datetime_now().day
+
+    # bought on January 31st, cut to February 28th by the shorter month
+    cut = datetime(2027, 2, 28, 12, tzinfo=original.expire_at.tzinfo)
+    await session.execute(
+        update(Subscription)
+        .where(Subscription.id == original.id)
+        .values(expire_at=cut, term_anchor_day=31)
+    )
+    remnawave_store[original.remnawave_user_id]["expireAt"] = cut.isoformat()
+
+    ends = []
+    for _ in range(3):
+        renewed = await use_case(
+            buyer, _order(PurchaseType.RENEW, target_subscription_id=original.id)
+        )
+        ends.append(renewed.expire_at.date().isoformat())
+    assert ends == ["2027-03-31", "2027-04-30", "2027-05-31"]
+    assert renewed.term_anchor_day == 31
+
+    # plain days move the end off the anchor (May 31st + 60 days = July 30th);
+    # the next month counts from there
+    for _ in range(2):
+        renewed = await use_case(
+            buyer,
+            _order(PurchaseType.RENEW, target_subscription_id=original.id, exact_days=True),
+        )
+        assert renewed.term_anchor_day is None
+    renewed = await use_case(buyer, _order(PurchaseType.RENEW, target_subscription_id=original.id))
+    assert renewed.expire_at.date().isoformat() == "2027-08-30"
+    assert renewed.term_anchor_day == 30
 
 
 async def test_a_paid_renew_takes_the_plans_tag_and_a_bonus_one_keeps_it(
@@ -517,7 +637,9 @@ async def test_a_paid_renew_takes_the_plans_tag_and_a_bonus_one_keeps_it(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -573,7 +695,9 @@ async def test_a_paid_renew_of_an_edited_plan_moves_to_its_terms_and_keeps_add_o
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -620,7 +744,7 @@ async def test_a_paid_renew_of_an_edited_plan_moves_to_its_terms_and_keeps_add_o
     assert (renewed.plan_snapshot.traffic_limit, renewed.plan_snapshot.device_limit) == (100, 3)
     panel_user = await remnawave_sdk.users.get_user_by_id(original.remnawave_user_id)
     assert panel_user.hwid_device_limit == 4
-    assert renewed.expire_at == original.expire_at + timedelta(days=30)
+    assert abs(renewed.expire_at - add_term(original.expire_at, 30)) < timedelta(seconds=1)
 
 
 async def test_a_renew_from_unlimited_to_a_finite_plan_keeps_add_ons(
@@ -640,7 +764,9 @@ async def test_a_renew_from_unlimited_to_a_finite_plan_keeps_add_ons(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -707,7 +833,9 @@ async def test_a_bonus_renew_of_an_edited_plan_keeps_the_old_terms(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -763,7 +891,9 @@ async def test_a_paid_renew_lands_even_when_the_panel_refuses_the_tag(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -804,7 +934,7 @@ async def test_a_paid_renew_lands_even_when_the_panel_refuses_the_tag(
         ),
     )
 
-    assert renewed.expire_at == original.expire_at + timedelta(days=30)
+    assert abs(renewed.expire_at - add_term(original.expire_at, 30)) < timedelta(seconds=1)
     # the row doesn't claim a tag the panel never took
     assert renewed.tag is None
 
@@ -827,7 +957,9 @@ async def test_renew_requires_target_subscription_id(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -871,7 +1003,9 @@ async def test_renew_rejects_target_belonging_to_another_user(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -929,7 +1063,9 @@ async def test_renew_rejects_target_on_a_different_plan(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -986,7 +1122,9 @@ async def test_renew_rejects_a_deleted_target(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -1045,7 +1183,9 @@ async def test_change_applies_proration_credit_as_extra_days(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -1137,7 +1277,9 @@ async def test_change_converts_proration_credit_across_currencies(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         pricing_repository,
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -1204,7 +1346,9 @@ async def test_change_credit_converts_at_list_price_not_the_discounted_price(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -1284,7 +1428,9 @@ async def test_change_requires_target_subscription_id(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -1347,7 +1493,9 @@ async def test_change_from_trial_gives_no_credit(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -1426,7 +1574,7 @@ async def test_concurrent_new_purchases_never_exceed_the_cap(
             remnawave_sdk,
             UnitOfWork(session),
             _NoopEventPublisher(),
-            SubscriptionLifecycleService(repo),
+            SubscriptionLifecycleService(repo, CreditSegmentRepository(repo.session)),
             PricingRepository(session),
             PurchaseIdempotencyRepository(session),
             UserRepository(repo.session),
@@ -1553,7 +1701,9 @@ async def test_purchase_with_same_idempotency_key_returns_existing_subscription(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -1599,7 +1749,9 @@ async def test_purchase_failure_after_panel_call_disables_the_panel_user(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -1658,7 +1810,9 @@ async def test_cancelled_purchase_releases_its_idempotency_key(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -1712,7 +1866,9 @@ async def test_renew_reactivates_an_expired_subscription(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -1734,9 +1890,9 @@ async def test_renew_reactivates_an_expired_subscription(
         ),
     )
     async with uow:
-        await SubscriptionLifecycleService(subscription_repository).sync_status(
-            purchased.id, SubscriptionStatus.EXPIRED
-        )
+        await SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ).sync_status(purchased.id, SubscriptionStatus.EXPIRED)
 
     renewed = await use_case(
         buyer,
@@ -1774,7 +1930,9 @@ async def test_renew_with_same_idempotency_key_returns_existing_subscription(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -1834,7 +1992,9 @@ async def test_purchase_with_idempotency_key_can_retry_after_a_failed_attempt(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -1892,7 +2052,9 @@ async def test_idempotency_key_is_released_after_a_panel_call_failure(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -1951,7 +2113,9 @@ async def test_change_does_not_reparent_addon_entitlement_to_the_new_row(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -2039,7 +2203,9 @@ async def test_trial_upgrade_does_not_reparent_addon_entitlement_to_the_new_row(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -2125,7 +2291,9 @@ async def test_new_purchase_upgrades_an_active_trial_in_place(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -2199,7 +2367,9 @@ async def test_new_purchase_without_a_trial_still_mints_a_fresh_panel_user(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -2251,7 +2421,9 @@ async def test_new_purchase_provisions_the_plans_traffic_limit_strategy_on_the_p
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -2304,7 +2476,9 @@ async def _renew_fixture(
 ]:
     buyer = await _create_buyer(user_repository, telegram_id)
     plan = await _create_plan(plan_repository, public_code)
-    lifecycle = SubscriptionLifecycleService(subscription_repository)
+    lifecycle = SubscriptionLifecycleService(
+        subscription_repository, CreditSegmentRepository(subscription_repository.session)
+    )
     use_case = PurchaseSubscriptionUseCase(
         subscription_repository,
         make_eligibility(subscription_repository.session),
@@ -2378,7 +2552,7 @@ async def test_a_renew_whose_db_write_failed_is_completed_by_the_retry_without_e
     with pytest.raises(RuntimeError):
         await use_case(buyer, renewal)
     after_first = (await remnawave_sdk.users.get_user_by_id(original.remnawave_user_id)).expire_at
-    assert after_first == _to_ms(before + timedelta(days=30))
+    assert after_first == _to_ms(add_term(before, 30))
 
     lifecycle.renew = real_renew  # type: ignore[method-assign]
     renewed = await use_case(buyer, renewal)
@@ -2391,6 +2565,52 @@ async def test_a_renew_whose_db_write_failed_is_completed_by_the_retry_without_e
     assert linked == original.id
     # a third delivery is a plain replay of the finished purchase
     assert (await use_case(buyer, renewal)).id == original.id
+
+
+async def test_a_renew_retry_keeps_the_anchor_it_pinned(
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    session: AsyncSession,
+) -> None:
+    use_case, lifecycle, buyer, original, renewal = await _renew_fixture(
+        plan_repository,
+        subscription_repository,
+        user_repository,
+        settings_repository,
+        remnawave_sdk,
+        uow,
+        event_publisher,
+        telegram_id=433,
+        public_code="renew-retry-anchor",
+    )
+    end = datetime(2027, 1, 31, 12, tzinfo=original.expire_at.tzinfo)
+    await session.execute(
+        update(Subscription)
+        .where(Subscription.id == original.id)
+        .values(expire_at=end, term_anchor_day=None)
+    )
+    remnawave_store[original.remnawave_user_id]["expireAt"] = end.isoformat()
+    real_renew = lifecycle.renew
+
+    async def _fail(*_args: object, **_kwargs: object) -> SubscriptionDto:
+        raise RuntimeError("DB write failed after the panel call landed")
+
+    lifecycle.renew = _fail  # type: ignore[method-assign]
+    with pytest.raises(RuntimeError):
+        await use_case(buyer, renewal)
+    lifecycle.renew = real_renew  # type: ignore[method-assign]
+
+    renewed = await use_case(buyer, renewal)
+
+    # cut to February 28th; the retry still knows the term started on the 31st
+    assert renewed.expire_at.date().isoformat() == "2027-02-28"
+    assert renewed.term_anchor_day == 31
 
 
 async def test_a_renew_whose_panel_response_was_lost_is_not_applied_twice(
@@ -2430,7 +2650,7 @@ async def test_a_renew_whose_panel_response_was_lost_is_not_applied_twice(
     renewed = await use_case(buyer, renewal)
 
     after = (await remnawave_sdk.users.get_user_by_id(original.remnawave_user_id)).expire_at
-    assert after == _to_ms(before + timedelta(days=30))
+    assert after == _to_ms(add_term(before, 30))
     assert renewed.expire_at == after
 
 
@@ -2454,7 +2674,9 @@ async def test_a_system_grant_does_not_consume_the_purchase_discount(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -2505,7 +2727,9 @@ async def test_only_a_paid_purchase_event_carries_the_payment_key(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         PurchaseIdempotencyRepository(subscription_repository.session),
         UserRepository(subscription_repository.session),
@@ -2560,7 +2784,9 @@ async def test_change_that_loses_the_race_gives_the_panel_back_to_the_winner(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -2707,6 +2933,7 @@ async def test_a_paid_order_still_renews_a_subscription_disabled_after_checkout(
         user_repository,
         purchase_subscription_use_case,
         TransactionRepository(user_repository.session),
+        PaidOrderHolder(TransactionRepository(user_repository.session), RecordingEventPublisher()),
         UnitOfWork(user_repository.session),
     )
 
@@ -2729,7 +2956,9 @@ def _purchase_use_case(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -2854,7 +3083,9 @@ async def test_change_deducts_spent_traffic_from_the_credit(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -2901,7 +3132,183 @@ async def test_change_deducts_spent_traffic_from_the_credit(
     assert used == (0 if reset_traffic else spent)
 
 
-async def test_change_credit_is_the_average_rate_over_renewals(
+def _term(
+    plan: PlanDto, buyer: UserDto, price: str, purchase_type: PurchaseType, **kw: Any
+) -> PurchaseSubscriptionDto:
+    return PurchaseSubscriptionDto(
+        user_id=buyer.id,
+        plan_snapshot=snapshot_from_plan(
+            plan, price_paid=Decimal(price), currency=Currency.RUB, duration_days=30
+        ),
+        duration_days=30,
+        price_paid=Decimal(price),
+        currency=Currency.RUB,
+        purchase_type=purchase_type,
+        **kw,
+    )
+
+
+@pytest.mark.parametrize(("cap_enabled", "credit_days"), [(True, 3), (False, 60)])
+async def test_traffic_used_ahead_of_time_cuts_the_credit_of_every_term_left(
+    cap_enabled: bool,
+    credit_days: int,
+    purchase_subscription_use_case: PurchaseSubscriptionUseCase,
+    plan_repository: PlanRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    remnawave_store: FakeUserStore,
+) -> None:
+    await settings_repository.update_shop_settings(
+        UpdateShopSettingsDto(
+            plan_change_traffic_cap_enabled=cap_enabled,
+            fields_set=frozenset({"plan_change_traffic_cap_enabled"}),
+        )
+    )
+    buyer = await _create_buyer(user_repository, 451 + int(cap_enabled))
+    old_plan = await _create_plan(plan_repository, f"cap-old-{cap_enabled}")
+    new_plan = await _create_plan(plan_repository, f"cap-new-{cap_enabled}")
+    await _paid_order(plan_repository.session, buyer, old_plan, f"cap-new-{cap_enabled}")
+    bought = await purchase_subscription_use_case(
+        buyer,
+        _term(old_plan, buyer, "300", PurchaseType.NEW, idempotency_key=f"cap-new-{cap_enabled}"),
+    )
+    # the next month paid ahead resets the counter: the traffic used since is its own
+    await _paid_order(
+        plan_repository.session,
+        buyer,
+        old_plan,
+        f"cap-renew-{cap_enabled}",
+        purchase_type=PurchaseType.RENEW,
+        target_subscription_id=bought.id,
+    )
+    renewed = await purchase_subscription_use_case(
+        buyer,
+        _term(
+            old_plan,
+            buyer,
+            "300",
+            PurchaseType.RENEW,
+            target_subscription_id=bought.id,
+            idempotency_key=f"cap-renew-{cap_enabled}",
+            reset_traffic=True,
+        ),
+    )
+    remnawave_store[renewed.remnawave_user_id]["userTraffic"]["usedTrafficBytes"] = 95 * 1024**3
+
+    changed = await purchase_subscription_use_case(
+        buyer,
+        _term(new_plan, buyer, "300", PurchaseType.CHANGE, target_subscription_id=renewed.id),
+    )
+
+    # one counter for both months since the renewal reset it: 95% used with almost all
+    # the time left cuts the 600 by days to 5%, 30 at 10 a day
+    days = (changed.expire_at - datetime_now()).days - 30
+    assert credit_days - 2 <= days <= credit_days + 1
+
+
+@pytest.mark.parametrize(("cap_enabled", "credit_days"), [(True, 30), (False, 60)])
+async def test_a_renewal_bought_to_zero_used_up_traffic_unlocks_only_its_own_money(
+    cap_enabled: bool,
+    credit_days: int,
+    purchase_subscription_use_case: PurchaseSubscriptionUseCase,
+    plan_repository: PlanRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    remnawave_store: FakeUserStore,
+) -> None:
+    await settings_repository.update_shop_settings(
+        UpdateShopSettingsDto(
+            plan_change_traffic_cap_enabled=cap_enabled,
+            fields_set=frozenset({"plan_change_traffic_cap_enabled"}),
+        )
+    )
+    buyer = await _create_buyer(user_repository, 454 + int(cap_enabled))
+    old_plan = await _create_plan(plan_repository, f"zero-old-{cap_enabled}")
+    new_plan = await _create_plan(plan_repository, f"zero-new-{cap_enabled}")
+    await _paid_order(plan_repository.session, buyer, old_plan, f"zero-new-{cap_enabled}")
+    bought = await purchase_subscription_use_case(
+        buyer,
+        _term(
+            old_plan,
+            buyer,
+            "300",
+            PurchaseType.NEW,
+            idempotency_key=f"zero-new-{cap_enabled}",
+            reset_traffic=True,
+        ),
+    )
+    # all the traffic gone on the first day
+    remnawave_store[bought.remnawave_user_id]["userTraffic"]["usedTrafficBytes"] = 100 * 1024**3
+    await _paid_order(
+        plan_repository.session,
+        buyer,
+        old_plan,
+        f"zero-renew-{cap_enabled}",
+        purchase_type=PurchaseType.RENEW,
+        target_subscription_id=bought.id,
+    )
+    # a renewal that zeroes the counter: the traffic is all back
+    renewed = await purchase_subscription_use_case(
+        buyer,
+        _term(
+            old_plan,
+            buyer,
+            "300",
+            PurchaseType.RENEW,
+            target_subscription_id=bought.id,
+            idempotency_key=f"zero-renew-{cap_enabled}",
+            reset_traffic=True,
+        ),
+    )
+    assert remnawave_store[renewed.remnawave_user_id]["userTraffic"]["usedTrafficBytes"] == 0
+
+    changed = await purchase_subscription_use_case(
+        buyer,
+        _term(new_plan, buyer, "300", PurchaseType.CHANGE, target_subscription_id=renewed.id),
+    )
+
+    # the new plan's own month, plus the renewal's own 300 back: the used-up month
+    # gives nothing, however fresh the counter is
+    days = (changed.expire_at - datetime_now()).days - 30
+    assert abs(days - credit_days) <= 2
+
+
+async def test_a_change_records_the_new_term_then_the_carried_credit(
+    purchase_subscription_use_case: PurchaseSubscriptionUseCase,
+    plan_repository: PlanRepository,
+    user_repository: UserRepository,
+    subscription_repository: SubscriptionRepository,
+) -> None:
+    buyer = await _create_buyer(user_repository, 453)
+    old_plan = await _create_plan(plan_repository, "segments-old")
+    new_plan = await _create_plan(plan_repository, "segments-new")
+    bought = await purchase_subscription_use_case(
+        buyer, _term(old_plan, buyer, "300", PurchaseType.NEW)
+    )
+
+    changed = await purchase_subscription_use_case(
+        buyer,
+        _term(
+            new_plan,
+            buyer,
+            "300",
+            PurchaseType.CHANGE,
+            target_subscription_id=bought.id,
+            idempotency_key=None,
+        ),
+    )
+
+    own, carried = await CreditSegmentRepository(subscription_repository.session).list_for(
+        changed.id
+    )
+    assert (own.kind, own.paid) == (CreditSegmentKind.PURCHASE, Decimal("300"))
+    assert carried.kind is CreditSegmentKind.CARRIED
+    assert Decimal("290") < carried.paid <= Decimal("300")
+    assert carried.ends_at == changed.expire_at
+    assert own.ends_at == carried.ends_at - timedelta(seconds=carried.seconds)
+
+
+async def test_a_change_credits_each_renewal_at_its_own_price(
     plan_repository: PlanRepository,
     subscription_repository: SubscriptionRepository,
     user_repository: UserRepository,
@@ -2935,8 +3342,9 @@ async def test_change_credit_is_the_average_rate_over_renewals(
     original = await use_case(buyer, dto(30, "100", PurchaseType.NEW))
     renewed = await use_case(buyer, dto(365, "600", PurchaseType.RENEW, original.id))
 
-    assert renewed.plan_snapshot.credit_paid == Decimal("700")
-    assert renewed.plan_snapshot.credit_days == 395
+    credit = await credit_summary(subscription_repository.session, renewed.id)
+    assert credit.live_paid == Decimal("700")
+    assert abs(credit.live_days - 395) <= 2
     assert renewed.plan_snapshot.price_paid == Decimal("100")
     assert renewed.plan_snapshot.duration_days == 30
 
@@ -2989,11 +3397,13 @@ async def test_a_free_renewal_adds_days_to_the_credit_but_not_money(
         ),
     )
 
-    assert granted.plan_snapshot.credit_paid == Decimal("100")
-    assert granted.plan_snapshot.credit_days == 60
+    credit = await credit_summary(subscription_repository.session, granted.id)
+    assert credit.live_paid == Decimal("100")
+    # two calendar months: the days they really hold
+    assert credit.live_days == _days_between(original.created_at, granted.expire_at)
 
 
-async def test_a_renewal_in_another_currency_accumulates_in_the_snapshot_currency(
+async def test_a_renewal_in_another_currency_keeps_its_own_currency(
     plan_repository: PlanRepository,
     subscription_repository: SubscriptionRepository,
     user_repository: UserRepository,
@@ -3049,8 +3459,12 @@ async def test_a_renewal_in_another_currency_accumulates_in_the_snapshot_currenc
     )
 
     assert renewed.plan_snapshot.currency is Currency.RUB
-    assert renewed.plan_snapshot.credit_paid == Decimal("600")
-    assert renewed.plan_snapshot.credit_days == 60
+    segments = await CreditSegmentRepository(subscription_repository.session).list_for(renewed.id)
+    # converted only when a change counts the credit
+    assert [(s.paid, s.currency) for s in segments] == [
+        (Decimal("300"), Currency.RUB),
+        (Decimal("3"), Currency.USD),
+    ]
 
 
 def _trial_dto(buyer: UserDto, plan: PlanDto) -> PurchaseSubscriptionDto:
@@ -3186,6 +3600,8 @@ async def test_a_change_racing_a_renewal_credits_the_renewed_days(
             currency=Currency.RUB,
             purchase_type=purchase_type,
             target_subscription_id=target,
+            # plain days: the panel's atomic extend, no read through the gate below
+            exact_days=True,
         )
 
     old = await purchase_subscription_use_case(buyer, dto(old_plan, PurchaseType.NEW))
@@ -3245,9 +3661,10 @@ async def test_a_second_change_credits_back_the_credit_the_first_one_carried(
     first = await purchase_subscription_use_case(
         buyer, dto(30, "100", PurchaseType.CHANGE, original.id)
     )
-    # about 598 credit at 100/30 per day: 179 days on top of 30
-    assert first.plan_snapshot.credit_days == 30 + 179
-    assert Decimal("698") < first.plan_snapshot.effective_credit_paid < Decimal("699")
+    # about 600 credit, counted by the second, at 100/30 per day: 179 days on top of 30
+    credit = await credit_summary(plan_repository.session, first.id)
+    assert 28 + 179 <= credit.live_days <= 31 + 179  # a calendar month on top
+    assert Decimal("699") < credit.live_paid <= Decimal("700")
 
     second = await purchase_subscription_use_case(
         buyer, dto(30, "100", PurchaseType.CHANGE, first.id)
@@ -3324,6 +3741,8 @@ async def test_a_change_outrun_by_renewals_twice_gives_up_and_restores_the_panel
             currency=Currency.RUB,
             purchase_type=purchase_type,
             target_subscription_id=target,
+            # plain days: the panel's atomic extend, no read through the gate below
+            exact_days=True,
         )
 
     old = await purchase_subscription_use_case(buyer, dto(old_plan, PurchaseType.NEW))
@@ -3658,7 +4077,9 @@ def _purchase_use_case(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -4012,10 +4433,36 @@ async def test_fulfilling_a_refunded_order_ends_without_a_retry(
         user_repository,
         purchase_subscription_use_case,
         TransactionRepository(user_repository.session),
+        PaidOrderHolder(TransactionRepository(user_repository.session), RecordingEventPublisher()),
         UnitOfWork(user_repository.session),
     )
 
     assert await fulfill.system(_paid_purchase(buyer, plan, "refunded-fulfill")) is None
+    assert await subscription_repository.get_active_by_user(buyer.id) == []
+
+
+async def test_fulfilling_an_order_another_attempt_holds_ends_without_a_retry(
+    purchase_subscription_use_case: PurchaseSubscriptionUseCase,
+    plan_repository: PlanRepository,
+    user_repository: UserRepository,
+    subscription_repository: SubscriptionRepository,
+) -> None:
+    buyer = await _create_buyer(user_repository, 444)
+    plan = await _create_plan(plan_repository, "held-fulfill")
+    await _paid_order(plan_repository.session, buyer, plan, "held-fulfill")
+    # a worker died mid-purchase and its message came back before the claim went stale
+    await PurchaseIdempotencyRepository(user_repository.session).claim(
+        "held-fulfill", stale_after=timedelta(minutes=15)
+    )
+    fulfill = FulfillPurchaseUseCase(
+        user_repository,
+        purchase_subscription_use_case,
+        TransactionRepository(user_repository.session),
+        PaidOrderHolder(TransactionRepository(user_repository.session), RecordingEventPublisher()),
+        UnitOfWork(user_repository.session),
+    )
+
+    assert await fulfill.system(_paid_purchase(buyer, plan, "held-fulfill")) is None
     assert await subscription_repository.get_active_by_user(buyer.id) == []
 
 
@@ -4071,3 +4518,293 @@ async def test_a_paid_renewal_of_a_limited_subscription_resets_its_traffic(
     panel_user["userTraffic"]["usedTrafficBytes"] = 5
     await purchase_subscription_use_case(buyer, dto(PurchaseType.RENEW, old.id))
     assert panel_user["userTraffic"]["usedTrafficBytes"] == 5
+
+
+async def test_a_paid_renewal_of_a_since_changed_plan_is_held_then_issued_by_an_admin(
+    purchase_subscription_use_case: PurchaseSubscriptionUseCase,
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+) -> None:
+    buyer = await _create_buyer(user_repository, 444)
+    plan_a = await _create_plan(plan_repository, "held-renew-a")
+    plan_b = await _create_plan(plan_repository, "held-renew-b")
+    original = await purchase_subscription_use_case(
+        buyer, _paid_purchase(buyer, plan_a, "held-renew-new")
+    )
+    # a renewal of plan A is paid for; meanwhile the subscription changes to plan B,
+    # which replaces its row on the same panel user
+    await _paid_order(
+        plan_repository.session,
+        buyer,
+        plan_a,
+        "held-renew",
+        purchase_type=PurchaseType.RENEW,
+        target_subscription_id=original.id,
+    )
+    changed = await purchase_subscription_use_case(
+        buyer,
+        _paid_purchase(
+            buyer,
+            plan_b,
+            "held-renew-change",
+            PurchaseType.CHANGE,
+            target_subscription_id=original.id,
+        ),
+    )
+    assert changed.id != original.id
+    transactions = TransactionRepository(user_repository.session)
+    events = RecordingEventPublisher()
+    fulfill = FulfillPurchaseUseCase(
+        user_repository,
+        purchase_subscription_use_case,
+        transactions,
+        PaidOrderHolder(transactions, events),
+        UnitOfWork(user_repository.session),
+    )
+    renewal = _paid_purchase(
+        buyer, plan_a, "held-renew", PurchaseType.RENEW, target_subscription_id=original.id
+    )
+
+    # plan B's days at plan A's price: left to an admin
+    assert await fulfill.system(renewal) is None
+    order = await transactions.find_by_idempotency_key("held-renew")
+    assert order is not None and order.fulfillment_hold is FulfillmentHold.PLAN_CHANGED
+    assert [type(event).__name__ for event in events.events] == ["PaidOrderNotFulfilledEvent"]
+    assert (await subscription_repository.get_by_id(changed.id)).expire_at == changed.expire_at
+
+    # the admin issues it: the subscription that replaced it gets the days and keeps plan B
+    renewed = await fulfill.system(replace(renewal, renew_other_plan=True))
+    assert renewed is not None and renewed.id == changed.id
+    assert abs(renewed.expire_at - add_term(changed.expire_at, 30)) < timedelta(seconds=1)
+    assert renewed.plan_snapshot.plan_id == plan_b.id
+
+
+async def test_a_renewal_of_a_row_replaced_on_the_same_plan_goes_to_its_successor(
+    purchase_subscription_use_case: PurchaseSubscriptionUseCase,
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+) -> None:
+    buyer = await _create_buyer(user_repository, 445)
+    plan = await _create_plan(plan_repository, "successor-same")
+    original = await purchase_subscription_use_case(
+        buyer, _paid_purchase(buyer, plan, "successor-new")
+    )
+    replaced = await purchase_subscription_use_case(
+        buyer,
+        _paid_purchase(
+            buyer,
+            plan,
+            "successor-change",
+            PurchaseType.CHANGE,
+            target_subscription_id=original.id,
+        ),
+    )
+
+    renewed = await purchase_subscription_use_case(
+        buyer,
+        _paid_purchase(
+            buyer,
+            plan,
+            "successor-renew",
+            PurchaseType.RENEW,
+            target_subscription_id=original.id,
+        ),
+    )
+
+    # nothing to hold: the same plan's days go to the row that replaced it
+    assert renewed.id == replaced.id
+    assert abs(renewed.expire_at - add_term(replaced.expire_at, 30)) < timedelta(seconds=1)
+
+
+async def test_a_renewal_pinned_for_a_since_replaced_row_counts_again_from_its_successor(
+    purchase_subscription_use_case: PurchaseSubscriptionUseCase,
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    idempotency_repository: PurchaseIdempotencyRepository,
+) -> None:
+    buyer = await _create_buyer(user_repository, 446)
+    plan = await _create_plan(plan_repository, "stale-pin")
+    original = await purchase_subscription_use_case(
+        buyer, _paid_purchase(buyer, plan, "stale-pin-new")
+    )
+    await _paid_order(
+        plan_repository.session,
+        buyer,
+        plan,
+        "stale-pin",
+        purchase_type=PurchaseType.RENEW,
+        target_subscription_id=original.id,
+    )
+    # a first attempt pinned its expiry from the old row, then failed before finishing
+    async with UnitOfWork(user_repository.session):
+        token = await idempotency_repository.claim("stale-pin", stale_after=timedelta(minutes=5))
+        await idempotency_repository.pin_renew_expire_at(
+            "stale-pin",
+            original.expire_at + timedelta(days=1),
+            1,
+            None,
+            token,
+            subscription_id=original.id,
+        )
+    replaced = await purchase_subscription_use_case(
+        buyer,
+        _paid_purchase(
+            buyer, plan, "stale-pin-change", PurchaseType.CHANGE, target_subscription_id=original.id
+        ),
+    )
+    assert replaced.expire_at > original.expire_at + timedelta(days=1)
+
+    renewed = await purchase_subscription_use_case(
+        buyer,
+        _paid_purchase(
+            buyer, plan, "stale-pin", PurchaseType.RENEW, target_subscription_id=original.id
+        ),
+    )
+
+    # the old row's pin would have taken the successor back in time
+    assert renewed.id == replaced.id
+    assert abs(renewed.expire_at - add_term(replaced.expire_at, 30)) < timedelta(seconds=1)
+
+
+async def test_a_stale_pin_the_panel_already_holds_is_not_extended_again(
+    purchase_subscription_use_case: PurchaseSubscriptionUseCase,
+    plan_repository: PlanRepository,
+    user_repository: UserRepository,
+    idempotency_repository: PurchaseIdempotencyRepository,
+    remnawave_store: FakeUserStore,
+) -> None:
+    buyer = await _create_buyer(user_repository, 448)
+    plan = await _create_plan(plan_repository, "late-pin")
+    original = await purchase_subscription_use_case(
+        buyer, _paid_purchase(buyer, plan, "late-pin-new")
+    )
+    await _paid_order(
+        plan_repository.session,
+        buyer,
+        plan,
+        "late-pin",
+        purchase_type=PurchaseType.RENEW,
+        target_subscription_id=original.id,
+    )
+    pinned = truncate_to_ms(original.expire_at + timedelta(days=90))
+    async with UnitOfWork(user_repository.session):
+        token = await idempotency_repository.claim("late-pin", stale_after=timedelta(minutes=5))
+        await idempotency_repository.pin_renew_expire_at(
+            "late-pin", pinned, 90, None, token, subscription_id=original.id
+        )
+    replaced = await purchase_subscription_use_case(
+        buyer,
+        _paid_purchase(
+            buyer, plan, "late-pin-change", PurchaseType.CHANGE, target_subscription_id=original.id
+        ),
+    )
+    # the first attempt's panel write landed after the plan change
+    remnawave_store[replaced.remnawave_user_id]["expireAt"] = pinned.isoformat()
+
+    renewed = await purchase_subscription_use_case(
+        buyer,
+        _paid_purchase(
+            buyer, plan, "late-pin", PurchaseType.RENEW, target_subscription_id=original.id
+        ),
+    )
+
+    assert renewed.id == replaced.id
+    assert abs(renewed.expire_at - pinned) < timedelta(seconds=1)
+
+
+async def test_a_stale_pin_the_panel_holds_moves_to_the_successor(
+    purchase_subscription_use_case: PurchaseSubscriptionUseCase,
+    plan_repository: PlanRepository,
+    user_repository: UserRepository,
+    idempotency_repository: PurchaseIdempotencyRepository,
+    remnawave_store: FakeUserStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    buyer = await _create_buyer(user_repository, 449)
+    plan = await _create_plan(plan_repository, "move-pin")
+    original = await purchase_subscription_use_case(
+        buyer, _paid_purchase(buyer, plan, "move-pin-new")
+    )
+    await _paid_order(
+        plan_repository.session,
+        buyer,
+        plan,
+        "move-pin",
+        purchase_type=PurchaseType.RENEW,
+        target_subscription_id=original.id,
+    )
+    pinned = truncate_to_ms(original.expire_at + timedelta(days=90))
+    async with UnitOfWork(user_repository.session):
+        token = await idempotency_repository.claim("move-pin", stale_after=timedelta(minutes=5))
+        await idempotency_repository.pin_renew_expire_at(
+            "move-pin", pinned, 90, 20, token, subscription_id=original.id
+        )
+    replaced = await purchase_subscription_use_case(
+        buyer,
+        _paid_purchase(
+            buyer, plan, "move-pin-change", PurchaseType.CHANGE, target_subscription_id=original.id
+        ),
+    )
+    remnawave_store[replaced.remnawave_user_id]["expireAt"] = pinned.isoformat()
+    # the late write's webhook already synced the successor's row
+    async with UnitOfWork(user_repository.session):
+        await user_repository.session.execute(
+            update(Subscription).where(Subscription.id == replaced.id).values(expire_at=pinned)
+        )
+
+    async def _die(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("worker died")
+
+    # dies after the panel holds the pin, before the database takes the renewal
+    monkeypatch.setattr(purchase_subscription_use_case._renew, "_finish", _die)
+    with pytest.raises(RuntimeError):
+        await purchase_subscription_use_case(
+            buyer,
+            _paid_purchase(
+                buyer, plan, "move-pin", PurchaseType.RENEW, target_subscription_id=original.id
+            ),
+        )
+
+    async with UnitOfWork(user_repository.session):
+        pinned_for = await idempotency_repository.find_pending_renew_subscription_id("move-pin")
+        added_days = await idempotency_repository.find_pending_renew_added_days("move-pin")
+        anchor_day = await idempotency_repository.find_pending_renew_anchor_day("move-pin")
+    assert pinned_for == replaced.id
+    assert (added_days, anchor_day) == (90, 20)
+
+
+async def test_an_admin_grant_to_a_replaced_row_is_refused(
+    purchase_subscription_use_case: PurchaseSubscriptionUseCase,
+    plan_repository: PlanRepository,
+    user_repository: UserRepository,
+) -> None:
+    buyer = await _create_buyer(user_repository, 447)
+    plan = await _create_plan(plan_repository, "grant-replaced")
+    original = await purchase_subscription_use_case(
+        buyer, _paid_purchase(buyer, plan, "grant-replaced-new")
+    )
+    await purchase_subscription_use_case(
+        buyer,
+        _paid_purchase(
+            buyer,
+            plan,
+            "grant-replaced-change",
+            PurchaseType.CHANGE,
+            target_subscription_id=original.id,
+        ),
+    )
+
+    with pytest.raises(ValidationError) as error:
+        await purchase_subscription_use_case(
+            buyer,
+            replace(
+                _paid_purchase(
+                    buyer, plan, "unused", PurchaseType.RENEW, target_subscription_id=original.id
+                ),
+                idempotency_key=None,
+            ),
+        )
+    assert error.value.code is ErrorCode.SUBSCRIPTION_DELETED

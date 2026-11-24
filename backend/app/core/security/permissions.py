@@ -39,6 +39,8 @@ class Permission(UpperStrEnum):
     BOT_PROXY_REMOVE = auto()
     SHOP_SETTINGS_VIEW = auto()
     SHOP_SETTINGS_MANAGE = auto()
+    GRACE_SETTINGS_VIEW = auto()
+    GRACE_SETTINGS_MANAGE = auto()
     ACCESS_SETTINGS_VIEW = auto()
     ACCESS_SETTINGS_MANAGE = auto()
     PAYMENT_WAITLIST_VIEW = auto()
@@ -102,6 +104,7 @@ class Permission(UpperStrEnum):
     USERS_STATS_VIEW = auto()
     USERS_DELETE = auto()
     USERS_DISCOUNT_MANAGE = auto()
+    USERS_MARKUP_MANAGE = auto()
     STAFF_SELF_MANAGE = auto()
     USERS_LOYALTY_VIEW = auto()
     USERS_LOYALTY_MANAGE = auto()
@@ -183,6 +186,7 @@ class Permission(UpperStrEnum):
     BROADCASTS_VIEW = auto()
     BROADCASTS_DETAIL_VIEW = auto()
     BROADCASTS_CREATE = auto()
+    BROADCASTS_DUPLICATE = auto()
     BROADCASTS_UPDATE = auto()
     BROADCASTS_DELETE = auto()
     BROADCASTS_SEND = auto()
@@ -252,6 +256,7 @@ class Permission(UpperStrEnum):
     BLACKLIST_MATCHES_VIEW = auto()
     USERS_BLOCK = auto()
     USERS_EMAIL_UNDELIVERABLE_CLEAR = auto()
+    USERS_BOT_MENU_RESET = auto()
     USERS_TRIAL_MANAGE = auto()
     USERS_UNBLOCK = auto()
     USERS_UNBLOCK_BLACKLIST_MATCHES = auto()
@@ -293,6 +298,8 @@ PERMISSION_METADATA: Final[dict[Permission, PermissionMeta]] = {
     Permission.BOT_PROXY_REMOVE: PermissionMeta(resource="bot_settings", kind="write"),
     Permission.SHOP_SETTINGS_VIEW: PermissionMeta(resource="shop_settings", kind="read"),
     Permission.SHOP_SETTINGS_MANAGE: PermissionMeta(resource="shop_settings", kind="write"),
+    Permission.GRACE_SETTINGS_VIEW: PermissionMeta(resource="grace", kind="read"),
+    Permission.GRACE_SETTINGS_MANAGE: PermissionMeta(resource="grace", kind="write"),
     Permission.ACCESS_SETTINGS_VIEW: PermissionMeta(resource="access_settings", kind="read"),
     Permission.ACCESS_SETTINGS_MANAGE: PermissionMeta(resource="access_settings", kind="write"),
     Permission.PAYMENT_WAITLIST_VIEW: PermissionMeta(resource="access_settings", kind="read"),
@@ -360,6 +367,7 @@ PERMISSION_METADATA: Final[dict[Permission, PermissionMeta]] = {
     Permission.USERS_STATS_VIEW: PermissionMeta(resource="users", kind="read"),
     Permission.USERS_DELETE: PermissionMeta(resource="users", kind="write"),
     Permission.USERS_DISCOUNT_MANAGE: PermissionMeta(resource="users", kind="write"),
+    Permission.USERS_MARKUP_MANAGE: PermissionMeta(resource="users", kind="write"),
     Permission.STAFF_SELF_MANAGE: PermissionMeta(resource="users", kind="write"),
     Permission.USERS_LOYALTY_VIEW: PermissionMeta(resource="users", kind="read"),
     Permission.USERS_LOYALTY_MANAGE: PermissionMeta(resource="users", kind="write"),
@@ -451,6 +459,7 @@ PERMISSION_METADATA: Final[dict[Permission, PermissionMeta]] = {
     Permission.BROADCASTS_VIEW: PermissionMeta(resource="broadcasts", kind="read"),
     Permission.BROADCASTS_DETAIL_VIEW: PermissionMeta(resource="broadcasts", kind="read"),
     Permission.BROADCASTS_CREATE: PermissionMeta(resource="broadcasts", kind="write"),
+    Permission.BROADCASTS_DUPLICATE: PermissionMeta(resource="broadcasts", kind="write"),
     Permission.BROADCASTS_UPDATE: PermissionMeta(resource="broadcasts", kind="write"),
     Permission.BROADCASTS_DELETE: PermissionMeta(resource="broadcasts", kind="write"),
     Permission.BROADCASTS_SEND: PermissionMeta(resource="broadcasts", kind="write"),
@@ -522,6 +531,7 @@ PERMISSION_METADATA: Final[dict[Permission, PermissionMeta]] = {
     Permission.BLACKLIST_MATCHES_VIEW: PermissionMeta(resource="blacklist", kind="read"),
     Permission.USERS_BLOCK: PermissionMeta(resource="users", kind="write"),
     Permission.USERS_EMAIL_UNDELIVERABLE_CLEAR: PermissionMeta(resource="users", kind="write"),
+    Permission.USERS_BOT_MENU_RESET: PermissionMeta(resource="users", kind="write"),
     Permission.USERS_TRIAL_MANAGE: PermissionMeta(resource="users", kind="write"),
     Permission.USERS_UNBLOCK: PermissionMeta(resource="users", kind="write"),
     Permission.USERS_MERGE_PREVIEW: PermissionMeta(resource="users", kind="read"),
@@ -603,6 +613,8 @@ _TOKEN_EXCLUDED_PERMISSIONS: Final[frozenset[Permission]] = frozenset(
         # a Telegram id is how a customer logs into the bot
         Permission.USERS_TELEGRAM_BIND,
         Permission.USERS_TELEGRAM_UNBIND,
+        # a message to the customer's chat on every call
+        Permission.USERS_BOT_MENU_RESET,
         Permission.SUBSCRIPTIONS_LINK_REISSUE,
         Permission.SUBSCRIPTIONS_DELETE_ALL,
         Permission.SUBSCRIPTIONS_DEVICES_DELETE,
@@ -678,6 +690,8 @@ ROLE_PERMISSIONS: Final[dict[Role, frozenset[Permission]]] = {
             Permission.BOT_PROXY_REMOVE,
             Permission.SHOP_SETTINGS_VIEW,
             Permission.SHOP_SETTINGS_MANAGE,
+            Permission.GRACE_SETTINGS_VIEW,
+            Permission.GRACE_SETTINGS_MANAGE,
             Permission.ACCESS_SETTINGS_VIEW,
             Permission.ACCESS_SETTINGS_MANAGE,
             Permission.PAYMENT_WAITLIST_VIEW,
@@ -784,6 +798,7 @@ ROLE_PERMISSIONS: Final[dict[Role, frozenset[Permission]]] = {
             Permission.BROADCASTS_VIEW,
             Permission.BROADCASTS_DETAIL_VIEW,
             Permission.BROADCASTS_CREATE,
+            Permission.BROADCASTS_DUPLICATE,
             Permission.BROADCASTS_UPDATE,
             Permission.BROADCASTS_DELETE,
             Permission.BROADCASTS_SEND,
@@ -804,7 +819,9 @@ ROLE_PERMISSIONS: Final[dict[Role, frozenset[Permission]]] = {
             Permission.USERS_DETAIL_VIEW,
             Permission.USERS_REGISTRATION_VIEW,
             Permission.USERS_DISCOUNT_MANAGE,
+            Permission.USERS_MARKUP_MANAGE,
             Permission.USERS_EMAIL_UNDELIVERABLE_CLEAR,
+            Permission.USERS_BOT_MENU_RESET,
             Permission.USERS_TRIAL_MANAGE,
             Permission.USERS_LOYALTY_VIEW,
             Permission.USERS_LOYALTY_MANAGE,

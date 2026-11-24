@@ -36,6 +36,7 @@ from app.modules.plans.dto import (
 from app.modules.plans.repository import PlanRepository
 from app.modules.pricing.repository import PricingRepository
 from app.modules.settings.repository import SettingsRepository
+from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
 from app.modules.subscriptions.dto import (
     CreateSubscriptionDto,
     GrantAddOnDto,
@@ -90,7 +91,9 @@ async def _create_subscription(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         PurchaseIdempotencyRepository(subscription_repository.session),
         UserRepository(subscription_repository.session),
@@ -346,6 +349,56 @@ async def test_grant_addon_retried_after_panel_failure_does_not_double_grant(
     assert [e for e in granted.addon_entitlements if e.addon_id == addon.id] != []
     assert len(granted.addon_entitlements) == 1
     assert granted.effective_traffic_limit == 150
+
+
+async def test_a_redelivered_grant_announces_it_once(
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+    addon_repository: AddOnRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    remnawave_sdk: RemnawaveSDK,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+) -> None:
+    _, subscription_id = await _create_subscription(
+        plan_repository,
+        subscription_repository,
+        user_repository,
+        settings_repository,
+        remnawave_sdk,
+        uow,
+        event_publisher,
+        437,
+    )
+    addon = await addon_repository.create(
+        CreateAddOnDto(name="devices-2", type=AddOnType.DEVICES, amount=2, base_price=Decimal("1"))
+    )
+    use_case = GrantAddOnUseCase(
+        subscription_repository,
+        addon_repository,
+        user_repository,
+        remnawave_sdk,
+        uow,
+        event_publisher,
+    )
+    grant = GrantAddOnDto(
+        subscription_id=subscription_id, addon_id=addon.id, idempotency_key="redelivered-1"
+    )
+
+    # the worker died after the grant committed, before acking the message
+    await use_case.system(grant)
+    granted = await use_case.system(grant)
+
+    assert len(granted.addon_entitlements) == 1
+    events = (
+        await subscription_repository.session.scalars(
+            select(EventOutboxEntry).where(
+                EventOutboxEntry.event_type == "SubscriptionAddOnGrantedEvent"
+            )
+        )
+    ).all()
+    assert len(events) == 1
 
 
 async def test_system_can_grant_devices_addon_without_clearing_traffic_limit(

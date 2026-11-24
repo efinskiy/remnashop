@@ -102,11 +102,13 @@ class RecurringReason(StrEnum):
         return _REASON_POLICIES[self]
 
 
-_BANK = ReasonPolicy(RetryKind.BANK, admin_notice=False, attention=False, block_enable=False)
-_TECHNICAL = ReasonPolicy(RetryKind.TECHNICAL, customer_notice=False)
-_TERMINAL = ReasonPolicy(RetryKind.NONE, terminal=True)
+_BANK: Final[ReasonPolicy] = ReasonPolicy(
+    RetryKind.BANK, admin_notice=False, attention=False, block_enable=False
+)
+_TECHNICAL: Final[ReasonPolicy] = ReasonPolicy(RetryKind.TECHNICAL, customer_notice=False)
+_TERMINAL: Final[ReasonPolicy] = ReasonPolicy(RetryKind.NONE, terminal=True)
 # the customer's own card or bank ended it: the customer acts, not the shop
-_CARD_ENDED = ReasonPolicy(RetryKind.NONE, admin_notice=False, terminal=True)
+_CARD_ENDED: Final[ReasonPolicy] = ReasonPolicy(RetryKind.NONE, admin_notice=False, terminal=True)
 _REASON_POLICIES: Final[dict[RecurringReason, ReasonPolicy]] = {
     RecurringReason.CUSTOMER_DISABLED: ReasonPolicy(
         RetryKind.NONE,
@@ -160,8 +162,18 @@ _PROVIDER_REASONS: Final[frozenset[RecurringReason]] = frozenset(
 )
 
 
+# YooKassa's own or the shop's side, not the card's: retried as technical, the customer not told
+_PROVIDER_SIDE_CODES: Final[dict[str, RecurringReason]] = {
+    "internal_timeout": RecurringReason.PROVIDER_UNAVAILABLE,
+    "canceled_by_merchant": RecurringReason.MERCHANT_UNAVAILABLE,
+    "expired_on_capture": RecurringReason.MERCHANT_UNAVAILABLE,
+}
+
+
 def provider_cancellation_reason(value: Optional[str]) -> RecurringReason:
     # any other provider code is a bank refusal; never one of our own stop reasons
+    if value in _PROVIDER_SIDE_CODES:
+        return _PROVIDER_SIDE_CODES[value]
     for reason in _PROVIDER_REASONS:
         if reason.value == value:
             return reason

@@ -11,11 +11,11 @@ from app.modules.pricing import (
     CurrencyRateDto,
     CurrencyRateTable,
     apply_discounts,
+    apply_markup,
     convert_for_report,
     price_for,
     round_amount,
 )
-from app.modules.subscriptions import SubscriptionDto
 from app.modules.transactions.dto import PriceQuote
 from app.modules.users import UserDto
 
@@ -62,13 +62,16 @@ def quote_price(
     *,
     change_credit: Decimal = ZERO_AMOUNT,
 ) -> PriceQuote:
-    base_price = _base_price(plan, duration_days, currency, rates)
     rate = rates.for_currency(currency)
+    base_price = apply_markup(
+        _base_price(plan, duration_days, currency, rates), rate, user.markup_percent
+    )
     # what the plan being changed was paid comes off first, discounts apply to the rest
     payable = _after_credit(base_price, change_credit, rate)
     plan_discount_percent = plan.active_discount(datetime_now())
-    if payable == 0 or plan_discount_percent >= 100:
-        # already free: a one-shot purchase discount must not be spent on it
+    if payable == 0 or plan_discount_percent >= 100 or plan.is_trial:
+        # already free, or a paid trial: the customer's own discounts (a one-shot
+        # one above all) are kept for a real purchase; the plan's sale still applies
         discount_percent, discount_source, discount_promocode_id = 0, DiscountSource.NONE, None
     else:
         discount_percent, discount_source, discount_promocode_id = _effective_discount(user)
@@ -87,15 +90,5 @@ def quote_price(
         discount_promocode_id=discount_promocode_id,
         plan_discount_percent=plan_discount_percent,
         change_credit=change_credit,
+        markup_percent=user.markup_percent if base_price else 0,
     )
-
-
-def change_credit_for(
-    target: SubscriptionDto, duration_days: int, currency: Currency, rates: CurrencyRateTable
-) -> Decimal:
-    """What a change from `target` to a plan's `duration_days` takes off the price: all
-    that was paid for an unlimited subscription moving to another unlimited plan."""
-    if duration_days != 0 or not target.is_unlimited or target.is_trial:
-        return ZERO_AMOUNT
-    snapshot = target.plan_snapshot
-    return rates.convert(snapshot.effective_credit_paid, snapshot.currency, currency)

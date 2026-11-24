@@ -17,7 +17,7 @@ from app.modules.recurring_payments.ports import RecurringTermsTexts
 from app.modules.recurring_payments.repository import RecurringPaymentRepository
 from app.modules.recurring_payments.terms import build_recurring_terms
 from app.modules.subscriptions import SubscriptionRepository, get_owned_target
-from app.modules.transactions import TransactionRepository
+from app.modules.transactions import TransactionRepository, YooKassaGateway
 from app.modules.users import UserDto
 
 
@@ -64,7 +64,7 @@ class GetOwnRecurringPaymentUseCase(UseCase[int, RecurringPaymentStateDto, UserD
             and gateway.is_active
             and gateway.is_configured
             and yookassa_recurring_enabled(gateway.values)
-            and mandate.shop_id == settings.get("shop_id")
+            and YooKassaGateway.shop_takes_payments(settings, mandate.shop_id)
             and subscription.status not in {SubscriptionStatus.DELETED, SubscriptionStatus.DISABLED}
             and not subscription.is_trial
             and subscription.plan_snapshot.plan_id == source.plan_id

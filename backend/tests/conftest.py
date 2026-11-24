@@ -45,6 +45,7 @@ from app.modules.auth.repository import SessionRepository
 from app.modules.auth.sign_in_methods import SignInMethodGuard
 from app.modules.banners.repository import BannerRepository
 from app.modules.blacklist.repository import BlacklistRepository
+from app.modules.broadcasts.recipient_repository import BroadcastRecipientRepository
 from app.modules.broadcasts.repository import BroadcastRepository
 from app.modules.dialogs.repository import DialogRepository
 from app.modules.emoji_packs.repository import EmojiPackRepository
@@ -63,6 +64,7 @@ from app.modules.pricing.repository import PricingRepository
 from app.modules.promocodes.repository import PromocodeRepository
 from app.modules.referrals.repository import ReferralRepository
 from app.modules.settings.repository import SettingsRepository
+from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
 from app.modules.subscriptions.idempotency_repository import PurchaseIdempotencyRepository
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
 from app.modules.subscriptions.repository import SubscriptionRepository
@@ -139,7 +141,10 @@ async def session(engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
     async with engine.connect() as connection:
         transaction = await connection.begin()
         async_session = AsyncSession(
-            bind=connection, expire_on_commit=False, join_transaction_mode="create_savepoint"
+            bind=connection,
+            expire_on_commit=False,
+            autoflush=False,
+            join_transaction_mode="create_savepoint",
         )
         yield async_session
         await async_session.close()
@@ -149,6 +154,11 @@ async def session(engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
 @pytest.fixture
 def broadcast_repository(session: AsyncSession) -> BroadcastRepository:
     return BroadcastRepository(session)
+
+
+@pytest.fixture
+def broadcast_recipient_repository(session: AsyncSession) -> BroadcastRecipientRepository:
+    return BroadcastRecipientRepository(session)
 
 
 @pytest.fixture
@@ -260,7 +270,9 @@ def purchase_subscription_use_case(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         pricing_repository,
         PurchaseIdempotencyRepository(subscription_repository.session),
         UserRepository(subscription_repository.session),

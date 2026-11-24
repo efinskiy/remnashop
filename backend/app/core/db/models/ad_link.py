@@ -20,6 +20,7 @@ class AdLink(BaseSql, TimestampMixin):
             "revenue_share_percent >= 0 AND revenue_share_percent <= 100",
             name="revenue_share_percent_range",
         ),
+        CheckConstraint("allow_bot OR allow_webcabinet", name="some_channel"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -38,6 +39,10 @@ class AdLink(BaseSql, TimestampMixin):
     # no cascade into a deleted admin's other data, the attribution is just
     # detached (like Promocode's reward_addon_id/reward_plan_id)
     created_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    # applied to whoever opens the link, a registered customer included
+    promocode_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("promocodes.id", ondelete="SET NULL")
+    )
 
     attributions: Mapped[list["AdLinkAttribution"]] = relationship(
         back_populates="ad_link",

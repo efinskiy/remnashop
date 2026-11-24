@@ -14,14 +14,15 @@ from app.modules.subscriptions.api.schemas import (
     OwnSubscriptionListResponse,
     OwnSubscriptionResponse,
     PublicPlanListResponse,
-    PublicPlanPriceResponse,
     PublicPlanResponse,
+    RenameDeviceRequest,
     TrialResponse,
 )
 from app.modules.subscriptions.dto import (
     ActivateTrialDto,
     DeleteDeviceDto,
     ListActivePlansDto,
+    RenameDeviceDto,
     SubscriptionRefDto,
 )
 from app.modules.subscriptions.usecases import (
@@ -33,6 +34,7 @@ from app.modules.subscriptions.usecases import (
     ListDevicesUseCase,
     ListOwnSubscriptionsUsageUseCase,
     ReissueSubscriptionUseCase,
+    RenameDeviceUseCase,
 )
 from app.modules.users import UserDto
 
@@ -85,19 +87,7 @@ async def get_own_trial(
     use_case: FromDishka[GetAvailableTrialUseCase],
     actor: UserDto = Depends(get_current_user),
 ) -> TrialResponse:
-    trial = await use_case(actor)
-    if trial.plan is None:
-        return TrialResponse(is_available=False)
-    return TrialResponse(
-        is_available=trial.is_trial_available,
-        plan_id=trial.plan.id,
-        plan_name=trial.plan.display_name(actor.language),
-        duration_days=trial.plan.sellable_durations()[0].days,
-        is_free=trial.is_free,
-        price=trial.price,
-        currency=trial.currency,
-        prices=[PublicPlanPriceResponse(currency=p.currency, price=p.price) for p in trial.prices],
-    )
+    return TrialResponse.from_dto(await use_case(actor), locale=actor.language)
 
 
 @own_router.post(
@@ -152,6 +142,39 @@ async def delete_own_device(
     actor: UserDto = Depends(get_current_user),
 ) -> None:
     await use_case(actor, DeleteDeviceDto(subscription_id=subscription_id, hwid=hwid))
+
+
+@own_router.put(
+    "/{subscription_id:int}/devices/{hwid}/name",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=error_responses(400, 404, 503),
+)
+@inject
+async def rename_own_device(
+    subscription_id: int,
+    hwid: str,
+    body: RenameDeviceRequest,
+    use_case: FromDishka[RenameDeviceUseCase],
+    actor: UserDto = Depends(get_current_user),
+) -> None:
+    await use_case(
+        actor, RenameDeviceDto(subscription_id=subscription_id, hwid=hwid, name=body.name)
+    )
+
+
+@own_router.delete(
+    "/{subscription_id:int}/devices/{hwid}/name",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=error_responses(400),
+)
+@inject
+async def clear_own_device_name(
+    subscription_id: int,
+    hwid: str,
+    use_case: FromDishka[RenameDeviceUseCase],
+    actor: UserDto = Depends(get_current_user),
+) -> None:
+    await use_case(actor, RenameDeviceDto(subscription_id=subscription_id, hwid=hwid, name=None))
 
 
 @own_router.post(

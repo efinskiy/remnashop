@@ -1,12 +1,29 @@
 import json
+import uuid
+from typing import Final
 
+import pytest
+
+from app.core import bot_signals
 from app.core.bot_signals import RedisBotSignals
-from app.core.constants import (
-    DIALOG_CONFIG_CHANGED_CHANNEL,
-    PAYMENT_OUTCOME_CHANNEL,
-    TRANSLATION_CHANGED_CHANNEL,
-)
 from app.core.enums import Locale, PaymentOutcome
+
+CUSTOMER_MENU_RESET_CHANNEL: Final[str] = f"test:{uuid.uuid4().hex}:menu-reset"
+DIALOG_CONFIG_CHANGED_CHANNEL: Final[str] = f"test:{uuid.uuid4().hex}:dialogs"
+PAYMENT_OUTCOME_CHANNEL: Final[str] = f"test:{uuid.uuid4().hex}:payment-outcome"
+TRANSLATION_CHANGED_CHANNEL: Final[str] = f"test:{uuid.uuid4().hex}:translation"
+
+
+@pytest.fixture(autouse=True)
+def _own_channels(monkeypatch: pytest.MonkeyPatch) -> None:
+    # pub/sub channels ignore the Redis db number: other xdist workers publish there too
+    for name in (
+        "CUSTOMER_MENU_RESET_CHANNEL",
+        "DIALOG_CONFIG_CHANGED_CHANNEL",
+        "PAYMENT_OUTCOME_CHANNEL",
+        "TRANSLATION_CHANGED_CHANNEL",
+    ):
+        monkeypatch.setattr(bot_signals, name, globals()[name])
 
 
 async def test_translation_changed_publishes_the_new_value(redis) -> None:
@@ -57,4 +74,20 @@ async def test_payment_outcome_reports_receivers(redis) -> None:
     assert json.loads(message["data"]) == {"telegram_id": 5, "order_id": 7, "outcome": "CANCELED"}
 
     await pubsub.unsubscribe(PAYMENT_OUTCOME_CHANNEL)
+    await pubsub.aclose()
+
+
+async def test_customer_menu_reset_reports_receivers(redis) -> None:
+    signals = RedisBotSignals(redis)
+    assert await signals.reset_customer_menu(5) == 0
+
+    pubsub = redis.pubsub()
+    await pubsub.subscribe(CUSTOMER_MENU_RESET_CHANNEL)
+    await pubsub.get_message(timeout=1)
+
+    assert await signals.reset_customer_menu(5) == 1
+    message = await pubsub.get_message(timeout=1)
+    assert json.loads(message["data"]) == {"telegram_id": 5}
+
+    await pubsub.unsubscribe(CUSTOMER_MENU_RESET_CHANNEL)
     await pubsub.aclose()

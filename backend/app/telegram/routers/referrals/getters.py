@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Any, Union
+from typing import Any, Final, Union
 
 from aiogram import Bot
 from aiogram_dialog import DialogManager
@@ -8,9 +8,10 @@ from dishka.integrations.aiogram_dialog import inject
 from fluentogram import TranslatorHub, TranslatorRunner
 
 from app.core.config import AppConfig
-from app.core.constants import USER_KEY
+from app.core.constants import REFERRAL_START_PREFIX, USER_KEY
 from app.modules.banners import GetBannerForDisplayUseCase
 from app.modules.referrals import (
+    MAX_BONUS_DAYS,
     GetOwnReferralStatsUseCase,
     GetReferralSettingsUseCase,
     ListBonusDaysTargetsUseCase,
@@ -35,11 +36,13 @@ from app.telegram.dialogs.rendering import (
     resolve_variable_kwargs,
 )
 from app.telegram.i18n import format_expiry, get_translator
-from app.telegram.middlewares._codes import REFERRAL_PREFIX
+
+# days chosen in the amount window, read back by the target window
+REDEEM_DAYS_KEY: Final[str] = "redeem_days"
 
 
 def referral_url(bot_username: str, code: str) -> str:
-    return f"https://t.me/{bot_username}?start={REFERRAL_PREFIX}{code}"
+    return f"https://t.me/{bot_username}?start={REFERRAL_START_PREFIX}{code}"
 
 
 @inject
@@ -93,7 +96,7 @@ async def referrals_getter(
     data["referral_reset_enabled"] = shop.referral_reset_enabled
     unavailable: set[str] = set()
     if not shop.referral_reset_enabled:
-        unavailable.add("reset_referral_code")
+        unavailable |= {"referrals.confirm_reset_code", "reset_referral_code"}
     # inline mode is switched on in BotFather; without it the picker opens to nothing
     if not me.supports_inline_queries or not stats.referral_code:
         unavailable.add("invite_friend")
@@ -148,8 +151,28 @@ async def redeem_target_getter(
             for s in await list_bonus_days_targets(user)
         ],
         "window_text": render_window_text(
-            runner, "msg-referrals-redeem-target", bonus_days=user.bonus_days
+            runner,
+            "msg-referrals-redeem-target",
+            bonus_days=dialog_manager.dialog_data.get(REDEEM_DAYS_KEY, user.bonus_days),
         ),
+        "back_text": label_with_icon(runner, "btn-back.general"),
+    }
+
+
+@inject
+async def redeem_amount_getter(
+    dialog_manager: DialogManager,
+    i18n: FromDishka[TranslatorHub],
+    **kwargs: Any,
+) -> dict[str, Any]:
+    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    runner = get_translator(i18n, user)
+    max_days = min(user.bonus_days, MAX_BONUS_DAYS)
+    return {
+        "window_text": render_window_text(
+            runner, "msg-referrals-redeem-amount", bonus_days=user.bonus_days, max_days=max_days
+        ),
+        "all_text": label_with_icon(runner, "btn-referrals.redeem-all", days=max_days),
         "back_text": label_with_icon(runner, "btn-back.general"),
     }
 
@@ -214,5 +237,33 @@ async def referrals_about_getter(
     data["window_text"] = render_window_text(runner, "msg-referrals-about", **values)
     data["buttons"] = await render_dialog_buttons(
         "referrals.about", dialog_config_cache, runner, data
+    )
+    return data
+
+
+@inject
+async def confirm_reset_code_getter(
+    dialog_manager: DialogManager,
+    config: FromDishka[AppConfig],
+    get_banner: FromDishka[GetBannerForDisplayUseCase],
+    i18n: FromDishka[TranslatorHub],
+    dialog_config_cache: FromDishka[DialogConfigCache],
+    **kwargs: Any,
+) -> dict[str, Any]:
+    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    runner = get_translator(i18n, user)
+    window = await dialog_config_cache.get_window("referrals.confirm_reset_code")
+    data: dict[str, Any] = {
+        "banner": (
+            await get_banner_media(get_banner, config, user, window.banner_name)
+            if window.banner_name
+            else None
+        ),
+        "window_text": render_window_text(
+            runner, "msg-referrals-confirm-reset-code", **resolve_variable_kwargs({})
+        ),
+    }
+    data["buttons"] = await render_dialog_buttons(
+        "referrals.confirm_reset_code", dialog_config_cache, runner, data
     )
     return data

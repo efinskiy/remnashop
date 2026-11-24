@@ -18,7 +18,10 @@ ntf-backup-failed = Резервная копия { $kind } не создана:
 ntf-bonus-days-renewal-stuck = Бонус-дни ({ $days }) пользователя #{ $user_id } не применены к подписке #{ $subscription_id }: { $error }. Примените вручную.
     .title = Бонус-дни не применены!
     .emoji = ⚠️
-ntf-subscription-purchased = { $user } купил подписку ({ $purchase_type })
+ntf-subscription-purchased = { $is_trial ->
+        [yes] { $user } активировал пробную подписку
+       *[no] { $user } купил подписку ({ $purchase_type })
+    }
     .title = { $is_trial ->
         [yes] Получение пробной подписки!
        *[no] { $purchase_type ->
@@ -32,25 +35,32 @@ ntf-subscription-renewed = { $duration_days ->
        *[other] { $user } продлил подписку на { $duration_days } дн.
     }
     .title = Продление подписки!
-ntf-transaction-refunded = Заказ #{ $order_id }: возврат { $amount } { $currency } через { $gateway_type }
+ntf-transaction-refunded = Заказ #{ $order_id }: возврат { $money } через { $gateway_type }
     .title = Платёж возвращён!
     .emoji = ⚠️
-ntf-transaction-partially-refunded = Заказ #{ $order_id }: частичный возврат { $amount } { $currency } через { $gateway_type }, проверьте вручную
+ntf-transaction-partially-refunded = Заказ #{ $order_id }: частичный возврат { $money } через { $gateway_type }, проверьте вручную
     .title = Платёж возвращён!
     .emoji = ⚠️
 ntf-transaction-fulfilled-manually = { $actor } вручную выдал заказ #{ $order_id } пользователю { $target }
     .title = Ручная выдача подписки!
-ntf-paid-order-not-fulfilled = Заказ #{ $order_id }: { $amount } { $currency } через { $gateway_type } оплачен, но подписка ещё не выдана. Попытки продолжаются, проверьте заказ.
+ntf-paid-order-not-fulfilled = Заказ #{ $order_id }: { $money } через { $gateway_type } оплачен, но подписка ещё не выдана. Проверьте заказ.
     .title = Ошибка обработки платежа!
     .emoji = ⚠️
 ntf-broadcast-completed = Рассылка #{ $broadcast_id } завершена: доставлено { $sent }, ошибок { $failed }, заблокировали бота { $blocked }.
     .title = Рассылка завершена!
+ntf-daily-report = Новых пользователей: { $new_users }, новых платящих: { $new_payers }, выручка { $revenue_money }.
+    .title = Отчёт за { $day }
+    .emoji = 📊
 ntf-broadcast-failed = Рассылка #{ $broadcast_id } остановлена: { $error }
     .title = Ошибка рассылки!
     .emoji = ⚠️
 ntf-suppressed = Не отправлено похожих уведомлений с прошлого раза: { $count }.
 ntf-sources-merged = Уведомления из нескольких источников объединены; показан последний источник.
 ntf-customer-open-cabinet = Открыть кабинет
+email-login-code = Код действует 10 минут.
+    .title = Код для входа: { $code }
+email-link-code = Введите его в кабинете, чтобы добавить эту почту к аккаунту. Код действует 10 минут.
+    .title = Код для привязки почты: { $code }
 btn-customer-notification =
     .renew = Продлить подписку
     .renew-icon = 🔄
@@ -125,7 +135,7 @@ ntf-customer-transaction-refunded = { $money } вернутся тем же сп
 ntf-customer-transaction-partially-refunded = Часть платежа, { $money }, вернётся тем же способом, которым вы платили.
     .title = Частичный возврат
     .emoji = 💸
-ntf-customer-paid-order-not-fulfilled = Оплата { $money } получена, но подписка выдаётся дольше обычного. Не волнуйтесь: мы уже разбираемся. Если она скоро не появится, напишите в поддержку.
+ntf-customer-paid-order-not-fulfilled = Оплата { $money } получена, но подписка выдаётся дольше обычного. Мы уже разбираемся: выдадим подписку или вернём деньги. Если вопрос не решится в ближайшее время, напишите в поддержку.
     .title = Выдача задерживается
     .emoji = ⏳
 ntf-customer-subscription-expiring = { $is_trial ->
@@ -154,6 +164,16 @@ ntf-customer-subscription-expired = { $is_trial ->
     }
     .title = Доступ приостановлен — VPN не работает
     .emoji = ⛔
+ntf-customer-subscription-grace-started = Ваша подписка истекла. { $grace_until ->
+        [none] Действует
+       *[other] До { $grace_until } действует
+    } льготный доступ{ $traffic_unit ->
+        [gb]: { $traffic_value } ГБ
+        [mb]: { $traffic_value } МБ
+       *[none] {""}
+    }. Продлите подписку, чтобы вернуть тариф.
+    .title = Подписка истекла
+    .emoji = ⏳
 ntf-customer-subscription-traffic-limited = Ваш трафик израсходован. { $is_trial ->
         [yes] Оформите подписку, чтобы продолжить пользоваться сервисом.
        *[no] { $traffic_strategy ->
@@ -166,9 +186,18 @@ ntf-customer-subscription-traffic-limited = Ваш трафик израсход
     }
     .title = Доступ приостановлен — VPN не работает
     .emoji = ⛔
-ntf-customer-subscription-traffic-threshold = { $is_trial ->
-        [yes] Оформите подписку, чтобы не потерять доступ.
-       *[no] Продлите подписку, чтобы не потерять доступ.
+ntf-customer-subscription-traffic-threshold = { $percent ->
+        [0] Трафик подходит к концу.
+       *[other] Израсходовано { $percent }% трафика.
+    }{ $reset_date ->
+        [none] {""}
+       *[other] {" "}Он восстановится { $reset_date }.
+    }{ $is_trial ->
+        [yes] {" "}Оформите подписку, чтобы не потерять доступ.
+       *[no] { $can_renew ->
+            [yes] {" "}Продлите подписку, чтобы восстановить его сейчас.
+           *[no] {""}
+        }
     }
     .title = Трафик на исходе
     .emoji = ⚠️
@@ -243,6 +272,12 @@ ntf-system-health-degraded = { $kind ->
         [process_down] Процесс { $subject } не отвечает.
         [host_disk_full] Диск сервера заполнен на { $value }%.
         [host_memory_high] Память сервера занята на { $value }%.
+        [outbox_stuck] Очередь событий не обрабатывается: дольше 5 минут ждут { $value }.
+        [gateway_failures] Платежи через { $subject } не проходят: ошибок за час — { $value }.
+        [smtp_failed] Почта не отправляется: { $subject ->
+            [bulk] SMTP для рассылок
+           *[main] основной SMTP
+        } отвечает ошибкой.
        *[event_loop_lag] Процесс { $subject } работает с задержкой: p99 event loop — { $value } мс.
     }
     .title = Критическое состояние системы!
@@ -250,6 +285,12 @@ ntf-system-health-restored = { $kind ->
         [process_down] Процесс { $subject } снова работает.
         [host_disk_full] Заполненность диска сервера вернулась к норме.
         [host_memory_high] Использование памяти сервера вернулось к норме.
+        [outbox_stuck] Очередь событий снова обрабатывается.
+        [gateway_failures] Платежи через { $subject } снова проходят.
+        [smtp_failed] Почта снова отправляется: { $subject ->
+            [bulk] SMTP для рассылок
+           *[main] основной SMTP
+        } работает.
        *[event_loop_lag] Задержка процесса { $subject } вернулась к норме.
     }
     .title = Состояние системы восстановлено!
@@ -330,6 +371,7 @@ ntf-customer-promocode-discount-expiring = { $percent }% по промокоду
             [few] { $span } дня
            *[other] { $span } дней
         }
+        [minute] { $span } мин
        *[hour] { $span } ч
     }. Успейте оформить покупку.
     .title = Скидка скоро сгорит
@@ -415,6 +457,22 @@ ntf-telegram-label =
     .refund-full = полный
     .refund-partial = частичный
     .unlimited = Безлимит
+    .report-day = За сутки
+    .new-users = Новых пользователей
+    .new-trials = Новых пробных
+    .trial-conversions = Пробная → платная
+    .new-payers = Новых платящих
+    .revenue = Выручка
+    .report-subscriptions = Подписки сейчас
+    .active-trials = Активных пробных
+    .active-paid = Активных платных
+    .paid-never-connected = Платных без подключения
+    .report-payments = Оплаты
+    .purchases = Покупки
+    .renewals = Продления
+    .changes = Смены тарифа
+    .report-referrers = Топ по приглашениям
+    .unnamed-user = Пользователь
 ntf-telegram-subscription-status = { $value ->
         [ACTIVE] Активна
         [LIMITED] Исчерпан трафик

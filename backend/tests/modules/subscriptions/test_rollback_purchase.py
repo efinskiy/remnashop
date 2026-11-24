@@ -21,6 +21,7 @@ from app.modules.plans.dto import CreatePlanDto, PlanDto, SetPlanDurationDto, Se
 from app.modules.plans.repository import PlanRepository
 from app.modules.pricing.repository import PricingRepository
 from app.modules.settings.repository import SettingsRepository
+from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
 from app.modules.subscriptions.dto import (
     CreateSubscriptionDto,
     PurchaseRollbackDto,
@@ -37,7 +38,11 @@ from app.modules.users.dto import CreateUserDto, UserDto
 from app.modules.users.repository import UserRepository
 from tests.fakes.recurring import make_recurring_lifecycle
 from tests.fakes.remnawave import FakeUserStore
-from tests.modules.subscriptions.factories import make_eligibility, snapshot_from_plan
+from tests.modules.subscriptions.factories import (
+    credit_summary,
+    make_eligibility,
+    snapshot_from_plan,
+)
 
 OWNER = UserDto(login="owner", name="owner", role=Role.OWNER, language=Locale.EN)
 
@@ -57,7 +62,9 @@ def purchase(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         pricing_repository,
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -80,7 +87,9 @@ def service(
     return PurchaseRollbackService(
         subscription_repository,
         user_repository,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PanelSubscriptionRevoker(subscription_repository, remnawave_sdk),
         pricing_repository,
         remnawave_sdk,
@@ -194,13 +203,19 @@ async def test_rollback_renew_shortens_db_and_panel(
     bought = await _buy(purchase, buyer, plan, PurchaseType.NEW)
     renewed = await _buy(purchase, buyer, plan, PurchaseType.RENEW, target=bought.id)
 
-    await service.rollback(OWNER, _data(PurchaseType.RENEW, renewed.id, target=renewed.id))
+    # a calendar month: 28-31 days, recorded on the order
+    added_days = round((renewed.expire_at - bought.expire_at) / timedelta(days=1))
+
+    await service.rollback(
+        OWNER,
+        replace(_data(PurchaseType.RENEW, renewed.id, target=renewed.id), added_days=added_days),
+    )
 
     after = await subscription_repository.get_by_id(renewed.id)
     assert after.status is SubscriptionStatus.ACTIVE
-    assert after.expire_at == renewed.expire_at - timedelta(days=30)
-    assert after.plan_snapshot.effective_credit_paid == Decimal("300")
-    assert after.plan_snapshot.effective_credit_days == 30
+    assert abs(after.expire_at - bought.expire_at) < timedelta(seconds=1)
+    credit = await credit_summary(subscription_repository.session, renewed.id)
+    assert credit.live_paid == Decimal("300")
     panel_expire = _panel_expire(remnawave_store, renewed.remnawave_user_id)
     assert abs(panel_expire - after.expire_at) < timedelta(seconds=1)
     assert await _last_event(subscription_repository.session) == "SubscriptionEditedEvent"
@@ -432,6 +447,40 @@ async def test_rollback_undoes_a_renewal_that_reached_only_the_panel(
     assert after.expire_at == bought.expire_at
 
 
+async def test_rollback_undoes_a_panel_only_renewal_of_a_plan_change_successor(
+    purchase: PurchaseSubscriptionUseCase,
+    service: PurchaseRollbackService,
+    plan_repository: PlanRepository,
+    user_repository: UserRepository,
+    subscription_repository: SubscriptionRepository,
+    remnawave_store: FakeUserStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    buyer = await _buyer(user_repository, 9121)
+    plan = await _plan(plan_repository, "rb_pin_succ")
+    original = await _buy(purchase, buyer, plan, PurchaseType.NEW)
+    successor = await _buy(purchase, buyer, plan, PurchaseType.CHANGE, target=original.id)
+    # the renewal went to the successor, reached the panel, and the worker died
+    pinned = successor.expire_at + timedelta(days=30)
+    remnawave_store[successor.remnawave_user_id]["expireAt"] = pinned.isoformat()
+
+    async def _pinned(key: str) -> Optional[datetime]:
+        return pinned if key == "order-key" else None
+
+    async def _pinned_for(key: str) -> Optional[int]:
+        return successor.id if key == "order-key" else None
+
+    monkeypatch.setattr(service._idempotency, "find_pending_renew_expire_at", _pinned)
+    monkeypatch.setattr(service._idempotency, "find_pending_renew_subscription_id", _pinned_for)
+    data = replace(_data(PurchaseType.RENEW, None, target=original.id), idempotency_key="order-key")
+
+    assert (await service.preview(data)).available
+    await service.rollback(OWNER, data)
+
+    panel_expire = _panel_expire(remnawave_store, successor.remnawave_user_id)
+    assert abs(panel_expire - successor.expire_at) < timedelta(seconds=1)
+
+
 async def _renew_unlimited(
     purchase: PurchaseSubscriptionUseCase, buyer: UserDto, plan: PlanDto, target: int
 ) -> SubscriptionDto:
@@ -479,9 +528,10 @@ async def test_refund_unlimited_renewal_restores_previous_expiry_and_credit(
     after = await subscription_repository.get_by_id(renewed.id)
     assert after.expire_at == bought.expire_at
     assert after.status is SubscriptionStatus.ACTIVE
-    assert after.plan_snapshot.effective_credit_paid == Decimal("300")
-    assert after.plan_snapshot.effective_credit_days == 30
-    assert after.plan_snapshot.unlimited_from is None
+    credit = await credit_summary(subscription_repository.session, renewed.id)
+    assert credit.live_paid == Decimal("300")
+    assert 28 <= credit.live_days <= 31  # a calendar month
+    assert credit.superseded_paid == Decimal("0")
     panel_expire = _panel_expire(remnawave_store, renewed.remnawave_user_id)
     assert abs(panel_expire - bought.expire_at) < timedelta(seconds=1)
 
@@ -528,21 +578,29 @@ async def test_refund_of_a_finite_renewal_under_a_later_unlimited_one_keeps_it_u
     month = await _buy(purchase, buyer, plan, PurchaseType.RENEW, target=bought.id)
     forever = await _renew_unlimited(purchase, buyer, plan, bought.id)
 
-    await service.rollback(OWNER, _data(PurchaseType.RENEW, month.id, target=month.id))
+    added_days = round((month.expire_at - bought.expire_at) / timedelta(days=1))
+    await service.rollback(
+        OWNER,
+        replace(_data(PurchaseType.RENEW, month.id, target=month.id), added_days=added_days),
+    )
 
     after = await subscription_repository.get_by_id(bought.id)
     assert after.expire_at == forever.expire_at
     assert _panel_expire(remnawave_store, bought.remnawave_user_id).year == 2099
-    assert after.plan_snapshot.credit_paid == Decimal("5000")
-    assert after.plan_snapshot.unlimited_from == bought.expire_at
-    assert after.plan_snapshot.unlimited_from_credit_paid == Decimal("300")
-    assert after.plan_snapshot.unlimited_from_credit_days == 30
+    credit = await credit_summary(subscription_repository.session, bought.id)
+    assert credit.live_paid == Decimal("5000")
+    assert credit.replaced_expire_at is not None
+    assert abs(credit.replaced_expire_at - bought.expire_at) < timedelta(seconds=1)
+    # the refunded month is gone; the bought term is what the unlimited one replaced
+    assert credit.superseded_paid == Decimal("300")
 
     await service.rollback(OWNER, _unlimited_data(forever.id, forever.id))
 
     restored = await subscription_repository.get_by_id(bought.id)
-    assert restored.expire_at == bought.expire_at
-    assert restored.plan_snapshot.effective_credit_paid == Decimal("300")
+    assert abs(restored.expire_at - bought.expire_at) < timedelta(seconds=1)
+    assert (await credit_summary(subscription_repository.session, bought.id)).live_paid == Decimal(
+        "300"
+    )
 
 
 async def test_refund_of_an_unlimited_renewal_made_finite_since_is_blocked(

@@ -2,7 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any, Optional
 
-from sqlalchemy import ForeignKey, Index, Numeric, String, UniqueConstraint, text
+from sqlalchemy import CheckConstraint, ForeignKey, Index, Numeric, String, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -12,6 +12,7 @@ from app.core.db.timestamp import TimestampMixin
 from app.core.enums import (
     Currency,
     DiscountSource,
+    FulfillmentHold,
     PaymentGatewayType,
     PurchaseChannel,
     PurchaseType,
@@ -26,12 +27,44 @@ class Transaction(BaseSql, TimestampMixin):
         Index("ix_transactions_status_expires_at", "status", "expires_at"),
         # paid-at range scans: overview revenue, analytics, loyalty, reconciliation
         Index(
-            "ix_transactions_paid_updated_at",
-            "updated_at",
+            "ix_transactions_paid_at",
+            "paid_at",
             postgresql_where=text(f"status = '{TransactionStatus.PAID.name}' AND NOT is_test"),
+        ),
+        # every revenue query dates a paid order by it
+        CheckConstraint(
+            f"status <> '{TransactionStatus.PAID.name}' OR paid_at IS NOT NULL",
+            name="paid_has_paid_at",
         ),
         # the admin list's newest-first pages
         Index("ix_transactions_created_at_id", text("created_at DESC"), text("id DESC")),
+        # the admin search's substring matches (pg_trgm)
+        Index(
+            "ix_transactions_customer_email_trgm",
+            "customer_email",
+            postgresql_using="gin",
+            postgresql_ops={"customer_email": "gin_trgm_ops"},
+        ),
+        Index(
+            "ix_transactions_external_payment_id_trgm",
+            "external_payment_id",
+            postgresql_using="gin",
+            postgresql_ops={"external_payment_id": "gin_trgm_ops"},
+        ),
+        Index(
+            "ix_transactions_plan_name_trgm",
+            text("(plan_snapshot ->> 'name') gin_trgm_ops"),
+            postgresql_using="gin",
+        ),
+        # the overview's attention checks: failed payments per gateway (not partial:
+        # a generic plan's `status = $1` can't prove a `status = 'FAILED'` predicate)
+        # and unrated anchors (the queries' own `IS true`, which it can)
+        Index("ix_transactions_status_updated_at", "status", "updated_at"),
+        Index(
+            "ix_transactions_anchor_unrated",
+            "currency",
+            postgresql_where=text("anchor_unrated IS TRUE"),
+        ),
         # per gateway: two providers may hand out the same id, and a collision
         # would fail a checkout whose payment the customer can still complete
         UniqueConstraint(
@@ -61,7 +94,10 @@ class Transaction(BaseSql, TimestampMixin):
 
     # None: a free order, nothing was paid through a gateway
     gateway_type: Mapped[Optional[PaymentGatewayType]]
-    external_payment_id: Mapped[Optional[str]] = mapped_column(String(128))
+    external_payment_id: Mapped[Optional[str]] = mapped_column(String())
+    # the gateway's merchant account the payment was created in, where a gateway
+    # has more than one (YooKassa's per-channel shops); None: its only or main one
+    gateway_account: Mapped[Optional[str]] = mapped_column(String())
     status: Mapped[TransactionStatus] = mapped_column(
         default=TransactionStatus.PENDING, server_default="PENDING"
     )
@@ -73,6 +109,8 @@ class Transaction(BaseSql, TimestampMixin):
     )
     # the PURCHASE discount came from a promocode (admin-granted ones are always handed back)
     discount_from_promocode: Mapped[bool] = mapped_column(default=False, server_default="false")
+    # the customer's markup, already in base_price
+    markup_percent: Mapped[int] = mapped_column(default=0, server_default="0")
     # the plan's promotion, applied before discount_percent
     plan_discount_percent: Mapped[int] = mapped_column(default=0, server_default="0")
     final_price: Mapped[Decimal] = mapped_column(Numeric(10, 2))
@@ -99,6 +137,11 @@ class Transaction(BaseSql, TimestampMixin):
     fulfilled_subscription_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("subscriptions.id", ondelete="SET NULL"), index=True
     )
+    # the days the term really added, which a refund of a renewal takes back;
+    # None before it was recorded, when a term was plain days
+    added_days: Mapped[Optional[int]]
+    # set once, on the first move to PAID; a refund or a later write leaves it
+    paid_at: Mapped[Optional[datetime]]
     # Dashboard gateway check: never provisioned, excluded from every revenue query.
     is_test: Mapped[bool] = mapped_column(default=False, server_default="false")
     recurring_consent_id: Mapped[Optional[int]] = mapped_column(ForeignKey("recurring_consents.id"))
@@ -109,3 +152,10 @@ class Transaction(BaseSql, TimestampMixin):
     payment_method_shop_id: Mapped[Optional[str]] = mapped_column(String(128))
     # A retried recurring request must keep its original receipt even after a settings edit.
     yookassa_receipt_vat_code: Mapped[Optional[int]]
+    # set: the sweep leaves it for an admin to issue or refund
+    fulfillment_hold: Mapped[Optional[FulfillmentHold]]
+    # an admin chose to issue it: a redispatch by the sweep renews a since-changed plan too
+    fulfillment_approved: Mapped[bool] = mapped_column(default=False, server_default="false")
+    # its one-shot discount went back to the customer when it was canceled, so a late
+    # payment has to spend it again
+    purchase_discount_returned: Mapped[bool] = mapped_column(default=False, server_default="false")

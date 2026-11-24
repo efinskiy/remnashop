@@ -1,10 +1,12 @@
 from dataclasses import dataclass
 from enum import auto
 from typing import Optional
+from uuid import UUID
 
 from pydantic import Field, SecretStr
+from remnapy.enums import TrafficLimitStrategy
 
-from app.core.constants import DEFAULT_ALLOWED_EMAIL_DOMAINS
+from app.core.constants import DEFAULT_ALLOWED_EMAIL_DOMAINS, GRACE_DEFAULT_DURATION_DAYS
 from app.core.dto import BaseDto, TimestampMixin
 from app.core.enums import (
     AccessMode,
@@ -20,7 +22,10 @@ class BotSettingsDto(BaseDto, TimestampMixin):
     token: Optional[SecretStr] = None
     secret_token: Optional[SecretStr] = None
     proxy_url: Optional[SecretStr] = None
+    username: Optional[str] = None
+    commands_hash: Optional[str] = None
     drop_pending_updates: bool = False
+    remove_reply_keyboard: bool = False
 
     @property
     def is_configured(self) -> bool:
@@ -52,6 +57,7 @@ class UpdateBotSettingsDto:
     token: Optional[str] = None
     secret_token: Optional[str] = None
     drop_pending_updates: Optional[bool] = None
+    remove_reply_keyboard: Optional[bool] = None
 
 
 class ShopSettingsDto(BaseDto, TimestampMixin):
@@ -70,12 +76,23 @@ class ShopSettingsDto(BaseDto, TimestampMixin):
     support_url: Optional[str] = None
     payment_email: Optional[str] = None
     plan_change_credit_enabled: bool = True
+    plan_change_traffic_cap_enabled: bool = True
 
     @property
     def support_link(self) -> Optional[str]:
         if self.support_telegram:
             return f"https://t.me/{self.support_telegram}"
         return self.support_url
+
+
+class GraceSettingsDto(BaseDto, TimestampMixin):
+    enabled: bool = False
+    internal_squads: list[UUID] = Field(default_factory=list)
+    external_squad: Optional[UUID] = None
+    traffic_limit_mb: int = 0
+    traffic_limit_strategy: TrafficLimitStrategy = TrafficLimitStrategy.NO_RESET
+    tag: Optional[str] = None
+    duration_days: int = GRACE_DEFAULT_DURATION_DAYS
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -87,6 +104,7 @@ class CabinetSettingsDto:
     device_all_reset_enabled: bool
     device_all_reset_cooldown_hours: int
     link_reset_enabled: bool
+    referral_reset_enabled: bool
     bot_username: Optional[str]
     # the required channel, for the paused-trial hint; None without a bot
     channel_url: Optional[str]
@@ -113,6 +131,20 @@ class UpdateShopSettingsDto:
     support_url: Optional[str] = None
     payment_email: Optional[str] = None
     plan_change_credit_enabled: Optional[bool] = None
+    plan_change_traffic_cap_enabled: Optional[bool] = None
+    fields_set: frozenset[str] = frozenset()
+
+
+@dataclass(frozen=True, kw_only=True)
+class UpdateGraceSettingsDto:
+    # None in external_squad and tag clears them; fields_set says which fields the caller sent.
+    enabled: Optional[bool] = None
+    internal_squads: Optional[list[UUID]] = None
+    external_squad: Optional[UUID] = None
+    traffic_limit_mb: Optional[int] = None
+    traffic_limit_strategy: Optional[TrafficLimitStrategy] = None
+    tag: Optional[str] = None
+    duration_days: Optional[int] = None
     fields_set: frozenset[str] = frozenset()
 
 
@@ -391,6 +423,7 @@ class CabinetAuthSettingsDto(BaseDto, TimestampMixin):
     allowed_email_domains: list[str] = Field(
         default_factory=lambda: list(DEFAULT_ALLOWED_EMAIL_DOMAINS)
     )
+    email_required: bool = False
     captcha_enabled: bool = False
     captcha_provider: CaptchaProvider = CaptchaProvider.TURNSTILE
     captcha_site_key: Optional[str] = None
@@ -430,6 +463,7 @@ class UpdateCabinetAuthSettingsDto:
     email_enabled: Optional[bool] = None
     restrict_email_domains: Optional[bool] = None
     allowed_email_domains: Optional[list[str]] = None
+    email_required: Optional[bool] = None
     captcha_enabled: Optional[bool] = None
     captcha_provider: Optional[CaptchaProvider] = None
     captcha_site_key: Optional[str] = None

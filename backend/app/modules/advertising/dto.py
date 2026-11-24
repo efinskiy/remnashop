@@ -22,6 +22,7 @@ class AdLinkDto(BaseDto, TimestampMixin):
     allow_webcabinet: bool = True
     note: Optional[str] = None
     created_by: Optional[int] = None
+    promocode_id: Optional[int] = None
 
     def revenue_share(self, revenue: Decimal) -> Decimal:
         return round_cents(revenue * self.revenue_share_percent / 100)
@@ -57,6 +58,8 @@ class AdLinkStatsDto(BaseDto):
     conversion_rate: Decimal
     attributions_by_channel: dict[AdLinkChannel, int] = Field(default_factory=dict)
     paid_count: int
+    # bought a paid trial; one who bought a plan too is in paid_count as well
+    trial_count: int = 0
     revenue: Decimal
     # fixed_cost + revenue_share
     cost: Decimal
@@ -110,6 +113,7 @@ class CreateAdLinkDto:
     allow_webcabinet: bool = True
     note: Optional[str] = None
     created_by: Optional[int] = None
+    promocode_id: Optional[int] = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -125,6 +129,8 @@ class UpdateAdLinkDto:
     allow_webcabinet: Optional[bool] = None
     # "" clears the note
     note: Optional[str] = None
+    promocode_id: Optional[int] = None
+    clear_promocode: bool = False
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -179,6 +185,12 @@ class AdLinkShareUrlsDto:
     # None = channel not allowed on this link, or its base URL isn't known
     bot_url: Optional[str] = None
     webcabinet_url: Optional[str] = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class ActivateAdLinkPromocodeDto:
+    ad_link_code: str
+    channel: AdLinkChannel
 
 
 @dataclass(frozen=True, kw_only=True)

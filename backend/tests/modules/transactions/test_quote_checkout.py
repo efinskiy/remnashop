@@ -16,7 +16,7 @@ from app.core.enums import (
     PlanType,
 )
 from app.core.error_codes import ErrorCode
-from app.core.exceptions import ConflictError, NotFoundError
+from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.ports import EventPublisher
 from app.core.utils.time import datetime_now
 from app.modules.gateways.repository import GatewayRepository
@@ -37,7 +37,7 @@ from app.modules.promocodes.repository import PromocodeRepository
 from app.modules.settings import GetAccessSettingsUseCase
 from app.modules.settings.dto import UpdateShopSettingsDto
 from app.modules.settings.repository import SettingsRepository
-from app.modules.subscriptions import ChangeCreditCalculator, SubscriptionRepository
+from app.modules.subscriptions import SubscriptionRepository
 from app.modules.transactions.checkout_pricing import CheckoutPricer
 from app.modules.transactions.dto import QuoteCheckoutDto
 from app.modules.transactions.repository import TransactionRepository
@@ -50,7 +50,7 @@ from tests.fakes.dispatch import RecordingDispatch
 from tests.fakes.payment_texts import FixedPaymentTexts
 from tests.fakes.recurring import make_recurring_checkout
 from tests.fakes.remnawave import FakeUserStore, _user_payload
-from tests.modules.subscriptions.factories import make_eligibility
+from tests.modules.subscriptions.factories import make_change_credit_calculator, make_eligibility
 from tests.modules.transactions.test_usecases import (
     _checkout_dto,
     _FakeFactory,
@@ -69,6 +69,7 @@ def pricer(
     pricing_repository: PricingRepository,
     promocode_repository: PromocodeRepository,
     uow: UnitOfWork,
+    remnawave_sdk: RemnawaveSDK,
 ) -> CheckoutPricer:
     return CheckoutPricer(
         plan_repository,
@@ -79,6 +80,7 @@ def pricer(
         promocode_repository,
         SubscriptionRepository(plan_repository.session),
         SettingsRepository(plan_repository.session),
+        make_change_credit_calculator(plan_repository.session, remnawave_sdk),
     )
 
 
@@ -94,9 +96,7 @@ def quote_use_case(
         pricer,
         uow,
         SubscriptionRepository(session),
-        ChangeCreditCalculator(
-            remnawave_sdk, uow, PricingRepository(session), SettingsRepository(session)
-        ),
+        make_change_credit_calculator(session, remnawave_sdk),
     )
 
 
@@ -289,6 +289,30 @@ async def test_checkout_refuses_a_total_the_customer_was_not_shown(
     assert order.final_price == quote.final_price
 
 
+async def test_quote_refuses_a_change_to_the_same_plan(
+    quote_use_case: QuoteCheckoutUseCase,
+    actor: UserDto,
+    plan: PlanDto,
+    subscription_repository: SubscriptionRepository,
+) -> None:
+    subscription_id = await _seed_subscription(
+        subscription_repository, user_id=actor.id, remnawave_user_id=820_309, plan_id=plan.id
+    )
+
+    with pytest.raises(ValidationError) as error:
+        await quote_use_case(
+            actor,
+            QuoteCheckoutDto(
+                plan_id=plan.id,
+                duration_days=30,
+                currency=Currency.RUB,
+                change_subscription_id=subscription_id,
+            ),
+        )
+
+    assert error.value.code is ErrorCode.CHANGE_SAME_PLAN
+
+
 async def test_quote_of_a_change_between_unlimited_plans_shows_the_credit(
     quote_use_case: QuoteCheckoutUseCase,
     actor: UserDto,
@@ -360,9 +384,9 @@ async def test_quote_of_a_fixed_term_change_shows_the_credit_days(
     credit_enabled: bool,
     expected: tuple[int, ...],
 ) -> None:
-    # 500 paid for 30 days, about 30 left: the same 500/30 plan gives about 30 days
+    # 500 paid for 30 days on another plan, about 30 left: a 500/30 plan gives about 30 days
     subscription_id = await _seed_subscription(
-        subscription_repository, user_id=actor.id, remnawave_user_id=820_303, plan_id=plan.id
+        subscription_repository, user_id=actor.id, remnawave_user_id=820_303, plan_id=plan.id + 1
     )
     remnawave_store[820_303] = _user_payload(
         user_id=820_303, username="quote-days", expire_at=datetime_now() + timedelta(days=30)

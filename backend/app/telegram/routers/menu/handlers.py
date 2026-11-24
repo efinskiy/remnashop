@@ -1,11 +1,7 @@
-import calendar
-from datetime import datetime, time, timedelta
-from typing import Optional
-
 from aiogram import Router
 from aiogram.enums import ParseMode
 from aiogram.filters import Command, CommandStart
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 from aiogram_dialog import DialogManager, ShowMode, StartMode
 from aiogram_dialog.widgets.kbd import Keyboard
 from dishka import FromDishka
@@ -14,7 +10,7 @@ from fluentogram import TranslatorHub
 from loguru import logger
 from remnapy.enums import TrafficLimitStrategy
 
-from app.core.constants import TIMEZONE, USER_KEY
+from app.core.constants import USER_KEY
 from app.core.enums import PurchaseType
 from app.core.exceptions import NotFoundError, ValidationError
 from app.core.utils.telegram_text import premium_emoji_glyphs
@@ -23,8 +19,10 @@ from app.modules.subscriptions import (
     ActivateTrialDto,
     ActivateTrialSubscriptionUseCase,
     GetAvailableTrialUseCase,
+    GetTrafficResetAnchorUseCase,
     ListOwnActiveSubscriptionsUseCase,
     ListOwnSubscriptionsUseCase,
+    next_traffic_reset,
 )
 from app.modules.users import UserDto
 from app.telegram.dialogs.context import SELECTED_SUBSCRIPTION_KEY
@@ -39,8 +37,22 @@ router = Router(name=__name__)
 
 
 @router.message(CommandStart())
-async def on_start_command(message: Message, user: UserDto, dialog_manager: DialogManager) -> None:
+async def on_start_command(
+    message: Message,
+    user: UserDto,
+    dialog_manager: DialogManager,
+    remove_reply_keyboard: bool,
+    i18n: FromDishka[TranslatorHub],
+) -> None:
     logger.info(f"{user.log} Started menu dialog")
+    if remove_reply_keyboard:
+        # stays in the chat: a client rebuilding its cache takes the keyboard
+        # from the latest message that set one, and an old bot's would win again
+        await message.answer(
+            render_window_text(get_translator(i18n, user), "msg-start-welcome"),
+            parse_mode=ParseMode.HTML,
+            reply_markup=ReplyKeyboardRemove(),
+        )
     await dialog_manager.start(
         state=MainMenu.MAIN,
         mode=StartMode.RESET_STACK,
@@ -100,30 +112,6 @@ async def on_get_trial(
     )
 
 
-def next_traffic_reset(
-    strategy: TrafficLimitStrategy, created_at: Optional[datetime], now: datetime
-) -> Optional[datetime]:
-    midnight = datetime.combine(now.date(), time(), tzinfo=TIMEZONE)
-    if strategy is TrafficLimitStrategy.DAY:
-        return midnight + timedelta(days=1)
-    if strategy is TrafficLimitStrategy.WEEK:
-        return midnight + timedelta(days=7 - now.weekday())
-    if strategy is TrafficLimitStrategy.MONTH:
-        year, month = divmod(now.year * 12 + now.month, 12)
-        return midnight.replace(year=year, month=month + 1, day=1)
-    if strategy is TrafficLimitStrategy.MONTH_ROLLING and created_at is not None:
-        # on the day of the month the subscription was created, the month's last day if shorter
-        year, month = now.year, now.month
-        for _ in range(2):
-            day = min(created_at.day, calendar.monthrange(year, month)[1])
-            reset = midnight.replace(year=year, month=month, day=day)
-            if reset > now:
-                return reset
-            year, month = divmod(year * 12 + month, 12)
-            month += 1
-    return None
-
-
 @inject
 async def on_show_connect_problem(
     callback: CallbackQuery,
@@ -131,6 +119,7 @@ async def on_show_connect_problem(
     dialog_manager: DialogManager,
     list_own_active_subscriptions: FromDishka[ListOwnActiveSubscriptionsUseCase],
     list_own_subscriptions: FromDishka[ListOwnSubscriptionsUseCase],
+    get_traffic_reset_anchor: FromDishka[GetTrafficResetAnchorUseCase],
     i18n: FromDishka[TranslatorHub],
 ) -> None:
     user: UserDto = dialog_manager.middleware_data[USER_KEY]
@@ -144,9 +133,10 @@ async def on_show_connect_problem(
         await dialog_manager.show()
         return
     runner = get_translator(i18n, user)
-    reset = next_traffic_reset(
-        subscription.traffic_limit_strategy, subscription.created_at, datetime_now()
-    )
+    anchor = None
+    if subscription.traffic_limit_strategy is TrafficLimitStrategy.MONTH_ROLLING:
+        anchor = await get_traffic_reset_anchor(user, subscription.id)
+    reset = next_traffic_reset(subscription.traffic_limit_strategy, anchor, datetime_now())
     text = runner.get(
         "ntf-common.connect-not-available",
         status=problem,

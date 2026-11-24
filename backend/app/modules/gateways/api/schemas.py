@@ -12,6 +12,7 @@ class GatewayResponse(BaseModel):
     is_configured: bool
     flags: dict[str, bool]
     values: dict[str, str]
+    splits_channels: bool
     telegram_enabled: bool
     cabinet_enabled: bool
 
@@ -36,9 +37,12 @@ class GatewayFieldConditionResponse(BaseModel):
 
 class GatewayFieldSpecResponse(BaseModel):
     key: str
-    kind: Literal["text", "secret", "number", "boolean", "choice"]
+    kind: Literal["text", "secret", "number", "boolean", "url", "choice"]
     options: list[str] = []
     required: bool
+    group: Optional[str]
+    requires_all_channels: bool
+    required_unless: Optional[str]
     hidden_when: Optional[GatewayFieldConditionResponse] = None
 
 

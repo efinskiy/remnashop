@@ -53,6 +53,7 @@ from app.modules.transactions.waitlist_repository import WaitlistRepository
 from app.modules.users.dto import CreateUserDto
 from app.modules.users.repository import UserRepository
 from tests.fakes.dispatch import RecordingDispatch
+from tests.fakes.events import RecordingEventPublisher
 from tests.fakes.payment_texts import FixedPaymentTexts
 from tests.fakes.recurring import ShippedRecurringTermsTexts, fulfil, make_recurring_lifecycle
 from tests.modules.recurring_payments.harness import (
@@ -60,7 +61,7 @@ from tests.modules.recurring_payments.harness import (
     RecurringCase,
     Worker,
 )
-from tests.modules.subscriptions.factories import make_eligibility
+from tests.modules.subscriptions.factories import make_change_credit_calculator, make_eligibility
 
 
 @pytest.fixture
@@ -111,6 +112,7 @@ async def case(
     pricing_repository,
     promocode_repository,
     config,
+    remnawave_sdk,
 ):
     async with uow:
         user = await user_repository.create(
@@ -230,6 +232,8 @@ async def case(
             gateway_repository,
             PaymentGatewayFactory(config, PaymentHttpClient(http)),
             dispatch,
+            user_repository,
+            RecordingEventPublisher(),
             uow,
         )
         checks = RecurringDebitChecks(
@@ -253,6 +257,7 @@ async def case(
                 promocode_repository,
                 subscription_repository,
                 settings_repository,
+                make_change_credit_calculator(session, remnawave_sdk),
             ),
             uow,
         )

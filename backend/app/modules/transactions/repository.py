@@ -5,30 +5,33 @@ from typing import Any, Final, Optional, cast
 from sqlalchemy import (
     ColumnElement,
     CursorResult,
+    DateTime,
     Numeric,
     and_,
     exists,
+    false,
     func,
     literal,
+    literal_column,
     or_,
     select,
+    type_coerce,
     update,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.constants import DEFAULT_PAGE_SIZE, INT32_MAX, ZERO_AMOUNT
-from app.core.db.filters import in_ids
+from app.core.db.filters import customer_rows, in_ids
 from app.core.db.models.subscription_purchase_idempotency import SubscriptionPurchaseIdempotency
 from app.core.db.models.transaction import Transaction
-from app.core.db.models.user import User
 from app.core.db.timestamp import NOW_FUNC
 from app.core.enums import (
     Currency,
     DiscountSource,
+    FulfillmentHold,
     PaymentGatewayType,
     PurchaseChannel,
     PurchaseType,
-    Role,
     TransactionStatus,
 )
 from app.core.error_codes import ErrorCode
@@ -53,14 +56,15 @@ def _search_filter(search: str, *, search_staff: bool) -> ColumnElement[bool]:
     email_match: ColumnElement[bool] = Transaction.customer_email.icontains(search, autoescape=True)
     if not search_staff:
         # a staff order's email is hidden from this caller; matching it would be an oracle
-        email_match = and_(
-            email_match,
-            Transaction.user_id.in_(select(User.id).where(User.role == Role.USER)),
-        )
+        email_match = and_(email_match, customer_rows(Transaction.user_id))
     search_filters: list[ColumnElement[bool]] = [
         Transaction.external_payment_id.icontains(search, autoescape=True),
         email_match,
-        Transaction.plan_snapshot["name"].astext.icontains(search, autoescape=True),
+        # the key inlined, not bound: ix_transactions_plan_name_trgm is on
+        # `plan_snapshot ->> 'name'`, which a generic plan's `->> $1` doesn't match
+        Transaction.plan_snapshot.op("->>")(literal_column("'name'")).icontains(
+            search, autoescape=True
+        ),
     ]
     # id/user_id are Integer; a longer digit string would overflow asyncpg
     if search.isascii() and search.isdigit() and int(search) <= INT32_MAX:
@@ -108,6 +112,14 @@ def _order_filters(
     return filters
 
 
+# typed for its PAID rows, which always have it (ck_transactions_paid_has_paid_at)
+PAID_AT: Final[ColumnElement[datetime]] = type_coerce(Transaction.paid_at, DateTime(timezone=True))
+# an order without the key predates trials being sold
+_IS_TRIAL_ORDER: Final[ColumnElement[bool]] = func.coalesce(
+    Transaction.plan_snapshot["is_trial"].as_boolean(), false()
+)
+
+
 class TransactionRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
@@ -130,10 +142,12 @@ class TransactionRepository:
             target_subscription_id=row.target_subscription_id,
             gateway_type=row.gateway_type,
             external_payment_id=row.external_payment_id,
+            gateway_account=row.gateway_account,
             status=row.status,
             base_price=row.base_price,
             discount_percent=row.discount_percent,
             plan_discount_percent=row.plan_discount_percent,
+            markup_percent=row.markup_percent,
             change_credit=row.change_credit,
             discount_source=row.discount_source,
             final_price=row.final_price,
@@ -146,12 +160,17 @@ class TransactionRepository:
             expires_at=row.expires_at,
             fulfilled_at=row.fulfilled_at,
             fulfilled_subscription_id=row.fulfilled_subscription_id,
+            added_days=row.added_days,
+            paid_at=row.paid_at,
             is_test=row.is_test,
             recurring_consent_id=row.recurring_consent_id,
             is_recurring=row.is_recurring,
             yookassa_receipt_vat_code=row.yookassa_receipt_vat_code,
             saved_payment_method_id=row.saved_payment_method_id,
             payment_method_shop_id=row.payment_method_shop_id,
+            fulfillment_hold=row.fulfillment_hold,
+            fulfillment_approved=row.fulfillment_approved,
+            purchase_discount_returned=row.purchase_discount_returned,
             created_at=row.created_at,
             updated_at=row.updated_at,
         )
@@ -172,9 +191,11 @@ class TransactionRepository:
             channel=data.channel,
             target_subscription_id=data.target_subscription_id,
             gateway_type=data.gateway_type,
+            gateway_account=data.gateway_account,
             base_price=data.base_price,
             discount_percent=data.discount_percent,
             plan_discount_percent=data.plan_discount_percent,
+            markup_percent=data.markup_percent,
             change_credit=data.change_credit,
             discount_source=data.discount_source,
             final_price=data.final_price,
@@ -280,6 +301,9 @@ class TransactionRepository:
                 f"Transaction '{order_id}' not found", code=ErrorCode.PAYMENT_ORDER_NOT_FOUND
             )
         row.status = status
+        if status is TransactionStatus.PAID:
+            # in SQL, as mark_status_if: a concurrent move to PAID can't move it
+            row.paid_at = func.coalesce(Transaction.paid_at, NOW_FUNC)
         if external_payment_id is not None:
             row.external_payment_id = external_payment_id
         await self.session.flush()
@@ -296,6 +320,8 @@ class TransactionRepository:
     ) -> bool:
         # conditional in SQL so a status that landed meanwhile (e.g. PAID) wins
         values: dict[str, Any] = {"status": status, "updated_at": NOW_FUNC}
+        if status is TransactionStatus.PAID:
+            values["paid_at"] = func.coalesce(Transaction.paid_at, NOW_FUNC)
         if external_payment_id is not None:
             values["external_payment_id"] = external_payment_id
         result = await self.session.execute(
@@ -319,10 +345,22 @@ class TransactionRepository:
         )
         return self._to_dto(row) if row is not None else None
 
-    async def cancel_expired_pending(self, cutoff: datetime) -> list[TransactionDto]:
+    async def list_expired_pending(self, cutoff: datetime) -> list[TransactionDto]:
+        rows = await self.session.scalars(
+            select(Transaction).where(
+                Transaction.status == TransactionStatus.PENDING,
+                Transaction.expires_at <= cutoff,
+            )
+        )
+        return [self._to_dto(row) for row in rows.all()]
+
+    async def cancel_expired_pending(
+        self, cutoff: datetime, ids: list[int]
+    ) -> list[TransactionDto]:
         rows = await self.session.scalars(
             update(Transaction)
             .where(
+                in_ids(Transaction.id, ids),
                 Transaction.status == TransactionStatus.PENDING,
                 Transaction.expires_at <= cutoff,
                 Transaction.is_recurring.is_(False),
@@ -333,26 +371,72 @@ class TransactionRepository:
         return [self._to_dto(row) for row in rows.all()]
 
     async def list_paid_awaiting_reconciliation(
-        self, cutoff: datetime, *, since: datetime
+        self, cutoff: datetime, *, since: datetime, include_held: bool = False
     ) -> list[TransactionDto]:
-        rows = (
-            await self.session.scalars(
-                select(Transaction).where(
-                    Transaction.status == TransactionStatus.PAID,
-                    _NOT_TEST,
-                    Transaction.fulfilled_at.is_(None),
-                    Transaction.updated_at <= cutoff,
-                    Transaction.updated_at >= since,
-                )
+        conditions = [
+            Transaction.status == TransactionStatus.PAID,
+            _NOT_TEST,
+            Transaction.fulfilled_at.is_(None),
+            Transaction.paid_at <= cutoff,
+        ]
+        if include_held:
+            # a held order waits for an admin however long ago it was paid
+            conditions.append(
+                or_(Transaction.paid_at >= since, Transaction.fulfillment_hold.is_not(None))
             )
-        ).all()
+        else:
+            conditions += [Transaction.paid_at >= since, Transaction.fulfillment_hold.is_(None)]
+        rows = (await self.session.scalars(select(Transaction).where(*conditions))).all()
         return [self._to_dto(row) for row in rows]
+
+    async def approve_fulfillment(self, transaction_id: int) -> None:
+        await self.session.execute(
+            update(Transaction)
+            .where(Transaction.id == transaction_id)
+            .values(fulfillment_hold=None, fulfillment_approved=True, updated_at=NOW_FUNC)
+        )
+
+    async def mark_discount_returned(self, idempotency_key: str) -> None:
+        await self.session.execute(
+            update(Transaction)
+            .where(Transaction.idempotency_key == idempotency_key)
+            .values(purchase_discount_returned=True, updated_at=NOW_FUNC)
+        )
+
+    async def set_fulfillment_hold(self, transaction_id: int, hold: FulfillmentHold) -> bool:
+        # conditional: an admin's approval or an issue that got in first stays
+        result = await self.session.execute(
+            update(Transaction)
+            .where(
+                Transaction.id == transaction_id,
+                Transaction.status == TransactionStatus.PAID,
+                Transaction.fulfilled_at.is_(None),
+                Transaction.fulfillment_approved.is_(False),
+            )
+            .values(fulfillment_hold=hold, updated_at=NOW_FUNC)
+            .execution_options(synchronize_session=False)
+        )
+        return cast(CursorResult, result).rowcount > 0
+
+    async def clear_fulfillment_hold(self, transaction_id: int) -> None:
+        await self.session.execute(
+            update(Transaction)
+            .where(Transaction.id == transaction_id)
+            .values(fulfillment_hold=None, updated_at=NOW_FUNC)
+        )
 
     async def mark_fulfilled_by_key(
         self, idempotency_key: str, subscription_id: int
     ) -> Optional[TransactionDto]:
         return await self._mark_fulfilled_where(
             Transaction.idempotency_key == idempotency_key, subscription_id
+        )
+
+    async def set_added_days(self, idempotency_key: str, added_days: int) -> None:
+        await self.session.execute(
+            update(Transaction)
+            .where(Transaction.idempotency_key == idempotency_key, Transaction.added_days.is_(None))
+            .values(added_days=added_days)
         )
 
     async def mark_fulfilled(self, order_id: int, subscription_id: int) -> Optional[TransactionDto]:
@@ -362,15 +446,14 @@ class TransactionRepository:
         self, condition: ColumnElement[bool], subscription_id: int
     ) -> Optional[TransactionDto]:
         """The order it marked; None when it was already fulfilled."""
-        # updated_at is the paid-at timestamp every revenue query groups by;
-        # pinned to itself, since Core update() still applies its onupdate
         row = await self.session.scalar(
             update(Transaction)
             .where(condition, Transaction.fulfilled_at.is_(None))
             .values(
                 fulfilled_at=NOW_FUNC,
                 fulfilled_subscription_id=subscription_id,
-                updated_at=Transaction.updated_at,
+                # issued, by whatever path: nothing waits for an admin any more
+                fulfillment_hold=None,
             )
             .returning(Transaction)
         )
@@ -392,7 +475,6 @@ class TransactionRepository:
             .values(
                 saved_payment_method_id=payment_method_id,
                 payment_method_shop_id=shop_id,
-                updated_at=Transaction.updated_at,
             )
         )
 
@@ -417,7 +499,7 @@ class TransactionRepository:
             Transaction.purchase_type == PurchaseType.NEW,
         ]
         if trial_only:
-            conditions.append(Transaction.plan_snapshot["is_trial"].as_boolean().is_(True))
+            conditions.append(_IS_TRIAL_ORDER.is_(True))
         if exclude_key is not None:
             conditions.append(Transaction.idempotency_key != exclude_key)
         count = await self.session.scalar(
@@ -435,7 +517,7 @@ class TransactionRepository:
                         Transaction.fulfilled_subscription_id.is_(None),
                         # older paid orders are past reconcile and no longer turn
                         # into a subscription on their own
-                        Transaction.updated_at >= now - RECONCILE_WINDOW,
+                        Transaction.paid_at >= now - RECONCILE_WINDOW,
                         # provisioned but not yet linked by the reconcile sweep
                         ~exists().where(
                             SubscriptionPurchaseIdempotency.key == Transaction.idempotency_key,
@@ -580,8 +662,6 @@ class TransactionRepository:
             update(Transaction).values(
                 anchor_base_price=func.round(Transaction.anchor_base_price * exact, 2),
                 anchor_final_price=func.round(Transaction.anchor_final_price * exact, 2),
-                # paid-at timestamp, pinned like mark_fulfilled does
-                updated_at=Transaction.updated_at,
             )
         )
 
@@ -602,8 +682,6 @@ class TransactionRepository:
                 anchor_base_price=func.round(Transaction.base_price * exact, 2),
                 anchor_final_price=func.round(Transaction.final_price * exact, 2),
                 anchor_unrated=False,
-                # paid-at timestamp, pinned like mark_fulfilled does
-                updated_at=Transaction.updated_at,
             )
         )
 
@@ -637,9 +715,8 @@ class TransactionRepository:
             in_ids(Transaction.user_id, user_ids),
             Transaction.status == TransactionStatus.PAID,
             _NOT_TEST,
-            # updated_at of a PAID row is its paid moment
-            Transaction.updated_at >= paid_from,
-            Transaction.updated_at < paid_to,
+            Transaction.paid_at >= paid_from,
+            Transaction.paid_at < paid_to,
         )
         count, amount = (await self.session.execute(stmt)).tuples().one()
         return count, amount or ZERO_AMOUNT
@@ -662,8 +739,14 @@ class TransactionRepository:
         return count, amount or ZERO_AMOUNT
 
     async def list_user_ids_with_paid_order(
-        self, user_ids: list[int], *, paid_before: Optional[datetime] = None
+        self,
+        user_ids: list[int],
+        *,
+        paid_before: Optional[datetime] = None,
+        created_before: Optional[datetime] = None,
+        trial: Optional[bool] = None,
     ) -> set[int]:
+        """`trial` narrows to paid trials (True) or to everything else (False)."""
         if not user_ids:
             return set()
         paid: set[int] = set()
@@ -672,8 +755,12 @@ class TransactionRepository:
             Transaction.status == TransactionStatus.PAID,
             _NOT_TEST,
         )
+        if trial is not None:
+            stmt = stmt.where(_IS_TRIAL_ORDER.is_(trial))
+        if created_before is not None:
+            stmt = stmt.where(Transaction.created_at < created_before)
         if paid_before is not None:
-            stmt = stmt.where(Transaction.updated_at < paid_before)
+            stmt = stmt.where(Transaction.paid_at < paid_before)
         result = await self.session.execute(stmt)
         paid.update(result.scalars().all())
         return paid
@@ -709,12 +796,11 @@ class TransactionRepository:
             .group_by(Transaction.user_id)
         )
         if user_ids is not None:
-            stmt = stmt.where(Transaction.user_id.in_(user_ids))
+            stmt = stmt.where(in_ids(Transaction.user_id, user_ids))
         if created_before is not None:
             stmt = stmt.where(Transaction.created_at < created_before)
         if paid_since is not None:
-            # updated_at of a PAID row is its paid moment
-            stmt = stmt.where(Transaction.updated_at >= paid_since)
+            stmt = stmt.where(Transaction.paid_at >= paid_since)
         return dict((await self.session.execute(stmt)).tuples().all())
 
     async def count_paid_since(self, since: datetime) -> int:
@@ -723,7 +809,7 @@ class TransactionRepository:
                 select(func.count()).where(
                     Transaction.status == TransactionStatus.PAID,
                     _NOT_TEST,
-                    Transaction.updated_at >= since,
+                    Transaction.paid_at >= since,
                 )
             )
             or 0
@@ -732,19 +818,24 @@ class TransactionRepository:
     async def list_paid_periods(self, user_ids: list[int]) -> list[tuple[int, datetime, int]]:
         periods: list[tuple[int, datetime, int]] = []
         stmt = (
-            select(Transaction.user_id, Transaction.updated_at, Transaction.duration_days)
+            # what each term really added
+            select(
+                Transaction.user_id,
+                PAID_AT,
+                func.coalesce(Transaction.added_days, Transaction.duration_days),
+            )
             .where(
                 in_ids(Transaction.user_id, user_ids),
                 Transaction.status == TransactionStatus.PAID,
                 _NOT_TEST,
             )
-            .order_by(Transaction.user_id, Transaction.updated_at)
+            .order_by(Transaction.user_id, Transaction.paid_at)
         )
         periods.extend((await self.session.execute(stmt)).tuples().all())
         return periods
 
     async def first_paid_at_since(self, since: datetime) -> dict[int, datetime]:
-        first_paid = func.min(Transaction.updated_at)
+        first_paid = func.min(PAID_AT)
         stmt = (
             select(Transaction.user_id, first_paid)
             .where(Transaction.status == TransactionStatus.PAID, _NOT_TEST)
@@ -754,13 +845,13 @@ class TransactionRepository:
         return dict((await self.session.execute(stmt)).tuples().all())
 
     async def daily_paid_anchor_revenue(self, since: datetime) -> dict[date, DailyPaidDto]:
-        day_col = func.date(func.timezone("UTC", Transaction.updated_at))
+        day_col = func.date(func.timezone("UTC", Transaction.paid_at))
         stmt = (
             select(day_col, func.sum(Transaction.anchor_final_price), func.count())
             .where(
                 Transaction.status == TransactionStatus.PAID,
                 _NOT_TEST,
-                Transaction.updated_at >= since,
+                Transaction.paid_at >= since,
             )
             .group_by(day_col)
             .order_by(day_col)

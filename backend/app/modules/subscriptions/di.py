@@ -3,6 +3,8 @@ from typing import cast
 from dishka import Provider, Scope, alias, provide, provide_all
 
 from app.modules.subscriptions.change_credit import ChangeCreditCalculator
+from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
+from app.modules.subscriptions.device_name_repository import DeviceNameRepository
 from app.modules.subscriptions.dispatch import (
     GrantAddOnDispatch,
     PanelSyncDispatch,
@@ -36,12 +38,15 @@ from app.modules.subscriptions.usecases import (
     DeleteDeviceUseCase,
     DeleteSubscriptionUseCase,
     DeleteUserSubscriptionsUseCase,
+    EndGraceUseCase,
+    EnterGraceUseCase,
     FulfillPurchaseUseCase,
     GetAvailableTrialUseCase,
     GetPanelSyncStatusUseCase,
     GetSubscriptionListStatsUseCase,
     GetSubscriptionPanelDiffUseCase,
     GetSubscriptionUseCase,
+    GetTrafficResetAnchorUseCase,
     GrantAddOnUseCase,
     GrantSubscriptionUseCase,
     HandleRemnawaveWebhookUseCase,
@@ -60,10 +65,13 @@ from app.modules.subscriptions.usecases import (
     PurchaseSubscriptionUseCase,
     PushSubscriptionToPanelUseCase,
     ReissueSubscriptionUseCase,
+    RenameDeviceUseCase,
     ResetSubscriptionTrafficUseCase,
+    RestoreDuePanelConfigsUseCase,
     SetSubscriptionEnabledUseCase,
     StartPanelSyncFromUseCase,
     StartPanelSyncToUseCase,
+    SweepGraceUseCase,
     SyncAllFromPanelUseCase,
     SyncAllToPanelUseCase,
     SyncSubscriptionStatusUseCase,
@@ -78,6 +86,8 @@ class SubscriptionsProvider(Provider):
 
     services = provide_all(
         SubscriptionRepository,
+        CreditSegmentRepository,
+        DeviceNameRepository,
         SubscriptionStatsRepository,
         PurchaseIdempotencyRepository,
         SubscriptionLifecycleService,
@@ -108,6 +118,7 @@ class SubscriptionsProvider(Provider):
         ActivateTrialSubscriptionUseCase,
         ApplyChannelMembershipUseCase,
         ListDevicesUseCase,
+        RenameDeviceUseCase,
         DeleteDeviceUseCase,
         DeleteAllDevicesUseCase,
         GrantAddOnUseCase,
@@ -121,6 +132,7 @@ class SubscriptionsProvider(Provider):
         ListOwnActiveSubscriptionsUseCase,
         ListOwnSubscriptionsUseCase,
         ListOwnSubscriptionsUsageUseCase,
+        GetTrafficResetAnchorUseCase,
         FulfillPurchaseUseCase,
         GetPanelSyncStatusUseCase,
         GetSubscriptionPanelDiffUseCase,
@@ -133,6 +145,10 @@ class SubscriptionsProvider(Provider):
         SyncAllFromPanelUseCase,
         SyncAllToPanelUseCase,
         PruneIdempotencyKeysUseCase,
+        EnterGraceUseCase,
+        EndGraceUseCase,
+        RestoreDuePanelConfigsUseCase,
+        SweepGraceUseCase,
     )
     subscription_revoker = alias(source=PanelSubscriptionRevoker, provides=SubscriptionRevoker)
 

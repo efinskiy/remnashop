@@ -17,11 +17,12 @@ frg-menu-subscription =
             <blockquote>
             • <b>Traffic limit</b>: { $traffic_limit }
             • <b>Device limit</b>: { $device_limit }
-            • <b>Expires</b>: { $expire_at }
+            • <b>Expires</b>: { $expire_at_local }
             </blockquote>
         [EXPIRED]
             <blockquote>
             • Your subscription has expired.
+            { $grace }
 
             <i>{ $is_trial ->
                 [0] Renew it to keep using the service!
@@ -73,10 +74,29 @@ frg-subscription-status = { $status ->
        *[other] { $status }
     }
 frg-subscription-unlimited = Unlimited
+frg-subscription-grace = • Grace period{ $grace_until ->
+        [none] {""}
+       *[other] {" "}until { $grace_until }
+    }
+frg-subscription-card-grace = • <b>Grace period</b>{ $grace_until ->
+        [none] {""}
+       *[other] {" "}until { $grace_until }
+    }
 frg-subscription-traffic-limit = { $traffic_limit } GB
 msg-window-gone = This screen is no longer available.
+msg-start-welcome = Welcome!
 msg-paysupport = To request a refund, contact support.
-msg-menu-devices = Your devices ({ $devices_current }/{ $devices_max })
+msg-menu-devices = Your devices ({ $devices_max ->
+    [0] { $devices_current }
+   *[other] { $devices_current }/{ $devices_max }
+})
+msg-menu-device =
+    <b>{ $device_name }</b>
+    Model: { $device_model }
+    System: { $device_system }
+    App: { $device_app }
+    Connected: { $device_created_at_local }
+msg-menu-device-rename = Send a new name for “{ $device_name }”, up to { $device_name_max_length } characters.
 msg-menu-devices-confirm-delete = Delete this device?
 msg-menu-devices-confirm-delete-all = Delete every device? The connection link changes and every device loses access — each one has to be connected again with the new link.
 msg-menu-devices-confirm-reissue = Reissue the connection link? The old link will stop working.
@@ -130,7 +150,13 @@ btn-legal-gate =
     .accept = ✅ I accept
 
 btn-devices =
-    .item = { $platform_icon } { $platform } ({ $device_model }) — { $created_at }
+    .item = { $platform_icon } { $device_name } — { $created_at }
+    .rename = Rename
+    .rename-icon = ✏️
+    .delete = Delete
+    .delete-icon = 🗑
+    .clear-name = Reset name
+    .clear-name-icon = ↩️
     .delete-all = Delete all devices
     .delete-all-icon = 🗑
     .reissue = Reissue link
@@ -170,7 +196,8 @@ msg-subscription-card =
         [0] Unlimited
        *[other] { $device_limit }
     }
-    • <b>Valid until</b>: { $expire_at }
+    • <b>Expires</b>: { $expire_at_local }
+    { $grace }
     </blockquote>
 
     { $auto_renew }
@@ -191,8 +218,8 @@ btn-subscriptions =
     .purchase = Buy a subscription
     .purchase-icon = 💸
     .item = { $status ->
-        [ACTIVE] 🟢 { $plan_name } · until { $expire_at }
-        [UNLIMITED] 🟢 { $plan_name } · no end date
+        [ACTIVE] 🟢 { $plan_name } · expires { $expire_at }
+        [UNLIMITED] 🟢 { $plan_name } · unlimited
         [LIMITED] 🟡 { $plan_name } · traffic used up
         [EXPIRED] 🔴 { $plan_name } · expired { $expire_at }
         [DISABLED] ⚫ { $plan_name } · disabled
@@ -269,6 +296,11 @@ frg-referral-terms = { $reward_strategy ->
     }
 frg-referral-levels = Friends of your friends earn you a reward too:
 frg-referral-level = Level { $level } — { $terms }
+msg-referrals-redeem-amount =
+    You have { $bonus_days } bonus days.
+
+    Send the number of days to add to your subscription (up to { $max_days }) or redeem them all.
+msg-referrals-confirm-reset-code = Create a new referral link? The old one will stop working.
 msg-referrals-redeem-target = Choose which subscription gets your { $bonus_days } bonus days:
 
 btn-referrals =
@@ -282,10 +314,16 @@ btn-referrals =
     .withdraw-icon = 💎
     .redeem = Redeem bonus days
     .redeem-icon = 🎁
+    .redeem-all = All ({ $days })
+    .redeem-all-icon = 🎁
     .qr = QR code
     .qr-icon = 🧾
     .reset-code = New referral link
     .reset-code-icon = 🔄
+    .confirm-reset-code = Yes, create
+    .confirm-reset-code-icon = ✅
+    .cancel-reset-code = Cancel
+    .cancel-reset-code-icon = ❌
 
 btn-back =
     .general = Back
@@ -302,6 +340,10 @@ ntf-devices =
     .delete-cooldown = ⏳ You can delete a device again in { $wait }.
     .delete-all-cooldown = ⏳ You can delete all devices again in { $wait }.
     .reissue-cooldown = ⏳ You can reissue the connection link again in { $wait }.
+    .renamed = ✅ Device name saved.
+    .name-cleared = ✅ Device name reset.
+    .name-too-long = ⚠️ The name can be at most { $max } characters.
+    .gone = ❌ This device is no longer connected.
 
 ntf-access =
     .restricted = 🚧 Maintenance in progress. Please try again later.
@@ -335,6 +377,7 @@ ntf-common =
 ntf-purchase =
     .stars-rejected = This order can't be paid any more. Please start the purchase again.
     .plan-unavailable = ❌ This plan is no longer available — please pick another one.
+    .renew-unavailable = ⚠️ This plan can no longer be renewed — please pick another one.
     .limit-reached = ❌ You've reached the subscription limit.
     .method-unavailable = ❌ This payment method is unavailable right now.
     .discount-used = ⚠️ The discount has already been used — check the new price.
@@ -513,9 +556,11 @@ gateway-name =
     .CISPAY = cisPay
 
 ntf-referrals =
+    .disabled = ❌ The referral program isn't running right now.
     .no-subscription = ❌ You have no subscription the bonus days can be added to.
     .days-redeemed = ✅ Bonus days have been added to your subscription.
     .redeem-failed = ❌ Bonus days can't be added to this subscription.
+    .invalid-days = ❌ Send a whole number of days from 1 to { $max_days }.
     .code-reset = ✅ Your referral link has been updated. The old one will no longer work.
     .reset-cooldown = ⏳ You can update your referral link again in { $wait }.
 
@@ -526,6 +571,7 @@ ntf-promocode =
     .discount-not-better = ⚠️ The promocode wasn't applied: your current discount is the same or bigger.
     .not-available = ❌ This promocode isn't available to you.
     .no-target-subscription = ❌ You have no active subscription to apply this promocode to.
+    .link-no-target = 🎁 Promocode { $code } adds days, traffic or devices to a subscription, but you have none it applies to yet. Enter it later under “Promocode”.
     .activated = ✅ Promocode activated!
     .activation-failed = ❌ Failed to activate the promocode. Please try again later.
     .too-many-attempts = ⏳ Too many attempts. Try again in a minute.
@@ -642,7 +688,7 @@ time-unit =
     .hour = { $value } h
     .minute = { $value } min
     .unlimited = Forever
-    .no-expiry = no end date
+    .no-expiry = unlimited
 
 inline-invite =
     .title = Invite a friend

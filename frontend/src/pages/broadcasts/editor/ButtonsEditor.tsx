@@ -1,4 +1,4 @@
-import { Link, Menu, MousePointerClick, Plus, Ticket, X } from "lucide-react";
+import { Link, Menu, MessageSquareX, MousePointerClick, Plus, Share2, Ticket, X } from "lucide-react";
 import type { ComponentType } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -30,9 +30,11 @@ const KIND_ICON: Record<BroadcastButtonKind, ComponentType<{ className?: string 
   URL: Link,
   PROMOCODE: Ticket,
   MENU: Menu,
+  CLOSE: MessageSquareX,
+  SHARE_REFERRAL: Share2,
 };
 
-const KINDS: BroadcastButtonKind[] = ["URL", "PROMOCODE", "MENU"];
+const KINDS: BroadcastButtonKind[] = ["URL", "PROMOCODE", "MENU", "CLOSE", "SHARE_REFERRAL"];
 
 interface ButtonsEditorProps {
   form: EditorForm;
@@ -99,7 +101,11 @@ export function ButtonsEditor({
     }
     // the broadcast has one promocode: every promocode button, and { $promocode }, open the same
     if (button.kind === "PROMOCODE") return promocodeSelect;
-    return <span className="truncate px-3.5 text-sm text-muted-foreground">{t("broadcasts.editor.buttons.menuTarget")}</span>;
+    return (
+      <span className="truncate px-3.5 text-sm text-muted-foreground">
+        {t(`broadcasts.editor.buttons.target.${button.kind}`)}
+      </span>
+    );
   };
 
   return (

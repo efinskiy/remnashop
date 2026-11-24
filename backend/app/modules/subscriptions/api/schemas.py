@@ -9,6 +9,7 @@ from remnapy.enums import TrafficLimitStrategy
 from app.core.constants import PANEL_TAG_MAX_LENGTH, PANEL_TAG_PATTERN
 from app.core.enums import (
     AddOnType,
+    CreditSegmentKind,
     Currency,
     Locale,
     PanelSyncDirection,
@@ -18,7 +19,7 @@ from app.core.enums import (
 )
 from app.core.security.connect_signature import sign_subscription_url
 from app.core.utils.telegram_text import PREMIUM_EMOJI_RE
-from app.modules.subscriptions.dto import PlanSnapshot, SubscriptionDto
+from app.modules.subscriptions.dto import GetAvailableTrialDto, PlanSnapshot, SubscriptionDto
 from app.modules.subscriptions.plan_snapshot_response import PlanSnapshotResponse
 
 
@@ -45,6 +46,7 @@ class SubscriptionResponse(BaseModel):
     internal_squads: list[UUID]
     external_squad: Optional[UUID] = None
     expire_at: datetime
+    grace_until: Optional[datetime] = None
     is_unlimited: bool
     created_at: Optional[datetime] = None
     first_connected_at: Optional[datetime] = None
@@ -61,12 +63,26 @@ class SubscriptionResponse(BaseModel):
         return value.to_json() if isinstance(value, PlanSnapshot) else value
 
 
+class CreditSegmentResponse(BaseModel):
+    id: int
+    kind: CreditSegmentKind
+    paid: Decimal
+    currency: Currency
+    seconds: int
+    ends_at: Optional[datetime]
+    replaced_expire_at: Optional[datetime]
+    superseded_by_id: Optional[int]
+    created_at: datetime
+
+
 class SubscriptionDetailResponse(SubscriptionResponse):
     # from the panel; None when it is unreachable or hasn't seen the client
     used_traffic: Optional[int] = None  # bytes
     online_at: Optional[datetime] = None
     sub_last_opened_at: Optional[datetime] = None
     sub_last_user_agent: Optional[str] = None
+    # what the term was paid with, the plan change credit counted from it
+    credit_segments: list[CreditSegmentResponse] = []
 
 
 class SubscriptionListItemResponse(SubscriptionResponse):
@@ -124,10 +140,17 @@ class ChangeSubscriptionPlanRequest(BaseModel):
 
 class DeviceResponse(BaseModel):
     hwid: str
+    name: Optional[str] = None
     platform: Optional[str] = None
+    os_version: Optional[str] = None
     device_model: Optional[str] = None
+    app: Optional[str] = None
     user_agent: Optional[str] = None
     created_at: datetime
+
+
+class RenameDeviceRequest(BaseModel):
+    name: str
 
 
 class DeviceListResponse(BaseModel):
@@ -188,6 +211,7 @@ class OwnSubscriptionResponse(BaseModel):
     status: SubscriptionStatus
     is_trial: bool
     expire_at: datetime
+    grace_until: Optional[datetime] = None
     is_unlimited: bool
     url: str
     effective_traffic_limit: int
@@ -255,6 +279,24 @@ class TrialResponse(BaseModel):
     # the one duration in every currency, for the checkout's gateway choice
     prices: list[PublicPlanPriceResponse] = []
 
+    @classmethod
+    def from_dto(cls, trial: GetAvailableTrialDto, *, locale: Locale) -> "TrialResponse":
+        if trial.plan is None:
+            return cls(is_available=False)
+        return cls(
+            is_available=trial.is_trial_available,
+            plan_id=trial.plan.id,
+            plan_name=trial.plan.display_name(locale),
+            duration_days=trial.duration_days,
+            is_free=trial.is_free,
+            price=trial.price,
+            currency=trial.currency,
+            prices=[
+                PublicPlanPriceResponse(currency=item.currency, price=item.price)
+                for item in trial.prices
+            ],
+        )
+
 
 class PanelSyncResultResponse(BaseModel):
     direction: PanelSyncDirection
@@ -264,6 +306,7 @@ class PanelSyncResultResponse(BaseModel):
     missing: int
     recreated: int
     imported: int
+    users_created: int
     deleted: int
     over_limit: int
     finished_at: datetime
@@ -272,6 +315,7 @@ class PanelSyncResultResponse(BaseModel):
 class PanelSyncPullRequest(BaseModel):
     adopt_unnamed: bool = True
     respect_subscription_limit: bool = True
+    create_users: bool = False
 
 
 class PanelSyncPushRequest(BaseModel):

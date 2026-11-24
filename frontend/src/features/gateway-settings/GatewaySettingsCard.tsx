@@ -12,6 +12,7 @@ import {
   type Gateway,
   type GatewayChannels,
   type GatewayFieldSpec,
+  type TestPaymentChannel,
   type TestPaymentStatus,
 } from "@entities/gateways/api";
 import { usePermissions } from "@entities/user/use-current-user";
@@ -19,12 +20,13 @@ import { getErrorMessage } from "@shared/api/http";
 import { isHttpsUrl } from "@shared/lib/external-links";
 import { toast } from "@shared/lib/toast";
 import { Button } from "@shared/ui/Button";
+import { Collapse } from "@shared/ui/Collapse";
 import { Field } from "@shared/ui/glass/Field";
 import { CopyInput, Input, PasswordInput } from "@shared/ui/glass/Input";
 import { Row } from "@shared/ui/glass/Row";
 import { Switch } from "@shared/ui/glass/Switch";
-import { Pressable } from "@shared/ui/Pressable";
 import { LabeledDivider } from "@shared/ui/LabeledDivider";
+import { Pressable } from "@shared/ui/Pressable";
 import { SaveFooter } from "@shared/ui/SaveFooter";
 import { SelectDropdown } from "@shared/ui/SelectDropdown";
 
@@ -32,6 +34,7 @@ import { ChannelTiles } from "./ChannelTiles";
 import { GATEWAY_DOCS_URLS } from "./docs-links";
 import { GATEWAY_LOGOS } from "./logos";
 import { inputModeFor, sanitizeFieldValue } from "./field-input";
+import { PaygateGuideDialog } from "./PaygateGuideDialog";
 
 const CURRENCY_HINT_GATEWAYS = new Set([
   "CRYPTOMUS",
@@ -72,16 +75,34 @@ export function GatewaySettingsCard({
   const [testStatus, setTestStatus] = useState<TestPaymentStatus | null>(null);
 
   const label = t(`settings.gateways.types.${gateway.type}` as ParseKeys);
-  const flagFields = fields.filter((field) => field.kind === "boolean");
-  const choiceFields = fields.filter((field) => field.kind === "choice");
-  const plainValueFields = fields.filter((field) => field.kind !== "boolean" && field.kind !== "choice");
+  const flagFields = fields.filter((field) => field.kind === "boolean" && field.group === null);
+  const valueFields = fields.filter((field) => field.kind !== "boolean" && field.kind !== "choice");
   const stored = (key: string) => gateway.values[key] ?? "";
+  // choices and values in catalog order, so a choice sits where its model declares it
+  const ungroupedFields = fields.filter(
+    (field) => field.kind !== "boolean" && field.group === null && field.hidden_when === null,
+  );
   // conditional fields go under their own divider, named after the field they depend on
-  const valueFields = plainValueFields.filter((field) => field.hidden_when === null);
-  const dependentFields = plainValueFields.filter(
-    (field) => field.hidden_when !== null && stored(field.hidden_when.field) !== field.hidden_when.value,
+  const dependentFields = valueFields.filter(
+    (field) =>
+      field.group === null && field.hidden_when !== null && stored(field.hidden_when.field) !== field.hidden_when.value,
   );
   const dependsOn = dependentFields[0]?.hidden_when?.field;
+  const isGroupOn = (key: string) => values[key] === "true" || Boolean(gateway.flags[key]);
+  // a group: its switch, then the fields it shows while on
+  const groups = fields
+    .filter((field) => field.kind === "boolean" && field.group === field.key)
+    // kept while on, so a channel switched off doesn't hide a switch still in use
+    .filter(
+      (toggle) =>
+        !toggle.requires_all_channels ||
+        (gateway.telegram_enabled && gateway.cabinet_enabled) ||
+        isGroupOn(toggle.key),
+    )
+    .map((toggle) => ({
+      toggle,
+      fields: valueFields.filter((field) => field.group === toggle.key),
+    }));
   const docsUrl = GATEWAY_DOCS_URLS[gateway.type];
   const logoUrl = GATEWAY_LOGOS[gateway.type];
   const fieldByKey = new Map(fields.map((field) => [field.key, field]));
@@ -91,17 +112,23 @@ export function GatewaySettingsCard({
     return field !== undefined && field.kind !== "secret" && !field.required;
   };
   const changedValues = Object.fromEntries(
-    Object.entries(values).filter(
-      ([key, value]) => value !== stored(key) && (value !== "" || clearable(key)),
-    ),
+    Object.entries(values).filter(([key, value]) => value !== stored(key) && (value !== "" || clearable(key))),
   );
   const dirty = Object.keys(changedValues).length > 0;
-  // Stars pays inside the bot, there is no provider page to open
   const permissions = usePermissions();
   const canUpdate = permissions.includes("GATEWAYS_UPDATE");
   const canSetChannels = permissions.includes("GATEWAYS_CHANNELS_UPDATE");
-  const canTest =
-    gateway.is_configured && gateway.type !== "TELEGRAM_STARS" && permissions.includes("GATEWAYS_TEST");
+  const canTest = gateway.is_configured && permissions.includes("GATEWAYS_TEST");
+  const bothChannels = gateway.telegram_enabled && gateway.cabinet_enabled;
+  // both channels in one shop although the gateway could split them (a saved group would)
+  const sharedShop =
+    bothChannels &&
+    gateway.is_configured &&
+    groups.some((group) => group.toggle.requires_all_channels) &&
+    !groups.some((group) => gateway.flags[group.toggle.key]);
+  const testsPerChannel = bothChannels && gateway.splits_channels;
+  // with one channel on, its shop
+  const testChannel: TestPaymentChannel = gateway.telegram_enabled ? "BOT" : "CABINET";
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -119,10 +146,10 @@ export function GatewaySettingsCard({
     }
   };
 
-  const handleChoice = async (key: string, value: string) => {
+  const handleFlag = async (key: string, enabled: boolean) => {
     setSavingFlag(key);
     try {
-      onChanged(await updateGatewaySettings(gateway.type, { [key]: value }));
+      onChanged(await updateGatewaySettings(gateway.type, { [key]: String(enabled) }));
     } catch (err) {
       toast.error(getErrorMessage(err, t("common.errors.generic")));
     } finally {
@@ -130,10 +157,10 @@ export function GatewaySettingsCard({
     }
   };
 
-  const handleFlag = async (key: string, enabled: boolean) => {
+  const handleChoice = async (key: string, value: string) => {
     setSavingFlag(key);
     try {
-      onChanged(await updateGatewaySettings(gateway.type, { [key]: String(enabled) }));
+      onChanged(await updateGatewaySettings(gateway.type, { [key]: value }));
     } catch (err) {
       toast.error(getErrorMessage(err, t("common.errors.generic")));
     } finally {
@@ -178,12 +205,12 @@ export function GatewaySettingsCard({
     return () => clearInterval(timer);
   }, [testOrderId, testStatus, t]);
 
-  const handleTestPayment = async () => {
+  const handleTestPayment = async (channel: TestPaymentChannel) => {
     // opened synchronously so the popup blocker treats it as user-initiated
     const tab = window.open("", "_blank");
     setIsTesting(true);
     try {
-      const { order_id, confirmation_url } = await createTestPayment(gateway.type);
+      const { order_id, confirmation_url } = await createTestPayment(gateway.type, channel);
       setTestOrderId(order_id);
       setTestStatus("PENDING");
       if (tab && confirmation_url && isHttpsUrl(confirmation_url)) {
@@ -202,14 +229,110 @@ export function GatewaySettingsCard({
   };
 
   const testButton = canTest && (
-    <Button variant="glass" isLoading={isTesting} onClick={() => void handleTestPayment()}>
-      {isTesting ? t("settings.gateways.testPaymentCreating") : t("settings.gateways.testPayment")}
-    </Button>
+    <>
+      {testsPerChannel ? (
+        <>
+          <Button variant="glass" disabled={isTesting} onClick={() => void handleTestPayment("BOT")}>
+            {t("settings.gateways.testPaymentTelegram")}
+          </Button>
+          <Button
+            variant="glass"
+            disabled={isTesting}
+            onClick={() => void handleTestPayment("CABINET")}
+          >
+            {t("settings.gateways.testPaymentCabinet")}
+          </Button>
+        </>
+      ) : (
+        <Button variant="glass" isLoading={isTesting} onClick={() => void handleTestPayment(testChannel)}>
+          {isTesting ? t("settings.gateways.testPaymentCreating") : t("settings.gateways.testPayment")}
+        </Button>
+      )}
+      {testStatus !== null && (
+        <span
+          className={`text-xs ${
+            testStatus === "PAID"
+              ? "text-success"
+              : testStatus === "PENDING"
+                ? "text-muted-foreground"
+                : "text-warning"
+          }`}
+        >
+          {t(`settings.gateways.testPaymentStatus.${testStatus}`)}
+        </span>
+      )}
+    </>
+  );
+
+  // switching a group on only opens its fields: the switch is saved with them,
+  // since the server refuses it alone on a working gateway
+  const handleGroupToggle = (key: string, enabled: boolean) => {
+    if (gateway.flags[key]) {
+      if (!enabled) void handleFlag(key, false);
+      return;
+    }
+    setValues((prev) => {
+      const { [key]: _, ...rest } = prev;
+      return enabled ? { ...prev, [key]: "true" } : rest;
+    });
+  };
+
+  const renderFlag = (
+    field: GatewayFieldSpec,
+    checked = gateway.flags[field.key] ?? false,
+    onChange: (enabled: boolean) => void = (enabled) => void handleFlag(field.key, enabled),
+  ) => (
+    // 2px past the panel's 14px: the switch under the row's own (16px in)
+    <div key={field.key} className="flex items-center gap-3 pr-0.5">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-foreground">
+          {t(`settings.gateways.fields.${field.key}` as ParseKeys)}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {t(`settings.gateways.flagHints.${field.key}` as ParseKeys)}
+        </p>
+      </div>
+      {field.key === "relay_enabled" && <PaygateGuideDialog webhookUrl={webhookUrl} />}
+      <Switch
+        checked={checked}
+        onChange={onChange}
+        disabled={!canUpdate || savingFlag === field.key}
+      />
+    </div>
+  );
+
+  const renderChoiceField = (field: GatewayFieldSpec) => (
+    <Field
+      key={field.key}
+      htmlFor={`gateway-${gateway.type}-${field.key}`}
+      label={t(`settings.gateways.fields.${field.key}` as ParseKeys)}
+      info={t(`settings.gateways.flagHints.${field.key}` as ParseKeys)}
+    >
+      <SelectDropdown
+        id={`gateway-${gateway.type}-${field.key}`}
+        value={stored(field.key)}
+        options={field.options.map((value) => ({
+          value,
+          label: t(`settings.gateways.choices.${field.key}.${value}` as ParseKeys),
+        }))}
+        placeholder={t(`settings.gateways.fields.${field.key}` as ParseKeys)}
+        icon={SlidersHorizontal}
+        variant="well"
+        onChange={(value) => void handleChoice(field.key, value)}
+        disabled={!canUpdate || savingFlag === field.key}
+      />
+    </Field>
   );
 
   const renderValueField = (field: GatewayFieldSpec) => {
     // once configured, a blank field keeps the stored value
-    const mustFill = field.required && !gateway.is_configured;
+    const waived = field.required_unless !== null && isGroupOn(field.required_unless);
+    // a group being switched on is saved with its fields, even on a working gateway
+    const mustFill =
+      !waived &&
+      (field.group !== null
+        ? isGroupOn(field.group) && (!gateway.flags[field.group] || !gateway.is_configured)
+        : (field.required || field.required_unless !== null) && !gateway.is_configured);
     const suffixKey = `settings.gateways.suffixes.${field.key}`;
     const inputProps = {
       id: `gateway-${gateway.type}-${field.key}`,
@@ -276,77 +399,36 @@ export function GatewaySettingsCard({
             // ignored mid-save rather than disabled: dimming both tiles reads as a flicker
             onChange={(channels) => savingFlag !== "channels" && void handleChannels(channels)}
             disabled={!canSetChannels}
+            sharedShop={sharedShop}
           />
+          {flagFields.map((field) => renderFlag(field))}
           {webhookUrl !== null && (
             <Field label={t("settings.gateways.webhookLabel")} htmlFor={`gateway-${gateway.type}-webhook`}>
               <CopyInput id={`gateway-${gateway.type}-webhook`} value={webhookUrl} />
             </Field>
           )}
-          {flagFields.map((field) => (
-            // 2px past the panel's 14px: the switch under the row's own (16px in)
-            <div key={field.key} className="flex items-center gap-3 pr-0.5">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-foreground">
-                  {t(`settings.gateways.fields.${field.key}` as ParseKeys)}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {t(`settings.gateways.flagHints.${field.key}` as ParseKeys)}
-                </p>
-              </div>
-              <Switch
-                checked={gateway.flags[field.key] ?? false}
-                onChange={(enabled) => void handleFlag(field.key, enabled)}
-                disabled={!canUpdate || savingFlag === field.key}
-              />
-            </div>
-          ))}
-          {choiceFields.map((field) => (
-            <Field
-              key={field.key}
-              htmlFor={`gateway-${gateway.type}-${field.key}`}
-              label={t(`settings.gateways.fields.${field.key}` as ParseKeys)}
-              info={t(`settings.gateways.flagHints.${field.key}` as ParseKeys)}
-            >
-              <SelectDropdown
-                id={`gateway-${gateway.type}-${field.key}`}
-                value={stored(field.key)}
-                options={field.options.map((value) => ({
-                  value,
-                  label: t(`settings.gateways.choices.${field.key}.${value}` as ParseKeys),
-                }))}
-                placeholder={t(`settings.gateways.fields.${field.key}` as ParseKeys)}
-                icon={SlidersHorizontal}
-                variant="well"
-                onChange={(value) => void handleChoice(field.key, value)}
-                disabled={!canUpdate || savingFlag === field.key}
-              />
-            </Field>
-          ))}
-          {valueFields.map(renderValueField)}
+          {ungroupedFields.map((field) =>
+            field.kind === "choice" ? renderChoiceField(field) : renderValueField(field),
+          )}
           {dependsOn !== undefined && (
             <LabeledDivider>{t(`settings.gateways.dependentGroups.${dependsOn}` as ParseKeys)}</LabeledDivider>
           )}
           {dependentFields.map(renderValueField)}
-          {plainValueFields.length > 0 && canUpdate ? (
+          {groups.map(({ toggle, fields: groupFields }) => (
+            <div key={toggle.key} className="flex flex-col gap-3 border-t border-white/[0.08] pt-3">
+              {renderFlag(toggle, isGroupOn(toggle.key), (enabled) => handleGroupToggle(toggle.key, enabled))}
+              <Collapse open={isGroupOn(toggle.key)} className="flex flex-col gap-3">
+                {groupFields.map(renderValueField)}
+              </Collapse>
+            </div>
+          ))}
+          {valueFields.length > 0 && canUpdate ? (
             // 4px on the fold-out's 12px gap: 16px above Save, as in a Section's footer
             <div className="mt-1">
               <SaveFooter flush dirty={dirty} saving={isSubmitting} beside={testButton} />
             </div>
           ) : (
-            testButton && <div className="flex items-center gap-3">{testButton}</div>
-          )}
-          {testStatus !== null && (
-            <p
-              className={`text-xs ${
-                testStatus === "PAID"
-                  ? "text-success"
-                  : testStatus === "PENDING"
-                    ? "text-muted-foreground"
-                    : "text-warning"
-              }`}
-            >
-              {t(`settings.gateways.testPaymentStatus.${testStatus}`)}
-            </p>
+            testButton && <div className="flex flex-wrap items-center gap-3">{testButton}</div>
           )}
         </>
       }

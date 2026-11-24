@@ -1,8 +1,11 @@
 from datetime import timedelta
 from uuid import uuid4
 
+import pytest
 from redis.asyncio import Redis
+from sqlalchemy import update
 
+from app.core.db.models import Promocode
 from app.core.db.uow import UnitOfWork
 from app.core.enums import PromocodeRewardType
 from app.core.utils.time import datetime_now
@@ -16,7 +19,11 @@ from tests.fakes.events import RecordingEventPublisher
 
 
 async def _promocode(
-    repository: PromocodeRepository, expires_in: timedelta, *, is_active: bool = True
+    repository: PromocodeRepository,
+    expires_in: timedelta,
+    *,
+    is_active: bool = True,
+    created_ago: timedelta = timedelta(days=10),
 ) -> PromocodeDto:
     created = await repository.create(
         CreatePromocodeDto(
@@ -25,6 +32,12 @@ async def _promocode(
             reward=10,
             expires_at=datetime_now() + expires_in,
         )
+    )
+    # the warning window is a quarter of the code's life
+    await repository.session.execute(
+        update(Promocode)
+        .where(Promocode.id == created.id)
+        .values(created_at=datetime_now() - created_ago)
     )
     if is_active:
         return created
@@ -73,3 +86,55 @@ async def test_warns_once_per_customer_and_promocode_before_expiry(
     ]
 
     assert await use_case.system() == 0
+
+
+async def test_a_short_sale_is_warned_minutes_ahead(
+    promocode_repository: PromocodeRepository,
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+    redis: Redis,
+) -> None:
+    # a three-hour sale: warned in its last 45 minutes, not a day ahead
+    early = await _promocode(
+        promocode_repository, timedelta(hours=2), created_ago=timedelta(hours=1)
+    )
+    late = await _promocode(
+        promocode_repository, timedelta(minutes=20), created_ago=timedelta(hours=2, minutes=40)
+    )
+    await _customer(user_repository, 9_100_011, early, early)
+    warned = await _customer(user_repository, 9_100_012, late, late)
+    publisher = RecordingEventPublisher()
+
+    sent = await WarnExpiringPromocodeDiscountsUseCase(
+        promocode_repository, user_repository, uow, publisher, redis
+    ).system()
+
+    assert sent == 1
+    (event,) = publisher.events
+    assert isinstance(event, PromocodeDiscountExpiringEvent)
+    assert event.user.id == warned
+    assert event.minutes == 20
+
+
+class _FailingPublisher(RecordingEventPublisher):
+    async def publish(self, event: object) -> None:
+        raise RuntimeError("outbox write failed")
+
+
+async def test_a_failed_run_gives_its_warning_claims_back(
+    promocode_repository: PromocodeRepository,
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+    redis: Redis,
+) -> None:
+    soon = await _promocode(promocode_repository, timedelta(hours=5))
+    await _customer(user_repository, 9_100_021, soon, soon)
+    use_case = WarnExpiringPromocodeDiscountsUseCase(
+        promocode_repository, user_repository, uow, _FailingPublisher(), redis
+    )
+
+    with pytest.raises(RuntimeError):
+        await use_case.system()
+
+    # nothing was published, so the next run must still find the customer unwarned
+    assert await redis.keys("*promocode_discount_warned*") == []

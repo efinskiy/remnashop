@@ -24,3 +24,11 @@ class SubscriptionPurchaseIdempotency(BaseSql, TimestampMixin):
     # before the panel call so a retry re-applies the same value instead of
     # extending a second time.
     renew_expire_at: Mapped[Optional[datetime]]
+    # the days that expiry adds, for a refund of an unfinished renewal to take back
+    renew_added_days: Mapped[Optional[int]]
+    # the anchor day it leaves on the row: a retry can't work it out from the end
+    # alone, a shorter month having cut it
+    renew_anchor_day: Mapped[Optional[int]]
+    # the row that expiry was worked out for: a plan change replacing it leaves the
+    # pin stale, the renewal going to the row put in its place
+    renew_subscription_id: Mapped[Optional[int]]

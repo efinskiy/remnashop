@@ -18,7 +18,10 @@ ntf-backup-failed = { $kind } backup failed: { $error }
 ntf-bonus-days-renewal-stuck = { $days } bonus days of user #{ $user_id } were not applied to subscription #{ $subscription_id }: { $error }. Apply them by hand.
     .title = Bonus days not applied!
     .emoji = ⚠️
-ntf-subscription-purchased = { $user } bought a subscription ({ $purchase_type })
+ntf-subscription-purchased = { $is_trial ->
+        [yes] { $user } activated a trial
+       *[no] { $user } bought a subscription ({ $purchase_type })
+    }
     .title = { $is_trial ->
         [yes] Trial subscription received!
        *[no] { $purchase_type ->
@@ -32,25 +35,32 @@ ntf-subscription-renewed = { $duration_days ->
        *[other] { $user } renewed for { $duration_days } days
     }
     .title = Subscription renewed!
-ntf-transaction-refunded = Order #{ $order_id }: { $amount } { $currency } refunded via { $gateway_type }
+ntf-transaction-refunded = Order #{ $order_id }: { $money } refunded via { $gateway_type }
     .title = Payment refunded!
     .emoji = ⚠️
-ntf-transaction-partially-refunded = Order #{ $order_id }: partial refund { $amount } { $currency } via { $gateway_type }, check it manually
+ntf-transaction-partially-refunded = Order #{ $order_id }: partial refund { $money } via { $gateway_type }, check it manually
     .title = Payment refunded!
     .emoji = ⚠️
 ntf-transaction-fulfilled-manually = { $actor } issued order #{ $order_id } for { $target } by hand
     .title = Subscription issued manually!
-ntf-paid-order-not-fulfilled = Order #{ $order_id }: { $amount } { $currency } via { $gateway_type } is paid, but no subscription was issued yet. Retries continue; check it.
+ntf-paid-order-not-fulfilled = Order #{ $order_id }: { $money } via { $gateway_type } is paid, but no subscription was issued yet; check it.
     .title = Payment processing error!
     .emoji = ⚠️
 ntf-broadcast-completed = Broadcast #{ $broadcast_id } finished: { $sent } delivered, { $failed } failed, { $blocked } blocked the bot.
     .title = Broadcast finished!
+ntf-daily-report = { $new_users } new users, { $new_payers } new payers, revenue { $revenue_money }.
+    .title = Report for { $day }
+    .emoji = 📊
 ntf-broadcast-failed = Broadcast #{ $broadcast_id } stopped: { $error }
     .title = Broadcast failed!
     .emoji = ⚠️
 ntf-suppressed = { $count } similar alerts since the previous one were not sent.
 ntf-sources-merged = Alerts from several sources were merged; the source shown is the last one.
 ntf-customer-open-cabinet = Open cabinet
+email-login-code = The code is valid for 10 minutes.
+    .title = Your sign-in code: { $code }
+email-link-code = Enter it in the cabinet to add this email to your account. The code is valid for 10 minutes.
+    .title = Your linking code: { $code }
 btn-customer-notification =
     .renew = Renew subscription
     .renew-icon = 🔄
@@ -122,7 +132,7 @@ ntf-customer-transaction-refunded = { $money } will go back the way you paid.
 ntf-customer-transaction-partially-refunded = Part of your payment, { $money }, will go back the way you paid.
     .title = Partial refund
     .emoji = 💸
-ntf-customer-paid-order-not-fulfilled = We received your payment of { $money }, but the subscription is taking longer than usual. Don't worry: we're already on it. If it doesn't appear soon, contact support.
+ntf-customer-paid-order-not-fulfilled = We received your payment of { $money }, but the subscription is taking longer than usual. We're already on it: we'll issue the subscription or refund you. If it isn't settled soon, contact support.
     .title = Delivery delayed
     .emoji = ⏳
 ntf-customer-subscription-expiring = { $is_trial ->
@@ -149,6 +159,16 @@ ntf-customer-subscription-expired = { $is_trial ->
     }
     .title = Access paused — the VPN isn't working
     .emoji = ⛔
+ntf-customer-subscription-grace-started = Your subscription has expired. { $grace_until ->
+        [none] Grace access is active
+       *[other] Grace access is active until { $grace_until }
+    }{ $traffic_unit ->
+        [gb]: { $traffic_value } GB
+        [mb]: { $traffic_value } MB
+       *[none] {""}
+    }. Renew to get your plan back.
+    .title = Subscription expired
+    .emoji = ⏳
 ntf-customer-subscription-traffic-limited = You've used up your traffic. { $is_trial ->
         [yes] Get a subscription to keep using the service.
        *[no] { $traffic_strategy ->
@@ -161,9 +181,18 @@ ntf-customer-subscription-traffic-limited = You've used up your traffic. { $is_t
     }
     .title = Access paused — the VPN isn't working
     .emoji = ⛔
-ntf-customer-subscription-traffic-threshold = { $is_trial ->
-        [yes] Get a subscription to keep your access.
-       *[no] Renew your subscription to keep your access.
+ntf-customer-subscription-traffic-threshold = { $percent ->
+        [0] Your traffic is running low.
+       *[other] You've used { $percent }% of your traffic.
+    }{ $reset_date ->
+        [none] {""}
+       *[other] {" "}It resets on { $reset_date }.
+    }{ $is_trial ->
+        [yes] {" "}Get a subscription to keep your access.
+       *[no] { $can_renew ->
+            [yes] {" "}Renew your subscription to restore it now.
+           *[no] {""}
+        }
     }
     .title = Traffic running low
     .emoji = ⚠️
@@ -234,6 +263,12 @@ ntf-system-health-degraded = { $kind ->
         [process_down] The { $subject } process is not responding.
         [host_disk_full] The server disk is { $value }% full.
         [host_memory_high] Server memory is { $value }% used.
+        [outbox_stuck] The event queue is not being processed: { $value } waiting over 5 minutes.
+        [gateway_failures] Payments through { $subject } are failing: { $value } failures in the last hour.
+        [smtp_failed] Email is not being sent: the { $subject ->
+            [bulk] broadcast SMTP
+           *[main] main SMTP
+        } answers with an error.
        *[event_loop_lag] The { $subject } process is responding slowly: event loop p99 is { $value } ms.
     }
     .title = Critical system state!
@@ -241,6 +276,12 @@ ntf-system-health-restored = { $kind ->
         [process_down] The { $subject } process is running again.
         [host_disk_full] Server disk usage is back to normal.
         [host_memory_high] Server memory usage is back to normal.
+        [outbox_stuck] The event queue is being processed again.
+        [gateway_failures] Payments through { $subject } go through again.
+        [smtp_failed] Email is being sent again: the { $subject ->
+            [bulk] broadcast SMTP
+           *[main] main SMTP
+        } works.
        *[event_loop_lag] The { $subject } process delay is back to normal.
     }
     .title = System state restored!
@@ -315,6 +356,10 @@ ntf-customer-promocode-discount-expiring = Your { $percent }% off with promocode
         [day] { $span ->
             [one] { $span } more day
            *[other] { $span } more days
+        }
+        [minute] { $span ->
+            [one] { $span } more minute
+           *[other] { $span } more minutes
         }
        *[hour] { $span ->
             [one] { $span } more hour
@@ -404,6 +449,22 @@ ntf-telegram-label =
     .refund-full = full
     .refund-partial = partial
     .unlimited = Unlimited
+    .report-day = For the day
+    .new-users = New users
+    .new-trials = New trials
+    .trial-conversions = Trial → paid
+    .new-payers = New payers
+    .revenue = Revenue
+    .report-subscriptions = Subscriptions now
+    .active-trials = Active trials
+    .active-paid = Active paid
+    .paid-never-connected = Paid, never connected
+    .report-payments = Payments
+    .purchases = Purchases
+    .renewals = Renewals
+    .changes = Plan changes
+    .report-referrers = Top referrers
+    .unnamed-user = User
 ntf-telegram-subscription-status = { $value ->
         [ACTIVE] Active
         [LIMITED] Out of traffic

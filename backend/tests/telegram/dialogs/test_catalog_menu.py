@@ -25,6 +25,8 @@ def test_registers_all_windows() -> None:
     assert keys == {
         "menu.main",
         "menu.devices",
+        "menu.device",
+        "menu.device_rename",
         "menu.device_confirm_delete",
         "menu.device_confirm_delete_all",
         "menu.device_confirm_reissue",
@@ -32,6 +34,7 @@ def test_registers_all_windows() -> None:
         "subscriptions.card",
         "referrals.main",
         "referrals.about",
+        "referrals.confirm_reset_code",
     }
 
 
@@ -128,6 +131,8 @@ def test_calling_twice_is_idempotent() -> None:
     assert {w.key for w in catalog.all_windows()} == {
         "menu.main",
         "menu.devices",
+        "menu.device",
+        "menu.device_rename",
         "menu.device_confirm_delete",
         "menu.device_confirm_delete_all",
         "menu.device_confirm_reissue",
@@ -135,6 +140,7 @@ def test_calling_twice_is_idempotent() -> None:
         "subscriptions.card",
         "referrals.main",
         "referrals.about",
+        "referrals.confirm_reset_code",
     }
     assert catalog.has_action_handler("get_trial") is True
 
@@ -146,6 +152,9 @@ def test_registers_main_menu_text_variables() -> None:
         "subscription_traffic_limit",
         "subscription_device_limit",
         "subscription_expire_at",
+        "subscription_expire_at_local",
+        "subscription_expire_at_unix",
+        "subscription_is_unlimited",
         "subscription_block",
     }
     assert menu_only <= set(catalog.get_window("menu.main").text_variables)

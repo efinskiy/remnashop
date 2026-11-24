@@ -10,6 +10,7 @@ from app.core.dto import BaseDto, TimestampMixin
 from app.core.enums import (
     Currency,
     DiscountSource,
+    FulfillmentHold,
     Locale,
     PaymentGatewayType,
     PurchaseChannel,
@@ -39,6 +40,8 @@ class PriceQuote:
     anchor_final_price: Decimal
     discount_promocode_id: Optional[int] = None
     plan_discount_percent: int = 0
+    # the customer's markup, already in base_price
+    markup_percent: int = 0
     # what the unlimited subscription being changed was paid, off base_price
     change_credit: Decimal = ZERO_AMOUNT
     # days a change to a fixed-term plan adds for the unused part of the old one
@@ -75,11 +78,13 @@ class TransactionDto(BaseDto, TimestampMixin):
     # None: a free order, nothing was paid through a gateway
     gateway_type: Optional[PaymentGatewayType] = None
     external_payment_id: Optional[str] = None
+    gateway_account: Optional[str] = None
     status: TransactionStatus = TransactionStatus.PENDING
     base_price: Decimal
     discount_percent: int = 0
     discount_source: DiscountSource = DiscountSource.NONE
     plan_discount_percent: int = 0
+    markup_percent: int = 0
     final_price: Decimal
     change_credit: Decimal = ZERO_AMOUNT
     anchor_base_price: Decimal
@@ -91,6 +96,8 @@ class TransactionDto(BaseDto, TimestampMixin):
     expires_at: datetime
     fulfilled_at: Optional[datetime] = None
     fulfilled_subscription_id: Optional[int] = None
+    added_days: Optional[int] = None
+    paid_at: Optional[datetime] = None
     is_test: bool = False
     recurring_consent_id: Optional[int] = None
     is_recurring: bool = False
@@ -98,6 +105,9 @@ class TransactionDto(BaseDto, TimestampMixin):
     # only from an authenticated provider status response; never leaves the API
     saved_payment_method_id: Optional[str] = Field(default=None, repr=False)
     payment_method_shop_id: Optional[str] = None
+    fulfillment_hold: Optional[FulfillmentHold] = None
+    fulfillment_approved: bool = False
+    purchase_discount_returned: bool = False
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -117,10 +127,12 @@ class CreateTransactionDto:
     channel: PurchaseChannel
     target_subscription_id: Optional[int]
     gateway_type: Optional[PaymentGatewayType]
+    gateway_account: Optional[str] = None
     base_price: Decimal
     discount_percent: int
     discount_source: DiscountSource
     plan_discount_percent: int = 0
+    markup_percent: int = 0
     final_price: Decimal
     anchor_base_price: Decimal
     anchor_final_price: Decimal
@@ -208,6 +220,13 @@ class CheckoutResultDto(BaseDto):
 
 
 @dataclass(frozen=True, kw_only=True)
+class CreateTestPaymentDto:
+    gateway_type: PaymentGatewayType
+    # the channel whose shop is tested, where a gateway has one per channel
+    channel: PurchaseChannel
+
+
+@dataclass(frozen=True, kw_only=True)
 class TestPaymentDto:
     order_id: int
     confirmation_url: Optional[str]
@@ -285,6 +304,7 @@ class ReconcilePaidTransactionsDto:
 class MarkOrderFulfilledDto:
     payment_key: str
     subscription_id: int
+    added_days: Optional[int] = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -358,7 +378,8 @@ class FulfillTransactionDto:
 @dataclass(frozen=True, kw_only=True)
 class CheckTransactionPaymentDto:
     transaction_id: int
-    client_ip: str
+    # None for the expiry sweep
+    client_ip: Optional[str]
 
 
 @dataclass(frozen=True, kw_only=True)

@@ -4,13 +4,19 @@ from decimal import Decimal
 from typing import Optional
 
 from app.core.db.uow import UnitOfWork
-from app.core.enums import Currency, Locale, PlanAvailability
+from app.core.enums import Currency, PlanAvailability
 from app.core.exceptions import ValidationError
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.core.utils.time import datetime_now
 from app.modules.plans import PlanDto, PlanRepository
-from app.modules.pricing import CurrencyRateTable, PricingRepository, apply_discounts, price_for
+from app.modules.pricing import (
+    CurrencyRateTable,
+    PricingRepository,
+    apply_discounts,
+    apply_markup,
+    price_for,
+)
 from app.modules.subscriptions.dto import (
     CatalogDurationDto,
     CatalogPlanDto,
@@ -23,19 +29,20 @@ from app.modules.users import UserDto
 
 
 def _to_catalog_plan(
-    plan: PlanDto, rates: CurrencyRateTable, now: datetime, locale: Locale, *, renewal: bool
+    plan: PlanDto, rates: CurrencyRateTable, now: datetime, user: UserDto, *, renewal: bool
 ) -> CatalogPlanDto:
     discount = plan.active_discount(now)
     return CatalogPlanDto(
         id=plan.id,
-        name=plan.display_name(locale),
-        description=plan.display_description(locale),
+        name=plan.display_name(user.language),
+        description=plan.display_description(user.language),
         badge=plan.badge,
         type=plan.type,
         traffic_limit_strategy=plan.traffic_limit_strategy,
         traffic_limit=plan.traffic_limit,
         device_limit=plan.device_limit,
         is_trial=plan.is_trial,
+        allow_renewal=plan.allow_renewal,
         order_index=plan.order_index,
         icon_emoji_id=plan.icon_emoji_id,
         icon_emoji_fallback=plan.icon_emoji_fallback,
@@ -45,7 +52,11 @@ def _to_catalog_plan(
                 order_index=duration.order_index,
                 prices=[
                     _catalog_price(
-                        price_for(duration.base_price, duration.overrides, currency, rates),
+                        apply_markup(
+                            price_for(duration.base_price, duration.overrides, currency, rates),
+                            rates.for_currency(currency),
+                            user.markup_percent,
+                        ),
                         currency,
                         rates,
                         discount,
@@ -92,7 +103,12 @@ class ListActivePlansUseCase(UseCase[ListActivePlansDto, PlanCatalogDto, UserDto
         code = data.plan_code if data is not None else None
         renew_id = data.renew_subscription_id if data is not None else None
         async with self._uow:
-            plans = await self._plan_repository.list_active()
+            # a plan off sale may still renew
+            plans = await (
+                self._plan_repository.list_all()
+                if renew_id is not None
+                else self._plan_repository.list_active()
+            )
             if renew_id is not None:
                 try:
                     purchasable = await self._eligibility.renewable(plans, actor.id, renew_id)
@@ -124,7 +140,7 @@ class ListActivePlansUseCase(UseCase[ListActivePlansDto, PlanCatalogDto, UserDto
         renewal = renew_id is not None
         return PlanCatalogDto(
             plans=[
-                _to_catalog_plan(plan, rates, now, actor.language, renewal=renewal)
+                _to_catalog_plan(plan, rates, now, actor, renewal=renewal)
                 for plan in purchasable
                 if (plan.renewable_durations() if renewal else plan.sellable_durations())
             ],

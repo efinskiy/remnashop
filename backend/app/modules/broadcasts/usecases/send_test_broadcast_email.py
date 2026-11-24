@@ -14,11 +14,14 @@ from app.modules.broadcasts.dto import SendTestBroadcastEmailDto
 from app.modules.broadcasts.email_assets import load_email_logo, read_email_images
 from app.modules.broadcasts.email_html import email_image_ids
 from app.modules.broadcasts.email_render import BroadcastEmailRenderer, unsubscribe_links
+from app.modules.broadcasts.recipient_repository import BroadcastRecipientRepository
+from app.modules.broadcasts.referral import cabinet_links_allowed, referral_link_bases
 from app.modules.broadcasts.render import load_unsubscribe_labels
 from app.modules.broadcasts.repository import BroadcastRepository
 from app.modules.broadcasts.validation import promocode_is_usable
 from app.modules.email import EmailSendError, OutgoingEmailDto, SmtpBatchSender, load_email_brand
 from app.modules.promocodes import PromocodeRepository
+from app.modules.referrals import ReferralRepository
 from app.modules.settings import GetPublicAppearanceImageUseCase, SettingsRepository
 from app.modules.translations import TranslationRepository
 from app.modules.users import UserDto
@@ -30,8 +33,10 @@ class SendTestBroadcastEmailUseCase(UseCase[SendTestBroadcastEmailDto, None, Use
     def __init__(
         self,
         broadcast_repository: BroadcastRepository,
+        recipient_repository: BroadcastRecipientRepository,
         settings_repository: SettingsRepository,
         promocode_repository: PromocodeRepository,
+        referral_repository: ReferralRepository,
         translation_repository: TranslationRepository,
         get_public_appearance_image_use_case: GetPublicAppearanceImageUseCase,
         batch_sender: SmtpBatchSender,
@@ -39,8 +44,10 @@ class SendTestBroadcastEmailUseCase(UseCase[SendTestBroadcastEmailDto, None, Use
         uow: UnitOfWork,
     ) -> None:
         self._broadcast_repository = broadcast_repository
+        self._recipient_repository = recipient_repository
         self._settings_repository = settings_repository
         self._promocode_repository = promocode_repository
+        self._referral_repository = referral_repository
         self._translation_repository = translation_repository
         self._get_public_appearance_image_use_case = get_public_appearance_image_use_case
         self._batch_sender = batch_sender
@@ -58,12 +65,16 @@ class SendTestBroadcastEmailUseCase(UseCase[SendTestBroadcastEmailDto, None, Use
             profile = (await self._settings_repository.get_email_settings()).profile(bulk=True)
             if not profile.is_configured:
                 raise ValidationError("SMTP is not configured", code=ErrorCode.EMAIL_NOT_CONFIGURED)
-            context = (await self._broadcast_repository.recipient_contexts([actor.id]))[actor.id]
+            context = (await self._recipient_repository.recipient_contexts([actor.id]))[actor.id]
             code = (
                 await promocode_is_usable(self._promocode_repository, broadcast.promocode_id)
                 if broadcast.promocode_id is not None
                 else None
             )
+            cabinet_allowed = await cabinet_links_allowed(
+                broadcast, self._referral_repository, self._settings_repository
+            )
+            bot = await self._settings_repository.get_bot_settings()
             labels = await load_unsubscribe_labels(
                 self._translation_repository, [data.locale, broadcast.default_locale]
             )
@@ -99,6 +110,9 @@ class SendTestBroadcastEmailUseCase(UseCase[SendTestBroadcastEmailDto, None, Use
             ),
             unsubscribe_labels=labels,
             image_src=lambda i: f"cid:img-{i}",
+            referral_bases=await referral_link_bases(
+                cabinet_allowed, bot, self._config.cabinet.url
+            ),
         )
         rendered = renderer.render(replace(context, language=data.locale), datetime_now())
         attached = [images[i] for i in sorted(rendered.image_ids)]

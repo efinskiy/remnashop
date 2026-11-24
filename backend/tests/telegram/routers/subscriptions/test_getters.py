@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from decimal import Decimal
 from types import SimpleNamespace
-from typing import Optional
+from typing import Any, Optional
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -15,18 +15,24 @@ from app.modules.recurring_payments import (
     RecurringPaymentStateDto,
 )
 from app.modules.settings import CabinetAuthSettingsDto
+from app.modules.subscriptions import DeviceDto
 from app.telegram.dialogs.context import (
     SELECTED_SUBSCRIPTION_KEY,
     build_condition_data,
     menu_flags,
     selected_subscription_id,
 )
+from app.telegram.dialogs.rendering import UNAVAILABLE_BUTTONS_KEY
 from app.telegram.i18n import build_translator_hub
 from app.telegram.routers.subscriptions.getters import (
+    DEVICE_HAS_NAME_KEY,
+    DEVICE_TITLE_KEY,
     _auto_renew_block,
     device_confirm_delete_getter,
+    device_getter,
     subscription_recurring_terms_getter,
 )
+from app.telegram.routers.subscriptions.handlers import SELECTED_HWID_KEY
 from tests.seeded_translations import seeded_fluent_source
 
 
@@ -275,6 +281,7 @@ async def test_paused_subscription_keeps_the_withdrawal_button(monkeypatch):
     user = _user()
     subscription = _subscription(7, "https://example.test/subscription")
     subscription.expire_at = datetime(2026, 12, 1, tzinfo=timezone.utc)
+    subscription.grace_until = None
     manager = MagicMock()
     manager.middleware_data = {USER_KEY: user}
     manager.dialog_data = {SELECTED_SUBSCRIPTION_KEY: subscription.id}
@@ -326,3 +333,75 @@ def test_withdrawal_during_a_sent_payment_says_the_payment_may_complete() -> Non
     )
     text = _auto_renew_block(state, hub.get_translator_by_locale(Locale.EN.value))
     assert "sent to YooKassa" in text
+
+
+def _device(hwid: str, name: Optional[str]) -> DeviceDto:
+    return DeviceDto(
+        hwid=hwid,
+        name=name,
+        platform="iOS",
+        os_version="18.1",
+        device_model="iPhone 15",
+        app="Happ 2.1.0",
+        user_agent="Happ/2.1.0/ios",
+        created_at=datetime(2026, 11, 12, tzinfo=timezone.utc),
+    )
+
+
+async def _render_device(
+    monkeypatch: pytest.MonkeyPatch,
+    devices: list[DeviceDto],
+    *,
+    single_reset: bool = True,
+) -> tuple[dict[str, Any], dict[str, object], dict[str, Any]]:
+    monkeypatch.setattr(
+        "app.telegram.routers.subscriptions.getters.render_dialog_buttons",
+        AsyncMock(return_value=[]),
+    )
+    rendered: dict[str, object] = {}
+
+    def _fake_get(key: str, **kwargs: object) -> str:
+        if key == "msg-menu-device":
+            rendered.update(kwargs)
+        return key
+
+    i18n = MagicMock()
+    i18n.get_translator_by_locale.return_value = MagicMock(get=_fake_get)
+    dialog_manager = MagicMock()
+    dialog_manager.middleware_data = {USER_KEY: _user()}
+    dialog_manager.dialog_data = {SELECTED_SUBSCRIPTION_KEY: 7, SELECTED_HWID_KEY: "hw"}
+    shop = MagicMock(device_single_reset_enabled=single_reset)
+
+    data = await device_getter.__dishka_orig_func__(
+        dialog_manager=dialog_manager,
+        list_devices=AsyncMock(return_value=devices),
+        get_shop_settings=MagicMock(system=AsyncMock(return_value=shop)),
+        i18n=i18n,
+        dialog_config_cache=MagicMock(),
+    )
+    return data, rendered, dialog_manager.dialog_data
+
+
+async def test_device_card_titles_a_named_device_and_keeps_its_model(monkeypatch) -> None:
+    data, rendered, dialog_data = await _render_device(monkeypatch, [_device("hw", "Mine")])
+
+    assert (rendered["device_name"], rendered["device_model"]) == ("Mine", "iPhone 15")
+    assert (rendered["device_system"], rendered["device_app"]) == ("iOS 18.1", "Happ 2.1.0")
+    assert (dialog_data[DEVICE_TITLE_KEY], dialog_data[DEVICE_HAS_NAME_KEY]) == ("Mine", True)
+    assert data[UNAVAILABLE_BUTTONS_KEY] == set()
+
+
+async def test_device_card_without_a_name_is_titled_by_the_model(monkeypatch) -> None:
+    data, rendered, _ = await _render_device(monkeypatch, [_device("hw", None)], single_reset=False)
+
+    # the model already is the title, not repeated below it
+    assert rendered["device_name"] == "iPhone 15"
+    assert rendered["device_model"] != "iPhone 15"
+    assert data[UNAVAILABLE_BUTTONS_KEY] == {"menu.device_confirm_delete"}
+
+
+async def test_device_card_of_a_removed_device_leaves_only_back(monkeypatch) -> None:
+    data, rendered, _ = await _render_device(monkeypatch, [_device("other", None)])
+
+    assert rendered == {}
+    assert data[UNAVAILABLE_BUTTONS_KEY] == {"menu.device_rename", "menu.device_confirm_delete"}

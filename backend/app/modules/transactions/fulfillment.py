@@ -1,31 +1,34 @@
 from functools import partial
+from typing import Optional
 
 from app.core.db.uow import UnitOfWork
-from app.core.enums import DiscountSource, TransactionStatus
-from app.modules.subscriptions import PurchaseSubscriptionDispatch
+from app.core.enums import TransactionStatus
+from app.core.ports import EventPublisher
+from app.modules.subscriptions import PurchaseIdempotencyRepository, PurchaseSubscriptionDispatch
 from app.modules.transactions.dto import TransactionDto
 from app.modules.transactions.gateways.base import ProviderPayment
 from app.modules.transactions.repository import TransactionRepository
-from app.modules.transactions.unpaid_orders import UNPAID_FINAL
+from app.modules.transactions.unpaid_orders import UNPAID_FINAL, clear_late_payment
+from app.modules.users import UserRepository
 
 
 async def settle_verified_payment(
     order: TransactionDto,
     payment: ProviderPayment,
-    repository: TransactionRepository,
+    *,
+    transaction_repository: TransactionRepository,
+    user_repository: UserRepository,
+    event_publisher: EventPublisher,
     uow: UnitOfWork,
     dispatch: PurchaseSubscriptionDispatch,
 ) -> bool:
     if order.status is TransactionStatus.PAID:
         return False
     async with uow:
-        current = await repository.get_by_id_for_update(order.id)
+        current = await transaction_repository.get_by_id_for_update(order.id)
         if current.status not in UNPAID_FINAL | {TransactionStatus.PENDING}:
             return False
-        if current.status in UNPAID_FINAL and current.discount_source is DiscountSource.PURCHASE:
-            # Cancellation returns this one-shot discount; a late settlement cannot spend it twice.
-            return False
-        moved = await repository.mark_status_if(
+        moved = await transaction_repository.mark_status_if(
             order.id,
             TransactionStatus.PAID,
             current=frozenset({current.status}),
@@ -33,10 +36,15 @@ async def settle_verified_payment(
         )
         if not moved:
             return False
-        await repository.remember_payment_method(
+        await transaction_repository.remember_payment_method(
             order.id, payment.saved_payment_method_id, payment.payment_method_shop_id
         )
-        if not order.is_test:
+        if not current.is_test and await clear_late_payment(
+            current,
+            transaction_repository=transaction_repository,
+            user_repository=user_repository,
+            event_publisher=event_publisher,
+        ):
             await uow.after_commit(partial(dispatch_fulfillment, dispatch, current))
     return True
 
@@ -57,4 +65,23 @@ async def dispatch_fulfillment(
         purchase_type=order.purchase_type.value,
         target_subscription_id=order.target_subscription_id,
         idempotency_key=order.idempotency_key,
+        # an admin chose to issue it: a renewal of a since-changed plan goes on,
+        # the sweep's redispatch included
+        renew_other_plan=order.fulfillment_approved,
     )
+
+
+async def link_fulfilled_order(
+    transaction_repository: TransactionRepository,
+    idempotency_repository: PurchaseIdempotencyRepository,
+    order: TransactionDto,
+    subscription_id: int,
+) -> Optional[TransactionDto]:
+    """Records a delivery the fulfilled task didn't, with the days a renewal pinned:
+    a refund takes those back, not the nominal duration. The order it marked; None
+    when it was already fulfilled."""
+    marked = await transaction_repository.mark_fulfilled(order.id, subscription_id)
+    added_days = await idempotency_repository.find_renew_added_days(order.idempotency_key)
+    if added_days is not None:
+        await transaction_repository.set_added_days(order.idempotency_key, added_days)
+    return marked

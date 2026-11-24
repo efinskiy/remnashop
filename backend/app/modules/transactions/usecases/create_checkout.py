@@ -35,7 +35,7 @@ from app.core.utils.time import datetime_now
 from app.modules.gateways import REQUIRE_PAID_PURCHASE_FIELD_KEY, GatewayRepository, gateway_flags
 from app.modules.legal import LegalAcceptanceRecorder
 from app.modules.plans import PlanDto
-from app.modules.settings import GetAccessSettingsUseCase, SettingsRepository, fetch_bot_username
+from app.modules.settings import GetAccessSettingsUseCase, SettingsRepository, bot_username
 from app.modules.subscriptions import (
     PlanSnapshot,
     PurchaseEligibility,
@@ -73,6 +73,7 @@ class _OrderTerms:
 
     gateway_type: Optional[PaymentGatewayType]
     gateway_settings: dict[str, str]
+    gateway_account: Optional[str] = None
     currency: Currency
     quote: PriceQuote
     customer_email: Optional[str]
@@ -125,9 +126,7 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
                 bot_settings = await self._settings_repository.get_bot_settings()
             if bot_settings.token is None:
                 return None
-            username = await fetch_bot_username(
-                bot_settings.token.get_secret_value(), bot_settings.proxy
-            )
+            username = await bot_username(bot_settings)
             return f"{T_ME}{username}" if username else None
         cabinet_url = self._config.cabinet.url
         if data.return_to != "cabinet" or not cabinet_url:
@@ -186,7 +185,9 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
             replaced = await self._transaction_repository.cancel_own_pending(order_id, user_id)
             if replaced is None:
                 return None
-            await give_back_purchase_discount(self._user_repository, replaced)
+            await give_back_purchase_discount(
+                self._user_repository, self._transaction_repository, replaced
+            )
             await self._recurring_checkout.revoke_consent(replaced.recurring_consent_id, channel)
         logger.info(f"Order '{order_id}' of user '{user_id}' canceled, replaced by a new checkout")
         return order_id
@@ -203,7 +204,6 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
         )
 
         async with self._uow:
-            await self._recurring_checkout.hold(actor.id, data)
             plan, user = await self._pricer.load_purchasable_plan(
                 actor.id,
                 data.plan_id,
@@ -252,6 +252,9 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
             # the one-shot discount is spent in the same transaction as the
             # order, so a racing checkout finds it gone and re-quotes
             await self._spend_purchase_discount(quote, user)
+            # in the order's transaction: the mandate stays locked until the order commits,
+            # so an automatic charge can't be sent between the check and the order
+            await self._recurring_checkout.hold(actor.id, data)
             consent_id = await self._recurring_checkout.record_consent(
                 actor, data, plan, quote, terms.gateway_settings
             )
@@ -307,7 +310,9 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
                     current=frozenset({TransactionStatus.PENDING}),
                 )
                 if failed:
-                    await give_back_purchase_discount(self._user_repository, order)
+                    await give_back_purchase_discount(
+                        self._user_repository, self._transaction_repository, order
+                    )
             # the provider's answer stays in the log: it can name the merchant
             # account or the request, which is not the customer's business
             logger.exception(
@@ -368,9 +373,20 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
             customer_email = await self._resolve_customer_email(
                 data, user, gateway_type, gateway_settings
             )
+        try:
+            gateway_account = self._gateway_factory.account_for(
+                gateway_type, gateway_settings, in_telegram=data.in_telegram
+            )
+        except PaymentGatewayError:
+            # settings changed since the availability check and no longer parse
+            raise ValidationError(
+                f"Gateway '{gateway_type.value}' is not available",
+                code=ErrorCode.GATEWAY_NOT_AVAILABLE,
+            ) from None
         return _OrderTerms(
             gateway_type=gateway_type,
             gateway_settings=gateway_settings,
+            gateway_account=gateway_account,
             currency=data.currency,
             quote=quote,
             customer_email=customer_email,
@@ -464,10 +480,12 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
                 channel=data.channel,
                 target_subscription_id=data.target_subscription_id,
                 gateway_type=terms.gateway_type,
+                gateway_account=terms.gateway_account,
                 base_price=quote.base_price,
                 discount_percent=quote.discount_percent,
                 discount_source=quote.discount_source,
                 plan_discount_percent=quote.plan_discount_percent,
+                markup_percent=quote.markup_percent,
                 final_price=quote.final_price,
                 change_credit=quote.change_credit,
                 anchor_base_price=quote.anchor_base_price,
@@ -570,6 +588,12 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
                         "Renewing a different plan is a CHANGE, not a RENEW",
                         code=ErrorCode.RENEW_PLAN_MISMATCH,
                     )
+            # would renew past the plan's allow_renewal under another name
+            elif target.plan_snapshot.plan_id == data.plan_id:
+                raise ValidationError(
+                    "Changing to the same plan is a RENEW, not a CHANGE",
+                    code=ErrorCode.CHANGE_SAME_PLAN,
+                )
             elif data.duration_days < 0:
                 raise ValidationError(
                     "duration_days can't be negative", code=ErrorCode.DURATION_NOT_POSITIVE

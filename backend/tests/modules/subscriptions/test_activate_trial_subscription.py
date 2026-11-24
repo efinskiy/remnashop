@@ -23,6 +23,7 @@ from app.modules.plans.repository import PlanRepository
 from app.modules.pricing.repository import PricingRepository
 from app.modules.settings.dto import UpdateBotRequirementsDto, UpdateBotSettingsDto
 from app.modules.settings.repository import SettingsRepository
+from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
 from app.modules.subscriptions.dto import ActivateTrialDto
 from app.modules.subscriptions.idempotency_repository import PurchaseIdempotencyRepository
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
@@ -78,7 +79,9 @@ async def test_activates_a_trial_and_spends_the_flag(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         PurchaseIdempotencyRepository(subscription_repository.session),
         UserRepository(subscription_repository.session),
@@ -129,7 +132,9 @@ async def test_rejects_when_the_flag_is_already_spent(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         PurchaseIdempotencyRepository(subscription_repository.session),
         UserRepository(subscription_repository.session),
@@ -170,7 +175,9 @@ async def test_a_second_activation_with_a_stale_actor_is_rejected(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         PurchaseIdempotencyRepository(subscription_repository.session),
         UserRepository(subscription_repository.session),
@@ -214,7 +221,9 @@ async def test_a_failed_activation_gives_the_trial_back(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         PurchaseIdempotencyRepository(subscription_repository.session),
         UserRepository(subscription_repository.session),
@@ -260,7 +269,9 @@ async def test_a_paid_trial_is_not_activated_for_free(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         PurchaseIdempotencyRepository(subscription_repository.session),
         UserRepository(subscription_repository.session),
@@ -333,7 +344,9 @@ async def test_mini_app_trial_needs_the_guarded_channel(
             remnawave_sdk,
             uow,
             event_publisher,
-            SubscriptionLifecycleService(subscription_repository),
+            SubscriptionLifecycleService(
+                subscription_repository, CreditSegmentRepository(subscription_repository.session)
+            ),
             PricingRepository(session),
             PurchaseIdempotencyRepository(session),
             UserRepository(session),

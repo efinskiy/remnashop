@@ -14,6 +14,7 @@ export interface AdLink {
   allow_bot: boolean;
   allow_webcabinet: boolean;
   note: string | null;
+  promocode_id: number | null;
   created_by: number | null;
   created_at: string | null;
   updated_at: string | null;
@@ -57,6 +58,7 @@ export interface CreateAdLinkRequest {
   allow_bot?: boolean;
   allow_webcabinet?: boolean;
   note?: string | null;
+  promocode_id?: number | null;
 }
 
 export function createAdLink(payload: CreateAdLinkRequest): Promise<AdLink> {
@@ -73,6 +75,8 @@ export interface UpdateAdLinkRequest {
   allow_webcabinet?: boolean;
   /** "" clears it */
   note?: string;
+  // null unlinks the promocode
+  promocode_id?: number | null;
 }
 
 export function updateAdLink(adLinkId: number, payload: UpdateAdLinkRequest): Promise<AdLink> {
@@ -93,6 +97,8 @@ export interface AdLinkStats {
   attributions_count: number;
   attributions_by_channel: Partial<Record<AdLinkChannel, number>>;
   paid_count: number;
+  /** bought a paid trial; one who bought a plan too is in paid_count as well */
+  trial_count: number;
   conversion_rate: string;
   revenue: string;
   /** fixed_cost + revenue_share */

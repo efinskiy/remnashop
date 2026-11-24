@@ -63,6 +63,7 @@ class PurchaseSubscriptionUseCase(UseCase[PurchaseSubscriptionDto, SubscriptionD
             event_publisher,
             user_repository,
             config,
+            lifecycle_service,
         )
         self._renew = RenewPurchase(
             subscription_repository,
@@ -71,7 +72,7 @@ class PurchaseSubscriptionUseCase(UseCase[PurchaseSubscriptionDto, SubscriptionD
             uow,
             event_publisher,
             lifecycle_service,
-            pricing_repository,
+            settings_repository,
         )
         self._change = ChangePurchase(
             subscription_repository,
@@ -79,9 +80,12 @@ class PurchaseSubscriptionUseCase(UseCase[PurchaseSubscriptionDto, SubscriptionD
             remnawave_sdk,
             uow,
             event_publisher,
-            pricing_repository,
             recurring_closer,
-            ChangeCreditCalculator(remnawave_sdk, uow, pricing_repository, settings_repository),
+            ChangeCreditCalculator(
+                remnawave_sdk, uow, pricing_repository, settings_repository, lifecycle_service
+            ),
+            lifecycle_service,
+            settings_repository,
         )
 
     async def _assert_squads_in_panel(self, data: PurchaseSubscriptionDto) -> None:
@@ -104,28 +108,18 @@ class PurchaseSubscriptionUseCase(UseCase[PurchaseSubscriptionDto, SubscriptionD
                 return existing
             data = replace(data, claim_token=token)
 
-        # a released key lets a retry start over; a RENEW keeps it once its
-        # expire_at is pinned, so the retry re-applies that value. NEW and
-        # CHANGE are safe to start over as they are.
-        keep_key = False
-
-        def mark_key_kept() -> None:
-            nonlocal keep_key
-            keep_key = True
-
+        # a released key lets a retry start over; release keeps a RENEW's key once
+        # its expire_at is pinned, so the retry re-applies that value
         try:
             if data.purchase_type is PurchaseType.NEW:
                 return await self._new.run(actor, data)
             if data.purchase_type is PurchaseType.RENEW:
-                return await self._renew.run(actor, data, mark_key_kept)
+                return await self._renew.run(actor, data)
             if data.purchase_type is PurchaseType.CHANGE:
                 return await self._change.run(actor, data)
             raise NotImplementedError(f"purchase_type '{data.purchase_type}' not yet implemented")
         except BaseException:
-            if not keep_key:
-                await self._release_idempotency_key_best_effort(
-                    data.idempotency_key, data.claim_token
-                )
+            await self._release_idempotency_key_best_effort(data.idempotency_key, data.claim_token)
             raise
 
     async def _claim_or_return_existing(

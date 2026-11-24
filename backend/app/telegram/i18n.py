@@ -1,3 +1,4 @@
+import html
 import math
 from datetime import datetime
 from decimal import Decimal
@@ -7,15 +8,18 @@ from fluent_compiler.bundle import FluentBundle
 from fluentogram import FluentTranslator, TranslatorHub, TranslatorRunner
 
 from app.core.config import AppConfig
+from app.core.constants import DATE_FORMAT, DATETIME_FORMAT
 from app.core.db.standalone import standalone_session
 from app.core.enums import Locale
 from app.core.utils.time import datetime_now, period_parts
 from app.modules.subscriptions import is_unlimited_expiry
 from app.modules.translations import TranslationRepository
 from app.modules.users import UserDto
+from app.telegram.dialogs.rendering import TrustedHtml
 
-_DATETIME_FORMAT: Final[str] = "%d.%m.%Y %H:%M"
-_DATE_FORMAT: Final[str] = "%d.%m.%Y"
+# Bot API date_time entity: d = short date, t = short time
+_TG_DATETIME_FORMAT: Final[str] = "dt"
+_TG_DATE_FORMAT: Final[str] = "d"
 
 
 def build_translator_hub(
@@ -63,11 +67,11 @@ def get_translator(hub: TranslatorHub, user: UserDto) -> TranslatorRunner:
 
 # every date the bot shows a customer goes through these two
 def format_datetime(value: Optional[datetime]) -> str:
-    return value.strftime(_DATETIME_FORMAT) if value is not None else "—"
+    return value.strftime(DATETIME_FORMAT) if value is not None else "—"
 
 
 def format_date(value: Optional[datetime]) -> str:
-    return value.strftime(_DATE_FORMAT) if value is not None else "—"
+    return value.strftime(DATE_FORMAT) if value is not None else "—"
 
 
 def format_price(price: Decimal) -> str:
@@ -79,6 +83,32 @@ def format_expiry(runner: TranslatorRunner, value: datetime, *, with_time: bool 
     if is_unlimited_expiry(value):
         return runner.get("time-unit.no-expiry")
     return format_datetime(value) if with_time else format_date(value)
+
+
+def unix_time(value: datetime) -> str:
+    # a string, so Fluent doesn't group the digits
+    return str(int(value.timestamp()))
+
+
+def expiry_unix_time(value: datetime) -> str:
+    """Empty for an unlimited subscription: it has no date to show."""
+    return "" if is_unlimited_expiry(value) else unix_time(value)
+
+
+def format_date_tag(value: datetime, *, with_time: bool = False) -> TrustedHtml:
+    """The date as <tg-time>, shown in the reader's own time zone; the inner
+    text is for clients that don't know the tag."""
+    text = format_datetime(value) if with_time else format_date(value)
+    tg_format = _TG_DATETIME_FORMAT if with_time else _TG_DATE_FORMAT
+    return TrustedHtml(f'<tg-time unix="{unix_time(value)}" format="{tg_format}">{text}</tg-time>')
+
+
+def format_expiry_tag(
+    runner: TranslatorRunner, value: datetime, *, with_time: bool = False
+) -> TrustedHtml:
+    if is_unlimited_expiry(value):
+        return TrustedHtml(html.escape(runner.get("time-unit.no-expiry")))
+    return format_date_tag(value, with_time=with_time)
 
 
 def format_period(runner: TranslatorRunner, days: int) -> str:

@@ -30,9 +30,8 @@ class CheckRecurringPaymentUseCase(UseCase[RecurringAdminActionDto, None]):
             locked = await self._guard.lock(actor, data)
             order = await self._transactions.get_by_id(require_pending(locked))
             gateway = await self._poller.gateway()
-            if (
-                order.external_payment_id is None
-                or locked.mandate.shop_id != gateway.settings.shop_id
+            if order.external_payment_id is None or not gateway.takes_payments_into(
+                locked.mandate.shop_id
             ):
                 raise ConflictError(
                     "No payment can be checked with the current shop",

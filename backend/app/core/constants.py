@@ -1,5 +1,5 @@
 import re
-from datetime import timezone
+from datetime import timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 from re import Pattern
@@ -46,7 +46,10 @@ BANNER_NAME_PATTERN: Final[str] = r"^[a-z0-9][a-z0-9._-]*$"
 REMNASHOP_PREFIX: Final[str] = "rs_"
 WEB_PREFIX: Final[str] = "web_"
 WEBAUTH_START_PREFIX: Final[str] = "webauth_"
+REFERRAL_START_PREFIX: Final[str] = "ref_"
 PLAN_START_PREFIX: Final[str] = "plan_"
+AD_LINK_START_PREFIX: Final[str] = "ad_"
+PROMOCODE_START_PREFIX: Final[str] = "promo_"
 # callback data under a customer's Telegram notification
 CUSTOMER_NOTIFICATION_CLOSE_CALLBACK: Final[str] = "cn:close"
 CUSTOMER_NOTIFICATION_RENEW_PREFIX: Final[str] = "cn:renew:"
@@ -61,7 +64,7 @@ REDIS_WAIT_CONNECTION_KWARGS: Final[dict[str, Any]] = {
     "socket_keepalive": True,
     "health_check_interval": 30,
 }
-# not for a client that blocks on reads (BRPOP, pub/sub listen): those would
+# not for a client that blocks on reads (XREADGROUP, pub/sub listen): those would
 # time out while simply idle
 REDIS_CONNECTION_KWARGS: Final[dict[str, Any]] = {
     **REDIS_WAIT_CONNECTION_KWARGS,
@@ -75,6 +78,7 @@ TELEGRAM_LOGS_KEY: Final[str] = f"{REDIS_KEY_PREFIX}telegram:logs"
 DIALOG_CONFIG_CHANGED_CHANNEL: Final[str] = f"{REDIS_KEY_PREFIX}telegram:dialog-config-changed"
 TRANSLATION_CHANGED_CHANNEL: Final[str] = f"{REDIS_KEY_PREFIX}telegram:translation-changed"
 PAYMENT_OUTCOME_CHANNEL: Final[str] = f"{REDIS_KEY_PREFIX}telegram:payment-outcome"
+CUSTOMER_MENU_RESET_CHANNEL: Final[str] = f"{REDIS_KEY_PREFIX}telegram:customer-menu-reset"
 
 # A custom dialog window renders through one state out of a fixed pool
 # (app/telegram/dialogs/state_pool.py), so the pool size is also the hard cap on
@@ -101,12 +105,18 @@ CABINET_OAUTH_PROVIDERS: Final[frozenset[OAuthProvider]] = frozenset(
 CONTAINER_KEY: Final[str] = "dishka_container"
 USER_KEY: Final[str] = "user"
 
+# a customer's own device name, shown on one Telegram button
+DEVICE_NAME_MAX_LENGTH: Final[int] = 32
+
 INT32_MAX: Final[int] = 2_147_483_647
 # users.points is Numeric(12, 0)
 MAX_POINTS_BALANCE: Final[Decimal] = Decimal(10**12 - 1)
 INT64_MAX: Final[int] = 2**63 - 1
 
 TIMEZONE: Final[timezone] = timezone.utc
+# how a customer reads a date, in the bot and in what it sends
+DATE_FORMAT: Final[str] = "%d.%m.%Y"
+DATETIME_FORMAT: Final[str] = "%d.%m.%Y %H:%M"
 # the inline query the referral "Invite" button opens the chat picker with
 INLINE_INVITE_QUERY: Final[str] = "invite"
 DATETIME_FILE_FORMAT: Final[str] = "%Y-%m-%d_%H-%M-%S"
@@ -129,6 +139,11 @@ TTL_30D: Final[int] = TIME_1D * 30
 # bytes (CreateUserRequestDto.traffic_limit_bytes): convert at the SDK call
 # only, never store bytes in our schema.
 GB_TO_BYTES: Final[int] = 1024**3
+MB_TO_BYTES: Final[int] = 1024**2
+# an expiry older than this was missed (worker down, grace switched on later): no grace for it
+GRACE_ENTRY_WINDOW: Final[timedelta] = timedelta(hours=24)
+# switching grace on alone must not hand out indefinite grace (0 days)
+GRACE_DEFAULT_DURATION_DAYS: Final[int] = 3
 
 # what Remnawave accepts as a user tag (CreateUserRequestDto.tag); a plan's tag goes
 # onto every panel user it provisions
@@ -203,3 +218,6 @@ DEFAULT_UNLIMITED_REWARD_DAYS: Final[int] = 365
 UNLIMITED_COVERAGE_DAYS: Final[int] = 36500
 # sha256 hex of the auto-renewal terms a customer saw
 RECURRING_TERMS_ID_PATTERN: Final[str] = r"^[0-9a-f]{64}$"
+
+# a customer's hidden price markup, in percent of the plan price
+MAX_MARKUP_PERCENT: Final[int] = 500

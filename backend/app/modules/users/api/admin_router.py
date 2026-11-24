@@ -25,6 +25,7 @@ from app.modules.users.api.schemas import (
     PromoteAdminRequest,
     SecurityResponse,
     SetDiscountRequest,
+    SetMarkupRequest,
     SetTrialAvailabilityRequest,
     UnblockBlacklistMatchesResponse,
     UpdateAdminRequest,
@@ -47,7 +48,9 @@ from app.modules.users.dto import (
     ListBlacklistMatchesDto,
     ListUsersDto,
     PromoteToAdminDto,
+    ResetBotMenuDto,
     SetUserDiscountDto,
+    SetUserMarkupDto,
     SetUserTrialAvailabilityDto,
     UnbindTelegramDto,
     UnblockBlacklistMatchesDto,
@@ -79,7 +82,9 @@ from app.modules.users.usecases import (
     ListBlacklistMatchesUseCase,
     ListUsersUseCase,
     PromoteToAdminUseCase,
+    ResetBotMenuUseCase,
     SetUserDiscountUseCase,
+    SetUserMarkupUseCase,
     SetUserTrialAvailabilityUseCase,
     UnbindTelegramIdUseCase,
     UnblockBlacklistMatchesUseCase,
@@ -278,6 +283,30 @@ async def set_user_discount(
 
 
 @router.patch(
+    "/{user_id:int}/markup",
+    response_model=UserListItemResponse,
+    responses=error_responses(400, 404),
+)
+@inject
+async def set_user_markup(
+    user_id: int,
+    payload: SetMarkupRequest,
+    request: Request,
+    use_case: FromDishka[SetUserMarkupUseCase],
+    actor: Actor = Depends(require_admin),
+) -> UserListItemResponse:
+    updated = await use_case(
+        actor,
+        SetUserMarkupDto(
+            user_id=user_id,
+            markup_percent=payload.markup_percent,
+            client_ip=resolve_client_ip(request),
+        ),
+    )
+    return UserListItemResponse.model_validate(updated, from_attributes=True)
+
+
+@router.patch(
     "/{user_id:int}/trial",
     response_model=UserListItemResponse,
     responses=error_responses(404),
@@ -377,6 +406,21 @@ async def unblock_user(
         actor, UnblockUserDto(user_id=user_id, client_ip=resolve_client_ip(request))
     )
     return UserListItemResponse.model_validate(updated, from_attributes=True)
+
+
+@router.post(
+    "/{user_id:int}/actions/reset-bot-menu",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=error_responses(400, 404, 409),
+)
+@inject
+async def reset_user_bot_menu(
+    user_id: int,
+    request: Request,
+    use_case: FromDishka[ResetBotMenuUseCase],
+    actor: Actor = Depends(require_admin),
+) -> None:
+    await use_case(actor, ResetBotMenuDto(user_id=user_id, client_ip=resolve_client_ip(request)))
 
 
 @router.post(

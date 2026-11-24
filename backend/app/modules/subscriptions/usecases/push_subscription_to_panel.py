@@ -3,6 +3,7 @@ from uuid import UUID
 
 from loguru import logger
 from remnapy import RemnawaveSDK
+from remnapy.enums import ErrorCode as RemnawaveErrorCode
 from remnapy.exceptions import NotFoundError as RemnawaveNotFoundError
 
 from app.core.actor import Actor
@@ -12,6 +13,7 @@ from app.core.events import changed_fields
 from app.core.ports import EventPublisher
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
+from app.modules.settings import SettingsRepository
 from app.modules.subscriptions.dto import (
     PushSubscriptionToPanelDto,
     SubscriptionDto,
@@ -42,6 +44,7 @@ class PushSubscriptionToPanelUseCase(UseCase[PushSubscriptionToPanelDto, Subscri
         event_publisher: EventPublisher,
         uow: UnitOfWork,
         config: AppConfig,
+        settings_repository: SettingsRepository,
     ) -> None:
         self._subscription_repository = subscription_repository
         self._user_repository = user_repository
@@ -49,6 +52,7 @@ class PushSubscriptionToPanelUseCase(UseCase[PushSubscriptionToPanelDto, Subscri
         self._event_publisher = event_publisher
         self._uow = uow
         self._prefix = config.remnawave.username_prefix
+        self._settings_repository = settings_repository
 
     async def _execute(self, actor: Actor, data: PushSubscriptionToPanelDto) -> SubscriptionDto:
         async with self._uow:
@@ -59,9 +63,14 @@ class PushSubscriptionToPanelUseCase(UseCase[PushSubscriptionToPanelDto, Subscri
             subscription = await self._replace_squads(
                 actor, owner, subscription, data.squad_replacements
             )
+            grace = await self._settings_repository.get_grace_settings()
         try:
-            await self._remnawave_sdk.users.get_user_by_id(subscription.remnawave_user_id)
-        except RemnawaveNotFoundError:
+            await push_to_panel(self._remnawave_sdk, subscription, owner, grace)
+        except RemnawaveNotFoundError as error:
+            # a missing squad or a proxy's bare 404 isn't a missing user: recreating then
+            # would leave the old panel user working with no row behind it
+            if error.code != RemnawaveErrorCode.USER_NOT_FOUND:
+                raise
             subscription = await recreate_in_panel(
                 self._remnawave_sdk,
                 self._subscription_repository,
@@ -70,8 +79,6 @@ class PushSubscriptionToPanelUseCase(UseCase[PushSubscriptionToPanelDto, Subscri
                 subscription,
                 self._prefix,
             )
-        else:
-            await push_to_panel(self._remnawave_sdk, subscription, owner)
 
         async with self._uow:
             await self._event_publisher.publish(
