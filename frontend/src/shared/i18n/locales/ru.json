@@ -4906,6 +4906,7 @@
     "SESSION_AUDIENCE_MISMATCH": "Эту сессию здесь использовать нельзя. Войдите заново.",
     "SESSION_NOT_FOUND": "Сессия не найдена.",
     "GRACE_SETTINGS_INVALID": "Настройки грейс-периода некорректны.",
+    "EXPIRY_DISABLE_SETTINGS_INVALID": "Настройки отключения истёкших подписок некорректны.",
     "SHOP_SUBSCRIPTION_LIMIT_INVALID": "Лимит должен быть больше нуля или пустым для безлимита.",
     "SUBSCRIPTION_DELETED": "Подписка удалена.",
     "SUBSCRIPTION_DISABLED": "Подписка отключена.",

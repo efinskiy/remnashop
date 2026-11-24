@@ -43,8 +43,10 @@ class _TargetMovedError(Exception):
     shifted expire_at (the credit is stale), or an addon grant pushed its own
     limits over this change's."""
 
-    def __init__(self, current: SubscriptionDto) -> None:
+    def __init__(self, current: SubscriptionDto, *, switched_on: bool) -> None:
         self.current = current
+        # turned on what the expiry rule switched off: the give-up switches it back off
+        self.switched_on = switched_on
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -99,6 +101,14 @@ class ChangePurchase:
         except _TargetMovedError as moved:
             with suppress(Exception):
                 await self._remnawave_sdk.users.update_user(await self._restore(moved.current))
+            if moved.switched_on:
+                await restore_expiry_switch_off(
+                    self._remnawave_sdk,
+                    self._subscription_repository,
+                    self._lifecycle_service,
+                    self._uow,
+                    moved.current,
+                )
             raise SupersededError(
                 "Subscription kept changing while this request was in flight",
                 code=ErrorCode.PURCHASE_SUPERSEDED,
@@ -139,7 +149,7 @@ class ChangePurchase:
                     locked_old.expire_at != old.expire_at
                     or locked_old.addon_entitlements != old.addon_entitlements
                 ):
-                    raise _TargetMovedError(locked_old)
+                    raise _TargetMovedError(locked_old, switched_on=old.disabled_by_expiry)
                 panel_user = await self._past_switch_off(old, locked_old, panel_user)
                 await self._subscription_repository.mark_deleted(old.id)
                 updated = await self._subscription_repository.create(
@@ -197,6 +207,8 @@ class ChangePurchase:
     ) -> UpdateUserResponseDto:
         if not locked_old.disabled_by_expiry or old.disabled_by_expiry:
             return panel_user
+        if panel_user.expire_at <= datetime_now():
+            return panel_user
         # the expiry rule switched it off after the push above, and is done with this
         # expiry: on again before the new row is written from the panel's answer, under the
         # row lock so the two can't part
@@ -236,13 +248,14 @@ class ChangePurchase:
     async def _plan_config(
         self, old: SubscriptionDto, plan: PlanSnapshot, expire_at: datetime
     ) -> UpdateUserRequestDto:
-        # the expiry rule's switch-off ends with the change, as with a renewal; an expired
-        # one too, as the rule may switch it off while this call is on its way
+        # the expiry rule's switch-off ends with a change that gives it a term, as with a
+        # renewal; an expired one too, as the rule may switch it off while this call is on
+        # its way. One that keeps a past expiry stays off
         request = configure_for_plan(
             old.remnawave_user_id,
             plan,
             expire_at,
-            enable=old.disabled_by_expiry or old.status is SubscriptionStatus.EXPIRED,
+            enable=_turns_on(old, expire_at),
         )
         if old.grace_until is None:
             return request
@@ -335,3 +348,9 @@ class ChangePurchase:
                 payment_key=None,
                 kind=CreditSegmentKind.CARRIED,
             )
+
+
+def _turns_on(old: SubscriptionDto, expire_at: datetime) -> bool:
+    return (
+        old.disabled_by_expiry or old.status is SubscriptionStatus.EXPIRED
+    ) and expire_at > datetime_now()

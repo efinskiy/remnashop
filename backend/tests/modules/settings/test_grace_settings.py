@@ -163,7 +163,7 @@ async def test_rejects_an_expiry_disable_warning_outside_its_days(
     response = await client.patch(_URL, json=payload, headers=owner_headers)
 
     assert response.status_code == 400
-    assert response.json()["code"] == "GRACE_SETTINGS_INVALID"
+    assert response.json()["code"] == "EXPIRY_DISABLE_SETTINGS_INVALID"
 
 
 async def test_rejects_expiry_disable_days_past_the_cap(

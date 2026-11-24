@@ -6,7 +6,7 @@ from sqlalchemy import ColumnElement, Integer, Numeric, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.constants import ZERO_AMOUNT
-from app.core.db.filters import in_ids
+from app.core.db.filters import expired_subscription, in_ids
 from app.core.db.models.subscription import Subscription
 from app.core.enums import Currency, SubscriptionStatus
 from app.modules.subscriptions.domain import OWNED_STATUSES
@@ -35,8 +35,12 @@ class SubscriptionStatsRepository:
                 select(
                     func.count().filter(status == SubscriptionStatus.ACTIVE),
                     func.count().filter(status == SubscriptionStatus.LIMITED),
-                    func.count().filter(status == SubscriptionStatus.EXPIRED),
-                    func.count().filter(status == SubscriptionStatus.DISABLED),
+                    # the expiry rule's switch-off counts with the expired, as the filters do
+                    func.count().filter(expired_subscription()),
+                    func.count().filter(
+                        status == SubscriptionStatus.DISABLED,
+                        Subscription.expiry_disabled_at.is_(None),
+                    ),
                     func.count().filter(
                         status.in_(OWNED_STATUSES),
                         Subscription.expire_at >= expiring_from,

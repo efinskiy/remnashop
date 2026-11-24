@@ -47,7 +47,7 @@ class UpdateGraceSettingsUseCase(UseCase[UpdateGraceSettingsDto, GraceSettingsDt
                 raise ValidationError(
                     f"expiry_disable_after_days must be 1 to {EXPIRY_DISABLE_MAX_DAYS} and "
                     "expiry_disable_warn_days between 0 and it",
-                    code=ErrorCode.GRACE_SETTINGS_INVALID,
+                    code=ErrorCode.EXPIRY_DISABLE_SETTINGS_INVALID,
                 )
             await self._event_publisher.publish(
                 GraceSettingsChangedEvent(

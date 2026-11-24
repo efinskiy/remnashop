@@ -35,7 +35,12 @@ from app.modules.subscriptions.dto import (
     SetSubscriptionEnabledDto,
     SubscriptionDto,
 )
-from app.modules.subscriptions.expiry_disable import disable_due, handled, warning_due
+from app.modules.subscriptions.expiry_disable import (
+    CLAIM_STALE_AFTER,
+    disable_due,
+    handled,
+    warning_due,
+)
 from app.modules.subscriptions.idempotency_repository import PurchaseIdempotencyRepository
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
 from app.modules.subscriptions.panel import restore_expiry_switch_off
@@ -43,6 +48,7 @@ from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.usecases import (
     DisableExpiredSubscriptionUseCase,
     PurchaseSubscriptionUseCase,
+    RestoreDuePanelConfigsUseCase,
     SetSubscriptionEnabledUseCase,
     SweepExpiryDisableUseCase,
     WarnOfExpiryDisableUseCase,
@@ -564,8 +570,14 @@ async def test_disable_skips_a_panel_user_that_is_gone(
     kept = await subscription_repository.get_by_id(target.id)
     assert kept.status is SubscriptionStatus.EXPIRED
     # done with this expiry: it no longer holds a place in every run's batch
-    assert handled(kept)
-    assert await subscription_repository.list_expiry_disable_due(datetime_now(), 100) == []
+    assert handled(kept, datetime_now() + CLAIM_STALE_AFTER)
+    assert kept.expiry_disabled_at is None
+    assert (
+        await subscription_repository.list_expiry_disable_due(
+            datetime_now(), datetime_now() + CLAIM_STALE_AFTER, 100
+        )
+        == []
+    )
 
 
 async def test_a_failed_panel_call_leaves_the_subscription_for_the_next_run(
@@ -590,11 +602,21 @@ async def test_a_failed_panel_call_leaves_the_subscription_for_the_next_run(
     with pytest.raises(httpx.ConnectError):
         await rule.disable.system(target.id)
 
-    released = await subscription_repository.get_by_id(target.id)
-    assert released.expiry_disable_handled_at is None
-    assert [
-        s.id for s in await subscription_repository.list_expiry_disable_due(datetime_now(), 100)
-    ] == [target.id]
+    # the claim stays: no other run takes it until it goes stale, then it's tried again
+    claimed = await subscription_repository.get_by_id(target.id)
+    assert claimed.expiry_disable_handled_at is not None
+    assert not disable_due(claimed, _SETTINGS, datetime_now())
+    assert disable_due(claimed, _SETTINGS, datetime_now() + CLAIM_STALE_AFTER)
+    assert (
+        await subscription_repository.list_expiry_disable_due(
+            datetime_now(), datetime_now() - CLAIM_STALE_AFTER, 100
+        )
+        == []
+    )
+    due = await subscription_repository.list_expiry_disable_due(
+        datetime_now(), datetime_now() + CLAIM_STALE_AFTER, 100
+    )
+    assert [s.id for s in due] == [target.id]
 
 
 async def test_the_panels_echo_landing_first_still_marks_the_switch_off_as_the_rules(
@@ -830,3 +852,112 @@ async def test_a_refunded_renewal_leaves_it_switched_off_and_still_the_rules(
 
     assert remnawave_store[96_171]["status"] == "DISABLED"
     assert (await subscription_repository.get_by_id(target.id)).disabled_by_expiry
+
+
+async def test_a_run_dying_after_the_panel_call_still_leaves_it_the_rules(
+    rule: _Rule,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    uow: UnitOfWork,
+    remnawave_store: FakeUserStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _switch_on(settings_repository)
+    target = await _expired(
+        subscription_repository, user_repository, remnawave_store, 96_181, days_ago=8
+    )
+
+    async def dies(*args: Any, **kwargs: Any) -> Any:
+        raise RuntimeError("worker killed")
+
+    monkeypatch.setattr(rule.lifecycle, "sync_status", dies)
+    with pytest.raises(RuntimeError):
+        await rule.disable.system(target.id)
+    monkeypatch.undo()
+
+    # the panel's echo of the switch-off syncs the row afterwards
+    async with uow:
+        await rule.lifecycle.sync_status(target.id, SubscriptionStatus.DISABLED)
+
+    assert remnawave_store[96_181]["status"] == "DISABLED"
+    assert (await subscription_repository.get_by_id(target.id)).disabled_by_expiry
+
+
+async def test_an_admins_switch_off_during_the_run_stays_the_admins(
+    rule: _Rule,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _switch_on(settings_repository)
+    target = await _expired(
+        subscription_repository, user_repository, remnawave_store, 96_191, days_ago=8
+    )
+    disable_user = remnawave_sdk.users.disable_user
+    calls = 0
+
+    async def admin_meanwhile(user_id: int) -> Any:
+        nonlocal calls
+        calls += 1
+        response = await disable_user(user_id)
+        if calls == 1:
+            remnawave_store[96_191]["status"] = "EXPIRED"
+            await rule.set_enabled(
+                OWNER, SetSubscriptionEnabledDto(subscription_id=target.id, enabled=False)
+            )
+        return response
+
+    monkeypatch.setattr(remnawave_sdk.users, "disable_user", admin_meanwhile)
+
+    await rule.disable.system(target.id)
+
+    kept = await subscription_repository.get_by_id(target.id)
+    assert kept.status is SubscriptionStatus.DISABLED
+    assert not kept.disabled_by_expiry
+
+
+async def test_a_renewal_whose_turning_on_fails_still_lands_and_the_cron_turns_it_on(
+    rule: _Rule,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _switch_on(settings_repository)
+    plan = await _plan(plan_repository)
+    target = await _expired(
+        subscription_repository, user_repository, remnawave_store, 96_201, days_ago=8, plan=plan
+    )
+    await rule.sweep.system()
+    switched_off = await subscription_repository.get_by_id(target.id)
+    buyer = await user_repository.find_by_id(target.user_id)
+    assert buyer is not None
+    update_user = remnawave_sdk.users.update_user
+
+    async def refuses_turning_on(request: Any) -> Any:
+        if request.status is not None:
+            raise RuntimeError("panel timed out")
+        return await update_user(request)
+
+    monkeypatch.setattr(remnawave_sdk.users, "update_user", refuses_turning_on)
+
+    renewed = await rule.purchase(buyer, _renewal(switched_off, plan))
+
+    assert renewed.status is SubscriptionStatus.ACTIVE
+    assert remnawave_store[96_201]["status"] == "DISABLED"
+    assert (await subscription_repository.get_by_id(target.id)).panel_restore_due_at is not None
+    monkeypatch.undo()
+
+    await RestoreDuePanelConfigsUseCase(
+        subscription_repository, settings_repository, remnawave_sdk, uow
+    ).system()
+
+    assert remnawave_store[96_201]["status"] == "ACTIVE"

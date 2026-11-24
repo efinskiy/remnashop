@@ -1,4 +1,3 @@
-from contextlib import suppress
 from datetime import datetime
 
 from loguru import logger
@@ -47,28 +46,29 @@ class DisableExpiredSubscriptionUseCase(UseCase[int, None]):
             subscription = await self._subscription_repository.get_by_id_for_update(data)
             if not disable_due(subscription, settings, claimed_at):
                 return
-            # before the panel call: no other run takes it meanwhile
+            # both before the panel call: no other run takes it meanwhile, and the
+            # switch-off reads as the rule's whenever the row gets to DISABLED (the panel's
+            # echo synced first, or this run dying after the call). An admin's switch-off
+            # meanwhile clears the second; a claim left half done is taken again later
             await self._subscription_repository.set_expiry_disable_handled_at(data, claimed_at)
+            await self._subscription_repository.set_expiry_disabled_at(data, claimed_at)
 
-        users = self._remnawave_sdk.users
         try:
-            panel_user = await users.disable_user(subscription.remnawave_user_id)
+            panel_user = await self._remnawave_sdk.users.disable_user(
+                subscription.remnawave_user_id
+            )
         except Exception as error:
-            if panel_user_gone(error) or panel_refused(error):
-                # the claim stays and the rule is done with this expiry: a refusal retried
-                # on every run would hold up the queue
-                logger.warning(f"Panel refused to disable expired subscription '{data}'")
-                return
-            await self._release(data, claimed_at)
-            raise
+            # anything else leaves the claim, taken again once stale
+            if not (panel_user_gone(error) or panel_refused(error)):
+                raise
+            await self._give_up(data, claimed_at)
+            return
         await drop_connections(self._remnawave_sdk, subscription.remnawave_user_id)
 
         async with self._uow:
             current = await self._subscription_repository.get_by_id_for_update(data)
-            # DISABLED: the panel's echo of this switch-off, synced by the webhook worker
-            # before this commit
             if (
-                current.expiry_disable_handled_at == claimed_at
+                current.expiry_disabled_at == claimed_at
                 and current.status in (SubscriptionStatus.EXPIRED, SubscriptionStatus.DISABLED)
                 and current.expire_at == subscription.expire_at
                 and current.grace_until is None
@@ -76,7 +76,6 @@ class DisableExpiredSubscriptionUseCase(UseCase[int, None]):
                 await self._lifecycle_service.sync_status(
                     data, SubscriptionStatus(panel_user.status)
                 )
-                await self._subscription_repository.set_expiry_disabled_at(data, claimed_at)
                 await self._event_publisher.publish(
                     SubscriptionExpiryDisabledEvent(subscription_id=data, user_id=current.user_id)
                 )
@@ -91,15 +90,21 @@ class DisableExpiredSubscriptionUseCase(UseCase[int, None]):
             SubscriptionStatus.DELETED,
         ):
             return
-        with suppress(Exception):
-            await users.enable_user(owner.remnawave_user_id)
-            logger.info(f"Subscription '{data}' moved on while being disabled, enabled it back")
+        try:
+            await self._remnawave_sdk.users.enable_user(owner.remnawave_user_id)
+        except Exception:
+            logger.exception(f"Failed to enable subscription '{owner.id}' back")
+            async with self._uow:
+                # the minute cron turns an ACTIVE row's panel user on
+                await self._subscription_repository.mark_panel_restore_due(owner.id, datetime_now())
+            return
+        logger.info(f"Subscription '{data}' moved on while being disabled, enabled it back")
 
-    async def _release(self, subscription_id: int, claimed_at: datetime) -> None:
-        # the next run tries again
+    async def _give_up(self, subscription_id: int, claimed_at: datetime) -> None:
+        # the rule is done with this expiry (a refusal retried on every run would hold up
+        # the queue), but nothing it switched off
+        logger.warning(f"Panel refused to disable expired subscription '{subscription_id}'")
         async with self._uow:
             current = await self._subscription_repository.get_by_id_for_update(subscription_id)
-            if current.expiry_disable_handled_at == claimed_at:
-                await self._subscription_repository.set_expiry_disable_handled_at(
-                    subscription_id, None
-                )
+            if current.expiry_disabled_at == claimed_at:
+                await self._subscription_repository.set_expiry_disabled_at(subscription_id, None)

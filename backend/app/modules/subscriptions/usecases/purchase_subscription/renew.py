@@ -102,6 +102,7 @@ class RenewPurchase:
                 grace = await self._settings_repository.get_grace_settings()
 
         expire_at, added_days, anchor_day = await self._extend_panel(target, data)
+        turn_on_after = not await self._end_switch_off(target)
 
         tag_applied, terms_applied = await self._apply_current_plan(data, target)
 
@@ -115,6 +116,7 @@ class RenewPurchase:
                 anchor_day=anchor_day,
                 tag_applied=tag_applied,
                 terms_applied=terms_applied,
+                turn_on_after=turn_on_after,
             )
         except OrderNotPaidError:
             await self._undo_refunded(target, grace)
@@ -144,14 +146,23 @@ class RenewPurchase:
         data: PurchaseSubscriptionDto,
     ) -> tuple[datetime, int, Optional[int]]:
         """The panel's new expiry, the days it added and the anchor day it leaves."""
-        extended = await self._extend(target, data)
-        if target.disabled_by_expiry:
-            # the expiry rule's switch-off ends with the renewal: the extend left the panel
-            # user off, and turning it on only now keeps an expired one off the nodes
+        return await self._extend(target, data)
+
+    async def _end_switch_off(self, target: SubscriptionDto) -> bool:
+        """False when the expiry rule's switch-off is still on in the panel: the days are paid
+        for, so the renewal goes on and turns it on after its commit."""
+        if not target.disabled_by_expiry:
+            return True
+        # the extend left the panel user off; turning it on only now keeps an expired one
+        # off the nodes
+        try:
             await self._remnawave_sdk.users.update_user(
                 panel_update(id=target.remnawave_user_id, status=UserStatus.ACTIVE)
             )
-        return extended
+        except Exception:
+            logger.exception(f"Failed to enable renewed subscription '{target.id}'")
+            return False
+        return True
 
     async def _undo_refunded(
         self, target: SubscriptionDto, grace: Optional[GraceSettingsDto]
@@ -242,6 +253,7 @@ class RenewPurchase:
         anchor_day: Optional[int],
         tag_applied: bool,
         terms_applied: bool,
+        turn_on_after: bool,
     ) -> tuple[SubscriptionDto, bool]:
         async with self._uow:
             if data.idempotency_key is not None:
@@ -262,8 +274,9 @@ class RenewPurchase:
             left_grace: Optional[GraceSettingsDto] = None
             if target.grace_until is not None or locked.grace_until is not None:
                 left_grace = await self._settings_repository.get_grace_settings()
-            # the expiry rule switched it off while the panel call ran
-            revived = locked.disabled_by_expiry and not target.disabled_by_expiry
+            # the expiry rule switched it off while the panel call ran, or turning it back
+            # on failed
+            revived = turn_on_after or (locked.disabled_by_expiry and not target.disabled_by_expiry)
             subscription = await self._lifecycle_service.renew(
                 locked.id,
                 expire_at,
@@ -324,6 +337,11 @@ class RenewPurchase:
                 )
             except Exception:
                 logger.exception(f"Failed to enable renewed subscription '{subscription.id}'")
+                async with self._uow:
+                    # the minute cron turns an ACTIVE row's panel user on
+                    await self._subscription_repository.mark_panel_restore_due(
+                        subscription.id, datetime_now()
+                    )
 
     async def _push_out_of_grace(
         self, subscription: SubscriptionDto, grace: GraceSettingsDto

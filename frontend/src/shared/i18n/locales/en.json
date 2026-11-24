@@ -4788,6 +4788,7 @@
     "SESSION_AUDIENCE_MISMATCH": "This session can’t be used here. Sign in again.",
     "SESSION_NOT_FOUND": "Session not found.",
     "GRACE_SETTINGS_INVALID": "The grace period settings are invalid.",
+    "EXPIRY_DISABLE_SETTINGS_INVALID": "The settings for switching off expired subscriptions are invalid.",
     "SHOP_SUBSCRIPTION_LIMIT_INVALID": "The limit must be positive, or empty for unlimited.",
     "SUBSCRIPTION_DELETED": "The subscription has been deleted.",
     "SUBSCRIPTION_DISABLED": "This subscription is disabled.",

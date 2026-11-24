@@ -685,21 +685,24 @@ class SubscriptionRepository:
         )
 
     async def list_expiry_disable_due(
-        self, lapsed_before: datetime, limit: int
+        self, lapsed_before: datetime, claimed_before: datetime, limit: int
     ) -> list[SubscriptionDto]:
         """Expired rows out of grace whose expiry (`expiry_disable.lapsed_at`) is at or before
-        `lapsed_before`, the rule not yet done with it (`expiry_disable.handled`)."""
+        `lapsed_before`, the rule not yet done with it (`expiry_disable.handled`): never
+        claimed first, then claims left half done before `claimed_before`."""
         lapsed_at = _lapsed_at()
+        handled_at = Subscription.expiry_disable_handled_at
         return await self._list_where(
             Subscription.status == SubscriptionStatus.EXPIRED,
             Subscription.grace_until.is_(None),
             lapsed_at <= lapsed_before,
             or_(
-                Subscription.expiry_disable_handled_at.is_(None),
-                Subscription.expiry_disable_handled_at < lapsed_at,
+                handled_at.is_(None),
+                handled_at < lapsed_at,
+                and_(Subscription.expiry_disabled_at.is_not(None), handled_at < claimed_before),
             ),
             limit=limit,
-            order=Subscription.expire_at,
+            order=handled_at,
         )
 
     async def list_expiry_disable_warn_due(

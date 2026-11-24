@@ -8,6 +8,7 @@ from app.core.db.uow import UnitOfWork
 from app.core.usecase import UseCase
 from app.core.utils.time import datetime_now
 from app.modules.settings import SettingsRepository
+from app.modules.subscriptions.expiry_disable import CLAIM_STALE_AFTER
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.usecases.disable_expired_subscription import (
     DisableExpiredSubscriptionUseCase,
@@ -54,7 +55,9 @@ class SweepExpiryDisableUseCase(UseCase[None, None]):
                 if settings.expiry_disable_warn_days
                 else []
             )
-            due = await self._subscription_repository.list_expiry_disable_due(due_before, _BATCH)
+            due = await self._subscription_repository.list_expiry_disable_due(
+                due_before, now - CLAIM_STALE_AFTER, _BATCH
+            )
         for subscription in warning:
             try:
                 await self._warn_of_expiry_disable_use_case.system(subscription.id)

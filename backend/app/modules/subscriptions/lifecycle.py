@@ -59,10 +59,12 @@ class SubscriptionLifecycleService:
         dto = await self._subscription_repository.get_by_id_for_update(subscription_id)
         state = _dto_to_state(dto)
         new_state = state.sync_status(target)
-        # out of the rule's switch-off: a later one, from the panel or an admin, isn't the rule's
+        # out of the rule's switch-off, or live again during its claim: a later switch-off,
+        # from the panel or an admin, isn't the rule's
         if (
             dto.expiry_disabled_at is not None
             and new_state.status is not SubscriptionStatus.DISABLED
+            and new_state.status is not dto.status
         ):
             await self._subscription_repository.set_expiry_disabled_at(subscription_id, None)
         return await self._subscription_repository.apply_state(new_state)
