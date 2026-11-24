@@ -17,6 +17,9 @@ import { Switch } from "@shared/ui/glass/Switch";
 import { SaveFooter } from "@shared/ui/SaveFooter";
 import { Spinner } from "@shared/ui/Spinner";
 
+// the backend's EXPIRY_DISABLE_MAX_DAYS
+const MAX_DAYS = 3650;
+
 export function ExpiryDisableSettingsSection() {
   const { t } = useTranslation();
   const canManage = usePermissions().includes("GRACE_SETTINGS_MANAGE");
@@ -33,7 +36,8 @@ export function ExpiryDisableSettingsSection() {
     setWarnDays(String(state.data.expiry_disable_warn_days));
   }, [state]);
 
-  const parsedAfter = parseRequiredInt(afterDays, 1);
+  const afterValue = parseRequiredInt(afterDays, 1);
+  const parsedAfter = afterValue !== undefined && afterValue <= MAX_DAYS ? afterValue : undefined;
   const parsedWarn = parseRequiredInt(warnDays, 0);
   const warnTooLong = parsedAfter !== undefined && parsedWarn !== undefined && parsedWarn > parsedAfter;
 
@@ -89,7 +93,13 @@ export function ExpiryDisableSettingsSection() {
                 label={t("settings.expiryDisable.afterDaysLabel")}
                 htmlFor="expiry-disable-after"
                 info={t("settings.expiryDisable.afterDaysHint")}
-                error={parsedAfter === undefined ? t("errors.validation.min", { min: 1 }) : undefined}
+                error={
+                  afterValue === undefined
+                    ? t("errors.validation.min", { min: 1 })
+                    : parsedAfter === undefined
+                      ? t("errors.validation.max", { max: MAX_DAYS })
+                      : undefined
+                }
               >
                 <Input
                   id="expiry-disable-after"
@@ -97,6 +107,7 @@ export function ExpiryDisableSettingsSection() {
                   onKeyDown={blockNonIntegerKeys}
                   step="1"
                   min="1"
+                  max={MAX_DAYS}
                   value={afterDays}
                   onChange={(event) => setAfterDays(event.target.value)}
                 />

@@ -27,9 +27,11 @@ def reward_takes_effect(
     # days add nothing to a term that never ends
     if reward_type is PromocodeRewardType.DURATION and subscription.is_unlimited:
         return False
-    if subscription.status is SubscriptionStatus.ACTIVE:
+    # switched off by the expiry rule: an expired one, which days turn back on
+    status = subscription.customer_status
+    if status is SubscriptionStatus.ACTIVE:
         return True
-    if used_traffic is None or subscription.status not in (
+    if used_traffic is None or status not in (
         SubscriptionStatus.EXPIRED,
         SubscriptionStatus.LIMITED,
     ):
@@ -39,7 +41,7 @@ def reward_takes_effect(
     if reward_type is PromocodeRewardType.TRAFFIC:
         limit = (subscription.effective_traffic_limit + extra_traffic_gb) * GB_TO_BYTES
         return (
-            subscription.status is SubscriptionStatus.LIMITED
+            status is SubscriptionStatus.LIMITED
             and subscription.expire_at > now
             and used_traffic < limit
         )

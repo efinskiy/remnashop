@@ -12,6 +12,13 @@ def lapsed_at(subscription: SubscriptionDto) -> datetime:
     return max(subscription.expire_at, subscription.grace_ended_at)
 
 
+def handled(subscription: SubscriptionDto) -> bool:
+    """The rule already acted on this expiry: switched it off, gave up on a panel refusal,
+    or an admin turned it back on."""
+    marked = subscription.expiry_disabled_at
+    return marked is not None and marked >= lapsed_at(subscription)
+
+
 def disable_at(subscription: SubscriptionDto, settings: GraceSettingsDto) -> datetime:
     return lapsed_at(subscription) + timedelta(days=settings.expiry_disable_after_days)
 
@@ -21,6 +28,7 @@ def disable_due(subscription: SubscriptionDto, settings: GraceSettingsDto, now: 
         settings.expiry_disable_enabled
         and subscription.status is SubscriptionStatus.EXPIRED
         and subscription.grace_until is None
+        and not handled(subscription)
         and disable_at(subscription, settings) <= now
     )
 

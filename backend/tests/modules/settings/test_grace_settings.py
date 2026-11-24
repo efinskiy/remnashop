@@ -166,6 +166,16 @@ async def test_rejects_an_expiry_disable_warning_outside_its_days(
     assert response.json()["code"] == "GRACE_SETTINGS_INVALID"
 
 
+async def test_rejects_expiry_disable_days_past_the_cap(
+    client: httpx.AsyncClient, owner_headers: dict[str, str]
+) -> None:
+    response = await client.patch(
+        _URL, json={"expiry_disable_after_days": 1_000_000}, headers=owner_headers
+    )
+
+    assert response.status_code == 422
+
+
 async def test_expiry_disable_saves_on_its_own(
     client: httpx.AsyncClient, owner_headers: dict[str, str]
 ) -> None:

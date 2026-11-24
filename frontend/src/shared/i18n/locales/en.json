@@ -1647,7 +1647,7 @@
       "title": "Switching off expired subscriptions",
       "description": "Cuts access off completely when a subscription stays unrenewed",
       "enabledLabel": "Switch off expired subscriptions",
-      "enabledHint": "The given number of days after a subscription ends (after the grace period, if there was one), the customer's panel profile is disabled. The panel may still give an expired profile limited access; a disabled one gets nothing. The link and devices stay: a renewal or plan change turns the profile back on.\n\nTo the customer the subscription stays expired, with a renew button. A renewal doesn't turn on a subscription an admin disabled.",
+      "enabledHint": "The given number of days after a subscription ends (after the grace period, if there was one), the customer's panel profile is disabled. The panel may still give an expired profile limited access; a disabled one gets nothing. The link and devices stay: a renewal or plan change turns the profile back on.\n\nTo the customer the subscription stays expired, with a renew button. A renewal doesn't turn on a subscription an admin disabled. A subscription the rule switched off and an admin turned back on is left alone until it expires again.",
       "afterDaysLabel": "Switch off after, days",
       "afterDaysHint": "Counted from the subscription's end, or from the grace period's end if there was one.",
       "warnDaysLabel": "Warn the customer, days before",

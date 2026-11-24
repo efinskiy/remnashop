@@ -172,11 +172,7 @@ class ChangePurchase:
         except _TargetMovedError:
             raise
         except Exception:
-            # no orphan: update_user changed old's own panel user. Best-effort
-            # revert, so a DB failure doesn't leave the still-ACTIVE `old` on a
-            # plan config nobody paid for
-            with suppress(Exception):
-                await self._remnawave_sdk.users.update_user(await self._restore(old))
+            await self._revert_failed_change(old)
             raise
 
         if data.duration_days == 0 and old.is_unlimited and data.price_paid == ZERO_AMOUNT:
@@ -191,6 +187,15 @@ class ChangePurchase:
             f"({credit_days}d credit applied)"
         )
         return updated
+
+    async def _revert_failed_change(self, old: SubscriptionDto) -> None:
+        # no orphan: update_user changed old's own panel user. Best-effort
+        # revert, so a DB failure doesn't leave the still-ACTIVE `old` on a
+        # plan config nobody paid for, nor the rule's switch-off undone
+        with suppress(Exception):
+            await self._remnawave_sdk.users.update_user(await self._restore(old))
+            if old.disabled_by_expiry:
+                await self._remnawave_sdk.users.disable_user(old.remnawave_user_id)
 
     async def _restore(self, row: SubscriptionDto) -> UpdateUserRequestDto:
         """The config a failed change puts back: the grace one while the row is in grace."""
@@ -209,9 +214,13 @@ class ChangePurchase:
     async def _plan_config(
         self, old: SubscriptionDto, plan: PlanSnapshot, expire_at: datetime
     ) -> UpdateUserRequestDto:
-        # the expiry rule's switch-off ends with the paid change, as with a renewal
+        # the expiry rule's switch-off ends with the change, as with a renewal; an expired
+        # one too, as the rule may switch it off while this call is on its way
         request = configure_for_plan(
-            old.remnawave_user_id, plan, expire_at, enable=old.disabled_by_expiry
+            old.remnawave_user_id,
+            plan,
+            expire_at,
+            enable=old.disabled_by_expiry or old.status is SubscriptionStatus.EXPIRED,
         )
         if old.grace_until is None:
             return request

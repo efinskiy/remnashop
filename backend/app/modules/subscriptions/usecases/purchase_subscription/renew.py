@@ -115,10 +115,7 @@ class RenewPurchase:
                 terms_applied=terms_applied,
             )
         except OrderNotPaidError:
-            # refunded while the panel was being extended: take the extension back
-            await revert_panel_to_owner(
-                self._remnawave_sdk, self._subscription_repository, self._uow, target, grace
-            )
+            await self._undo_refunded(target, grace)
             raise
         if not renewed:
             return subscription
@@ -145,10 +142,39 @@ class RenewPurchase:
         data: PurchaseSubscriptionDto,
     ) -> tuple[datetime, int, Optional[int]]:
         """The panel's new expiry, the days it added and the anchor day it leaves."""
+        if not target.disabled_by_expiry:
+            return await self._extend(target, data)
+        # the expiry rule's switch-off ends with the renewal; the extend leaves the
+        # panel's status alone, and the row turns ACTIVE with it
+        await self._remnawave_sdk.users.enable_user(target.remnawave_user_id)
+        try:
+            return await self._extend(target, data)
+        except Exception:
+            await self._switch_back_off(target)
+            raise
+
+    async def _undo_refunded(
+        self, target: SubscriptionDto, grace: Optional[GraceSettingsDto]
+    ) -> None:
+        # refunded while the panel was being extended: take the extension back
+        await revert_panel_to_owner(
+            self._remnawave_sdk, self._subscription_repository, self._uow, target, grace
+        )
         if target.disabled_by_expiry:
-            # the expiry rule's switch-off ends with the renewal; the extend leaves the
-            # panel's status alone, and the row turns ACTIVE with it
-            await self._remnawave_sdk.users.enable_user(target.remnawave_user_id)
+            await self._switch_back_off(target)
+
+    async def _switch_back_off(self, target: SubscriptionDto) -> None:
+        """Best effort: a renewal that didn't go through leaves the rule's switch-off."""
+        try:
+            await self._remnawave_sdk.users.disable_user(target.remnawave_user_id)
+        except Exception:
+            logger.exception(f"Failed to disable subscription '{target.id}' again")
+
+    async def _extend(
+        self,
+        target: SubscriptionDto,
+        data: PurchaseSubscriptionDto,
+    ) -> tuple[datetime, int, Optional[int]]:
         if data.idempotency_key is None and data.duration_days == 0:
             # the panel's extend takes days, not "unlimited"
             updated = await self._set_expiry(

@@ -3,6 +3,7 @@ from decimal import Decimal
 from typing import Any, Final, Optional
 from uuid import uuid4
 
+import httpx
 import pytest
 from remnapy import RemnawaveSDK
 from sqlalchemy import select
@@ -34,7 +35,7 @@ from app.modules.subscriptions.dto import (
     SetSubscriptionEnabledDto,
     SubscriptionDto,
 )
-from app.modules.subscriptions.expiry_disable import disable_due, warning_due
+from app.modules.subscriptions.expiry_disable import disable_due, handled, warning_due
 from app.modules.subscriptions.idempotency_repository import PurchaseIdempotencyRepository
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
 from app.modules.subscriptions.repository import SubscriptionRepository
@@ -559,4 +560,181 @@ async def test_disable_skips_a_panel_user_that_is_gone(
 
     await rule.disable.system(target.id)
 
-    assert (await subscription_repository.get_by_id(target.id)).status is SubscriptionStatus.EXPIRED
+    kept = await subscription_repository.get_by_id(target.id)
+    assert kept.status is SubscriptionStatus.EXPIRED
+    # done with this expiry: it no longer holds a place in every run's batch
+    assert handled(kept)
+    assert await subscription_repository.list_expiry_disable_due(datetime_now(), 100) == []
+
+
+async def test_a_failed_panel_call_leaves_the_subscription_for_the_next_run(
+    rule: _Rule,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _switch_on(settings_repository)
+    target = await _expired(
+        subscription_repository, user_repository, remnawave_store, 96_101, days_ago=8
+    )
+
+    async def unreachable(user_id: int) -> Any:
+        raise httpx.ConnectError("panel down")
+
+    monkeypatch.setattr(remnawave_sdk.users, "disable_user", unreachable)
+
+    with pytest.raises(httpx.ConnectError):
+        await rule.disable.system(target.id)
+
+    released = await subscription_repository.get_by_id(target.id)
+    assert released.expiry_disabled_at is None
+    assert [
+        s.id for s in await subscription_repository.list_expiry_disable_due(datetime_now(), 100)
+    ] == [target.id]
+
+
+async def test_the_panels_echo_landing_first_still_marks_the_switch_off_as_the_rules(
+    rule: _Rule,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _switch_on(settings_repository)
+    target = await _expired(
+        subscription_repository, user_repository, remnawave_store, 96_111, days_ago=8
+    )
+    disable_user = remnawave_sdk.users.disable_user
+
+    async def echoed(user_id: int) -> Any:
+        response = await disable_user(user_id)
+        # the webhook worker syncs the panel's user.disabled before the sweep's own commit
+        async with uow:
+            await rule.lifecycle.sync_status(target.id, SubscriptionStatus.DISABLED)
+        return response
+
+    monkeypatch.setattr(remnawave_sdk.users, "disable_user", echoed)
+
+    await rule.disable.system(target.id)
+
+    assert (await subscription_repository.get_by_id(target.id)).disabled_by_expiry
+
+
+async def test_the_panel_reporting_it_live_clears_the_mark(
+    rule: _Rule,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+) -> None:
+    await _switch_on(settings_repository)
+    target = await _expired(
+        subscription_repository, user_repository, remnawave_store, 96_121, days_ago=8
+    )
+    await rule.sweep.system()
+
+    # an admin turned it on and extended it in the panel, then switched it off there
+    async with uow:
+        await rule.lifecycle.sync_status(target.id, SubscriptionStatus.ACTIVE)
+        await rule.lifecycle.sync_status(target.id, SubscriptionStatus.DISABLED)
+
+    assert not (await subscription_repository.get_by_id(target.id)).disabled_by_expiry
+
+
+async def test_the_rule_leaves_alone_what_an_admin_turned_back_on(
+    rule: _Rule,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    remnawave_store: FakeUserStore,
+) -> None:
+    await _switch_on(settings_repository)
+    target = await _expired(
+        subscription_repository, user_repository, remnawave_store, 96_131, days_ago=8
+    )
+    await rule.sweep.system()
+
+    await rule.set_enabled(
+        OWNER, SetSubscriptionEnabledDto(subscription_id=target.id, enabled=True)
+    )
+    await rule.sweep.system()
+
+    turned_on = await subscription_repository.get_by_id(target.id)
+    assert turned_on.status is SubscriptionStatus.EXPIRED
+    assert remnawave_store[96_131]["status"] == "EXPIRED"
+
+
+async def test_a_change_paid_as_the_rule_switches_off_still_comes_out_on(
+    rule: _Rule,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    plan_repository: PlanRepository,
+    remnawave_store: FakeUserStore,
+) -> None:
+    plan = await _plan(plan_repository)
+    new_plan = await _plan(plan_repository)
+    target = await _expired(
+        subscription_repository, user_repository, remnawave_store, 96_141, days_ago=8, plan=plan
+    )
+    # the sweep's panel call landed; its row update hasn't yet
+    remnawave_store[96_141]["status"] = "DISABLED"
+    buyer = await user_repository.find_by_id(target.user_id)
+    assert buyer is not None
+
+    changed = await rule.purchase(
+        buyer,
+        PurchaseSubscriptionDto(
+            user_id=target.user_id,
+            plan_snapshot=snapshot_from_plan(
+                new_plan, price_paid=Decimal("299.00"), duration_days=30
+            ),
+            duration_days=30,
+            price_paid=Decimal("299.00"),
+            currency=Currency.RUB,
+            purchase_type=PurchaseType.CHANGE,
+            target_subscription_id=target.id,
+            idempotency_key=uuid4().hex,
+        ),
+    )
+
+    assert changed.status is SubscriptionStatus.ACTIVE
+    assert remnawave_store[96_141]["status"] == "ACTIVE"
+
+
+async def test_a_renewal_that_fails_on_the_panel_switches_it_back_off(
+    rule: _Rule,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _switch_on(settings_repository)
+    plan = await _plan(plan_repository)
+    target = await _expired(
+        subscription_repository, user_repository, remnawave_store, 96_151, days_ago=8, plan=plan
+    )
+    await rule.sweep.system()
+    switched_off = await subscription_repository.get_by_id(target.id)
+    buyer = await user_repository.find_by_id(target.user_id)
+    assert buyer is not None
+
+    async def refused(request: Any) -> Any:
+        raise RuntimeError("panel refused the expiry")
+
+    monkeypatch.setattr(remnawave_sdk.users, "update_user", refused)
+
+    with pytest.raises(RuntimeError):
+        await rule.purchase(buyer, _renewal(switched_off, plan))
+
+    assert remnawave_store[96_151]["status"] == "DISABLED"
+    assert (await subscription_repository.get_by_id(target.id)).disabled_by_expiry

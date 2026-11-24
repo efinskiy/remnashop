@@ -687,11 +687,16 @@ class SubscriptionRepository:
         self, lapsed_before: datetime, limit: int
     ) -> list[SubscriptionDto]:
         """Expired rows out of grace whose expiry (`expiry_disable.lapsed_at`) is at or before
-        `lapsed_before`."""
+        `lapsed_before`, the rule not yet done with it (`expiry_disable.handled`)."""
+        lapsed_at = _lapsed_at()
         return await self._list_where(
             Subscription.status == SubscriptionStatus.EXPIRED,
             Subscription.grace_until.is_(None),
-            _lapsed_at() <= lapsed_before,
+            lapsed_at <= lapsed_before,
+            or_(
+                Subscription.expiry_disabled_at.is_(None),
+                Subscription.expiry_disabled_at < lapsed_at,
+            ),
             limit=limit,
             order=Subscription.expire_at,
         )
