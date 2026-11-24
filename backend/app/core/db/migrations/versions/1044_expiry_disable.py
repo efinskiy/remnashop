@@ -28,12 +28,17 @@ def upgrade() -> None:
     )
     op.add_column(
         "subscriptions",
+        sa.Column("expiry_disable_handled_at", sa.DateTime(timezone=True), nullable=True),
+    )
+    op.add_column(
+        "subscriptions",
         sa.Column("expiry_disable_warned_at", sa.DateTime(timezone=True), nullable=True),
     )
 
 
 def downgrade() -> None:
     op.drop_column("subscriptions", "expiry_disable_warned_at")
+    op.drop_column("subscriptions", "expiry_disable_handled_at")
     op.drop_column("subscriptions", "expiry_disabled_at")
     op.drop_column("grace_settings", "expiry_disable_warn_days")
     op.drop_column("grace_settings", "expiry_disable_after_days")

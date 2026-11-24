@@ -140,6 +140,9 @@ def _handle_extend_user(path: str, request: httpx.Request, store: FakeUserStore)
     payload = store[user_id]
     current_expire = datetime.fromisoformat(payload["expireAt"])
     payload["expireAt"] = (current_expire + timedelta(days=body["days"])).isoformat()
+    # as the panel's extend: EXPIRED comes back, DISABLED and LIMITED stay
+    if payload["status"] == "EXPIRED":
+        payload["status"] = "ACTIVE"
     payload["updatedAt"] = datetime.now(timezone.utc).isoformat()
     return httpx.Response(200, json={"response": payload})
 
@@ -176,8 +179,8 @@ def _handle_enable_user(path: str, store: FakeUserStore) -> httpx.Response:
     payload = store.get(user_id)
     if payload is None:
         return httpx.Response(404, json={"message": f"user {user_id} not found"})
-    expire_at = datetime.fromisoformat(payload["expireAt"].replace("Z", "+00:00"))
-    payload["status"] = "ACTIVE" if expire_at > datetime.now(timezone.utc) else "EXPIRED"
+    # as the panel's enableUser: ACTIVE even past the expiry, its own cron expires it later
+    payload["status"] = "ACTIVE"
     payload["updatedAt"] = datetime.now(timezone.utc).isoformat()
     return httpx.Response(200, json={"response": payload})
 

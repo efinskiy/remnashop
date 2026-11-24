@@ -118,6 +118,7 @@ class SubscriptionRepository:
             grace_ended_at=row.grace_ended_at,
             panel_restore_due_at=row.panel_restore_due_at,
             expiry_disabled_at=row.expiry_disabled_at,
+            expiry_disable_handled_at=row.expiry_disable_handled_at,
             expiry_disable_warned_at=row.expiry_disable_warned_at,
             addon_entitlements=entitlements,
             created_at=row.created_at,
@@ -694,8 +695,8 @@ class SubscriptionRepository:
             Subscription.grace_until.is_(None),
             lapsed_at <= lapsed_before,
             or_(
-                Subscription.expiry_disabled_at.is_(None),
-                Subscription.expiry_disabled_at < lapsed_at,
+                Subscription.expiry_disable_handled_at.is_(None),
+                Subscription.expiry_disable_handled_at < lapsed_at,
             ),
             limit=limit,
             order=Subscription.expire_at,
@@ -723,6 +724,13 @@ class SubscriptionRepository:
     async def set_expiry_disabled_at(self, subscription_id: int, at: Optional[datetime]) -> None:
         row = await self._get_or_raise(subscription_id)
         row.expiry_disabled_at = at
+        await self.session.flush()
+
+    async def set_expiry_disable_handled_at(
+        self, subscription_id: int, at: Optional[datetime]
+    ) -> None:
+        row = await self._get_or_raise(subscription_id)
+        row.expiry_disable_handled_at = at
         await self.session.flush()
 
     async def mark_expiry_disable_warned(self, subscription_id: int, at: datetime) -> None:

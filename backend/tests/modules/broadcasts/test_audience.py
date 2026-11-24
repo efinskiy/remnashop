@@ -118,6 +118,32 @@ async def test_plan_expiry_paid_locale(session: AsyncSession, people: dict[str, 
     }
 
 
+async def test_a_subscription_the_expiry_rule_switched_off_counts_as_expired(
+    session: AsyncSession, user_repository: UserRepository
+) -> None:
+    now = datetime_now()
+    switched_off = await make_customer(user_repository, session, telegram_id=7101)
+    by_admin = await make_customer(user_repository, session, telegram_id=7102)
+    await add_subscription(
+        session,
+        switched_off,
+        status=SubscriptionStatus.DISABLED,
+        expire_at=now - timedelta(days=5),
+        expiry_disabled_at=now,
+    )
+    await add_subscription(
+        session, by_admin, status=SubscriptionStatus.DISABLED, expire_at=now - timedelta(days=5)
+    )
+    mine = {switched_off, by_admin}
+
+    assert await _match(session, BroadcastAudienceDto(subscription=[F.EXPIRED])) & mine == {
+        switched_off
+    }
+    assert await _match(session, BroadcastAudienceDto(expired_within_days=7)) & mine == {
+        switched_off
+    }
+
+
 async def test_expired_within_days_skips_customers_who_renewed(
     session: AsyncSession, people: dict[str, int]
 ) -> None:

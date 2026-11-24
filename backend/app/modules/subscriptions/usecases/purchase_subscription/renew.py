@@ -4,6 +4,7 @@ from typing import Optional
 
 from loguru import logger
 from remnapy import RemnawaveSDK
+from remnapy.enums import UserStatus
 from remnapy.models import ExtendUserRequestDto, UpdateUserRequestDto, UserResponseDto
 
 from app.core.actor import Actor
@@ -25,6 +26,7 @@ from app.modules.subscriptions.panel import (
     panel_update,
     reset_traffic_if_paid,
     restore,
+    restore_expiry_switch_off,
     revert_panel_to_owner,
 )
 from app.modules.subscriptions.repository import SubscriptionRepository
@@ -142,16 +144,14 @@ class RenewPurchase:
         data: PurchaseSubscriptionDto,
     ) -> tuple[datetime, int, Optional[int]]:
         """The panel's new expiry, the days it added and the anchor day it leaves."""
-        if not target.disabled_by_expiry:
-            return await self._extend(target, data)
-        # the expiry rule's switch-off ends with the renewal; the extend leaves the
-        # panel's status alone, and the row turns ACTIVE with it
-        await self._remnawave_sdk.users.enable_user(target.remnawave_user_id)
-        try:
-            return await self._extend(target, data)
-        except Exception:
-            await self._switch_back_off(target)
-            raise
+        extended = await self._extend(target, data)
+        if target.disabled_by_expiry:
+            # the expiry rule's switch-off ends with the renewal: the extend left the panel
+            # user off, and turning it on only now keeps an expired one off the nodes
+            await self._remnawave_sdk.users.update_user(
+                panel_update(id=target.remnawave_user_id, status=UserStatus.ACTIVE)
+            )
+        return extended
 
     async def _undo_refunded(
         self, target: SubscriptionDto, grace: Optional[GraceSettingsDto]
@@ -161,14 +161,13 @@ class RenewPurchase:
             self._remnawave_sdk, self._subscription_repository, self._uow, target, grace
         )
         if target.disabled_by_expiry:
-            await self._switch_back_off(target)
-
-    async def _switch_back_off(self, target: SubscriptionDto) -> None:
-        """Best effort: a renewal that didn't go through leaves the rule's switch-off."""
-        try:
-            await self._remnawave_sdk.users.disable_user(target.remnawave_user_id)
-        except Exception:
-            logger.exception(f"Failed to disable subscription '{target.id}' again")
+            await restore_expiry_switch_off(
+                self._remnawave_sdk,
+                self._subscription_repository,
+                self._lifecycle_service,
+                self._uow,
+                target,
+            )
 
     async def _extend(
         self,
@@ -320,7 +319,9 @@ class RenewPurchase:
             await self._push_out_of_grace(subscription, left_grace)
         if revived:
             try:
-                await self._remnawave_sdk.users.enable_user(subscription.remnawave_user_id)
+                await self._remnawave_sdk.users.update_user(
+                    panel_update(id=subscription.remnawave_user_id, status=UserStatus.ACTIVE)
+                )
             except Exception:
                 logger.exception(f"Failed to enable renewed subscription '{subscription.id}'")
 

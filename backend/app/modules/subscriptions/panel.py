@@ -221,6 +221,31 @@ async def drop_connections(remnawave_sdk: RemnawaveSDK, remnawave_user_id: int) 
         logger.exception(f"Failed to drop connections of panel user '{remnawave_user_id}'")
 
 
+async def restore_expiry_switch_off(
+    sdk: RemnawaveSDK,
+    repository: SubscriptionRepository,
+    lifecycle: SubscriptionLifecycleService,
+    uow: UnitOfWork,
+    subscription: SubscriptionDto,
+) -> None:
+    """Best effort: a renewal or plan change of a subscription the expiry rule switched off
+    that didn't go through leaves it off, and still the rule's for the next payment."""
+    try:
+        await sdk.users.disable_user(subscription.remnawave_user_id)
+    except Exception as error:
+        # refused as already disabled: the row still has to say so
+        if not panel_refused(error):
+            logger.exception(f"Failed to disable subscription '{subscription.id}' again")
+            return
+    async with uow:
+        current = await repository.get_by_id_for_update(subscription.id)
+        if current.status is SubscriptionStatus.DELETED:
+            return
+        # turning it on for the payment may have synced it out of DISABLED already
+        await lifecycle.sync_status(subscription.id, SubscriptionStatus.DISABLED)
+        await repository.set_expiry_disabled_at(subscription.id, datetime_now())
+
+
 def restore(
     subscription: SubscriptionDto,
     owner: Optional[UserDto] = None,

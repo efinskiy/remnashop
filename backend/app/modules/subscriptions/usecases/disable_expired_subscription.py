@@ -47,9 +47,8 @@ class DisableExpiredSubscriptionUseCase(UseCase[int, None]):
             subscription = await self._subscription_repository.get_by_id_for_update(data)
             if not disable_due(subscription, settings, claimed_at):
                 return
-            # before the panel call: its echo of the switch-off, synced by the webhook
-            # worker, finds the row already marked as the rule's
-            await self._subscription_repository.set_expiry_disabled_at(data, claimed_at)
+            # before the panel call: no other run takes it meanwhile
+            await self._subscription_repository.set_expiry_disable_handled_at(data, claimed_at)
 
         users = self._remnawave_sdk.users
         try:
@@ -66,8 +65,10 @@ class DisableExpiredSubscriptionUseCase(UseCase[int, None]):
 
         async with self._uow:
             current = await self._subscription_repository.get_by_id_for_update(data)
+            # DISABLED: the panel's echo of this switch-off, synced by the webhook worker
+            # before this commit
             if (
-                current.expiry_disabled_at == claimed_at
+                current.expiry_disable_handled_at == claimed_at
                 and current.status in (SubscriptionStatus.EXPIRED, SubscriptionStatus.DISABLED)
                 and current.expire_at == subscription.expire_at
                 and current.grace_until is None
@@ -75,6 +76,7 @@ class DisableExpiredSubscriptionUseCase(UseCase[int, None]):
                 await self._lifecycle_service.sync_status(
                     data, SubscriptionStatus(panel_user.status)
                 )
+                await self._subscription_repository.set_expiry_disabled_at(data, claimed_at)
                 await self._event_publisher.publish(
                     SubscriptionExpiryDisabledEvent(subscription_id=data, user_id=current.user_id)
                 )
@@ -97,8 +99,7 @@ class DisableExpiredSubscriptionUseCase(UseCase[int, None]):
         # the next run tries again
         async with self._uow:
             current = await self._subscription_repository.get_by_id_for_update(subscription_id)
-            if (
-                current.status is SubscriptionStatus.EXPIRED
-                and current.expiry_disabled_at == claimed_at
-            ):
-                await self._subscription_repository.set_expiry_disabled_at(subscription_id, None)
+            if current.expiry_disable_handled_at == claimed_at:
+                await self._subscription_repository.set_expiry_disable_handled_at(
+                    subscription_id, None
+                )

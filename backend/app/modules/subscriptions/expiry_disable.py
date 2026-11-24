@@ -15,7 +15,7 @@ def lapsed_at(subscription: SubscriptionDto) -> datetime:
 def handled(subscription: SubscriptionDto) -> bool:
     """The rule already acted on this expiry: switched it off, gave up on a panel refusal,
     or an admin turned it back on."""
-    marked = subscription.expiry_disabled_at
+    marked = subscription.expiry_disable_handled_at
     return marked is not None and marked >= lapsed_at(subscription)
 
 

@@ -9,6 +9,7 @@ from app.core.enums import SubscriptionStatus
 from app.core.ports import EventPublisher
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
+from app.core.utils.time import datetime_now
 from app.modules.settings import SettingsRepository
 from app.modules.subscriptions.dto import SetSubscriptionEnabledDto, SubscriptionDto
 from app.modules.subscriptions.eligibility import (
@@ -74,11 +75,12 @@ class SetSubscriptionEnabledUseCase(UseCase[SetSubscriptionEnabledDto, Subscript
                 await self._subscription_repository.set_paused_by_channel_leave(
                     subscription.id, False
                 )
-                # turning back on what the rule switched off keeps the mark, so the rule
-                # leaves this expiry alone; a switch-off is the admin's own
-                if not (data.enabled and subscription.disabled_by_expiry):
-                    await self._subscription_repository.set_expiry_disabled_at(
-                        subscription.id, None
+                # an admin's switch-off is their own, never the rule's
+                await self._subscription_repository.set_expiry_disabled_at(subscription.id, None)
+                if data.enabled and subscription.disabled_by_expiry:
+                    # turned back on what the rule switched off: it leaves this expiry alone
+                    await self._subscription_repository.set_expiry_disable_handled_at(
+                        subscription.id, datetime_now()
                     )
                 subscriber = await subscription_owner(self._user_repository, subscription)
                 await self._event_publisher.publish(

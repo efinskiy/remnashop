@@ -4,7 +4,7 @@ from typing import Final, Optional
 from sqlalchemy import ColumnElement, and_, exists, false, or_, select
 from sqlalchemy.orm import aliased
 
-from app.core.db.filters import in_ids
+from app.core.db.filters import expired_subscription, in_ids
 from app.core.db.models.ad_link_attribution import AdLinkAttribution
 from app.core.db.models.referral import Referral
 from app.core.db.models.subscription import Subscription
@@ -52,7 +52,7 @@ def _bucket_row(bucket: BroadcastSubscriptionFilter) -> Optional[ColumnElement[b
     if bucket is BroadcastSubscriptionFilter.TRIAL:
         return and_(Subscription.status.in_(_LIVE), Subscription.is_trial.is_(True))
     if bucket is BroadcastSubscriptionFilter.EXPIRED:
-        return and_(Subscription.status == SubscriptionStatus.EXPIRED, ~_has_live())
+        return and_(expired_subscription(), ~_has_live())
     if bucket is BroadcastSubscriptionFilter.LIMITED:
         return Subscription.status == SubscriptionStatus.LIMITED
     return None
@@ -98,7 +98,7 @@ def _subscription_conditions(
     if audience.expired_within_days is not None:
         row_filters.append(
             and_(
-                Subscription.status == SubscriptionStatus.EXPIRED,
+                expired_subscription(),
                 Subscription.expire_at >= now - timedelta(days=audience.expired_within_days),
                 Subscription.expire_at < now,
                 ~_has_live(),

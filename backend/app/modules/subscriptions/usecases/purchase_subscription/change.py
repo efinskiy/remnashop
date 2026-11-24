@@ -6,7 +6,8 @@ from typing import Optional
 
 from loguru import logger
 from remnapy import RemnawaveSDK
-from remnapy.models import UpdateUserRequestDto
+from remnapy.enums import UserStatus
+from remnapy.models import UpdateUserRequestDto, UpdateUserResponseDto
 
 from app.core.actor import Actor
 from app.core.constants import ZERO_AMOUNT
@@ -26,8 +27,10 @@ from app.modules.subscriptions.idempotency_repository import PurchaseIdempotency
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
 from app.modules.subscriptions.panel import (
     configure_for_plan,
+    panel_update,
     reset_traffic_if_paid,
     restore,
+    restore_expiry_switch_off,
     revert_panel_to_owner,
     subscription_row,
 )
@@ -137,6 +140,7 @@ class ChangePurchase:
                     or locked_old.addon_entitlements != old.addon_entitlements
                 ):
                     raise _TargetMovedError(locked_old)
+                panel_user = await self._past_switch_off(old, locked_old, panel_user)
                 await self._subscription_repository.mark_deleted(old.id)
                 updated = await self._subscription_repository.create(
                     subscription_row(
@@ -188,14 +192,32 @@ class ChangePurchase:
         )
         return updated
 
+    async def _past_switch_off(
+        self, old: SubscriptionDto, locked_old: SubscriptionDto, panel_user: UpdateUserResponseDto
+    ) -> UpdateUserResponseDto:
+        if not locked_old.disabled_by_expiry or old.disabled_by_expiry:
+            return panel_user
+        # the expiry rule switched it off after the push above, and is done with this
+        # expiry: on again before the new row is written from the panel's answer, under the
+        # row lock so the two can't part
+        return await self._remnawave_sdk.users.update_user(
+            panel_update(id=old.remnawave_user_id, status=UserStatus.ACTIVE)
+        )
+
     async def _revert_failed_change(self, old: SubscriptionDto) -> None:
         # no orphan: update_user changed old's own panel user. Best-effort
         # revert, so a DB failure doesn't leave the still-ACTIVE `old` on a
         # plan config nobody paid for, nor the rule's switch-off undone
         with suppress(Exception):
             await self._remnawave_sdk.users.update_user(await self._restore(old))
-            if old.disabled_by_expiry:
-                await self._remnawave_sdk.users.disable_user(old.remnawave_user_id)
+        if old.disabled_by_expiry:
+            await restore_expiry_switch_off(
+                self._remnawave_sdk,
+                self._subscription_repository,
+                self._lifecycle_service,
+                self._uow,
+                old,
+            )
 
     async def _restore(self, row: SubscriptionDto) -> UpdateUserRequestDto:
         """The config a failed change puts back: the grace one while the row is in grace."""

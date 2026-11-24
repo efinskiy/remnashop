@@ -212,6 +212,7 @@ class SubscriptionDto(BaseDto, TimestampMixin):
     grace_ended_at: Optional[datetime] = None
     panel_restore_due_at: Optional[datetime] = None
     expiry_disabled_at: Optional[datetime] = None
+    expiry_disable_handled_at: Optional[datetime] = None
     expiry_disable_warned_at: Optional[datetime] = None
     addon_entitlements: list[AddOnEntitlementDto] = Field(default_factory=list)
 

@@ -38,6 +38,7 @@ from app.modules.subscriptions.dto import (
 from app.modules.subscriptions.expiry_disable import disable_due, handled, warning_due
 from app.modules.subscriptions.idempotency_repository import PurchaseIdempotencyRepository
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
+from app.modules.subscriptions.panel import restore_expiry_switch_off
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.usecases import (
     DisableExpiredSubscriptionUseCase,
@@ -590,7 +591,7 @@ async def test_a_failed_panel_call_leaves_the_subscription_for_the_next_run(
         await rule.disable.system(target.id)
 
     released = await subscription_repository.get_by_id(target.id)
-    assert released.expiry_disabled_at is None
+    assert released.expiry_disable_handled_at is None
     assert [
         s.id for s in await subscription_repository.list_expiry_disable_due(datetime_now(), 100)
     ] == [target.id]
@@ -654,6 +655,7 @@ async def test_the_rule_leaves_alone_what_an_admin_turned_back_on(
     user_repository: UserRepository,
     settings_repository: SettingsRepository,
     remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
 ) -> None:
     await _switch_on(settings_repository)
     target = await _expired(
@@ -664,11 +666,20 @@ async def test_the_rule_leaves_alone_what_an_admin_turned_back_on(
     await rule.set_enabled(
         OWNER, SetSubscriptionEnabledDto(subscription_id=target.id, enabled=True)
     )
+    # the panel turns it on as ACTIVE, and its own cron expires it again later
+    assert (await subscription_repository.get_by_id(target.id)).status is SubscriptionStatus.ACTIVE
+    remnawave_store[96_131]["status"] = "EXPIRED"
+    async with uow:
+        await rule.lifecycle.sync_status(target.id, SubscriptionStatus.EXPIRED)
     await rule.sweep.system()
 
-    turned_on = await subscription_repository.get_by_id(target.id)
-    assert turned_on.status is SubscriptionStatus.EXPIRED
+    assert (await subscription_repository.get_by_id(target.id)).status is SubscriptionStatus.EXPIRED
     assert remnawave_store[96_131]["status"] == "EXPIRED"
+
+    # then switched off in the panel by an admin: theirs, not the rule's, so no renewal undoes it
+    async with uow:
+        await rule.lifecycle.sync_status(target.id, SubscriptionStatus.DISABLED)
+    assert not (await subscription_repository.get_by_id(target.id)).disabled_by_expiry
 
 
 async def test_a_change_paid_as_the_rule_switches_off_still_comes_out_on(
@@ -737,4 +748,85 @@ async def test_a_renewal_that_fails_on_the_panel_switches_it_back_off(
         await rule.purchase(buyer, _renewal(switched_off, plan))
 
     assert remnawave_store[96_151]["status"] == "DISABLED"
+    assert (await subscription_repository.get_by_id(target.id)).disabled_by_expiry
+
+
+async def test_a_change_paid_as_the_rule_switches_it_off_mid_way_comes_out_on(
+    rule: _Rule,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _switch_on(settings_repository)
+    plan = await _plan(plan_repository)
+    new_plan = await _plan(plan_repository)
+    target = await _expired(
+        subscription_repository, user_repository, remnawave_store, 96_161, days_ago=8, plan=plan
+    )
+    update_user = remnawave_sdk.users.update_user
+    swept = False
+
+    async def swept_after_the_push(request: Any) -> Any:
+        nonlocal swept
+        response = await update_user(request)
+        if not swept:
+            swept = True
+            await rule.disable.system(target.id)
+        return response
+
+    monkeypatch.setattr(remnawave_sdk.users, "update_user", swept_after_the_push)
+    buyer = await user_repository.find_by_id(target.user_id)
+    assert buyer is not None
+
+    changed = await rule.purchase(
+        buyer,
+        PurchaseSubscriptionDto(
+            user_id=target.user_id,
+            plan_snapshot=snapshot_from_plan(
+                new_plan, price_paid=Decimal("299.00"), duration_days=30
+            ),
+            duration_days=30,
+            price_paid=Decimal("299.00"),
+            currency=Currency.RUB,
+            purchase_type=PurchaseType.CHANGE,
+            target_subscription_id=target.id,
+            idempotency_key=uuid4().hex,
+        ),
+    )
+
+    assert swept
+    assert changed.status is SubscriptionStatus.ACTIVE
+    assert remnawave_store[96_161]["status"] == "ACTIVE"
+
+
+async def test_a_refunded_renewal_leaves_it_switched_off_and_still_the_rules(
+    rule: _Rule,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+) -> None:
+    await _switch_on(settings_repository)
+    target = await _expired(
+        subscription_repository, user_repository, remnawave_store, 96_171, days_ago=8
+    )
+    await rule.sweep.system()
+    switched_off = await subscription_repository.get_by_id(target.id)
+    # turned on for the payment, and the panel's echo already synced
+    await remnawave_sdk.users.enable_user(96_171)
+    async with uow:
+        await rule.lifecycle.sync_status(target.id, SubscriptionStatus.ACTIVE)
+
+    await restore_expiry_switch_off(
+        remnawave_sdk, subscription_repository, rule.lifecycle, uow, switched_off
+    )
+
+    assert remnawave_store[96_171]["status"] == "DISABLED"
     assert (await subscription_repository.get_by_id(target.id)).disabled_by_expiry

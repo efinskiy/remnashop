@@ -12,7 +12,6 @@ from app.modules.subscriptions.dto import (
     CreditSegmentDto,
     SubscriptionDto,
 )
-from app.modules.subscriptions.grace import LIVE_STATUSES
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.unlimited import is_unlimited_expiry
 
@@ -60,8 +59,11 @@ class SubscriptionLifecycleService:
         dto = await self._subscription_repository.get_by_id_for_update(subscription_id)
         state = _dto_to_state(dto)
         new_state = state.sync_status(target)
-        # live again from the panel: a later switch-off there is an admin's, not the rule's
-        if dto.expiry_disabled_at is not None and new_state.status in LIVE_STATUSES:
+        # out of the rule's switch-off: a later one, from the panel or an admin, isn't the rule's
+        if (
+            dto.expiry_disabled_at is not None
+            and new_state.status is not SubscriptionStatus.DISABLED
+        ):
             await self._subscription_repository.set_expiry_disabled_at(subscription_id, None)
         return await self._subscription_repository.apply_state(new_state)
 
