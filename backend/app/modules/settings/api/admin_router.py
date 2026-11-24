@@ -377,6 +377,9 @@ async def update_grace_settings(
             traffic_limit_strategy=payload.traffic_limit_strategy,
             tag=payload.tag,
             duration_days=payload.duration_days,
+            expiry_disable_enabled=payload.expiry_disable_enabled,
+            expiry_disable_after_days=payload.expiry_disable_after_days,
+            expiry_disable_warn_days=payload.expiry_disable_warn_days,
             fields_set=frozenset(payload.model_fields_set),
         ),
     )

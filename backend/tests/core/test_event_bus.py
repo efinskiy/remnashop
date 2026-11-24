@@ -57,6 +57,7 @@ from app.modules.subscriptions.events import (
     SubscriptionExpiredAgoEvent,
     SubscriptionExpiredEvent,
     SubscriptionExpiringEvent,
+    SubscriptionExpiryDisableWarningEvent,
     SubscriptionGraceStartedEvent,
     SubscriptionGrantedEvent,
     SubscriptionNotConnectedEvent,
@@ -130,6 +131,9 @@ _REGISTERED_EVENTS: dict[str, BaseEvent] = {
             subscription_id=1,
             grace_until="2026-12-05T00:00:00+00:00",
             traffic_limit_mb=0,
+        ),
+        SubscriptionExpiryDisableWarningEvent(
+            user=_USER, subscription_id=1, disable_at="2026-12-05T00:00:00+00:00"
         ),
         SubscriptionTrafficLimitedEvent(user=_USER, subscription_id=1),
         SubscriptionTrafficThresholdEvent(user=_USER, subscription_id=1),

@@ -163,7 +163,9 @@ def _handle_disable_user(path: str, store: FakeUserStore) -> httpx.Response:
     user_id = int(path.split("/")[-3])
     payload = store.get(user_id)
     if payload is None:
-        return httpx.Response(404, json={"message": f"user {user_id} not found"})
+        return httpx.Response(
+            404, json={"message": f"user {user_id} not found", "errorCode": "A025"}
+        )
     payload["status"] = "DISABLED"
     payload["updatedAt"] = datetime.now(timezone.utc).isoformat()
     return httpx.Response(200, json={"response": payload})

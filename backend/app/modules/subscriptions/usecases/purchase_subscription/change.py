@@ -209,7 +209,10 @@ class ChangePurchase:
     async def _plan_config(
         self, old: SubscriptionDto, plan: PlanSnapshot, expire_at: datetime
     ) -> UpdateUserRequestDto:
-        request = configure_for_plan(old.remnawave_user_id, plan, expire_at)
+        # the expiry rule's switch-off ends with the paid change, as with a renewal
+        request = configure_for_plan(
+            old.remnawave_user_id, plan, expire_at, enable=old.disabled_by_expiry
+        )
         if old.grace_until is None:
             return request
         async with self._uow:

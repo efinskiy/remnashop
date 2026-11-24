@@ -70,10 +70,11 @@ class SetSubscriptionEnabledUseCase(UseCase[SetSubscriptionEnabledDto, Subscript
                 updated = await self._lifecycle_service.sync_status(
                     subscription.id, SubscriptionStatus(panel_status)
                 )
-                # an admin's choice: a later channel rejoin must not undo it
+                # an admin's choice: a later channel rejoin or renewal must not undo it
                 await self._subscription_repository.set_paused_by_channel_leave(
                     subscription.id, False
                 )
+                await self._subscription_repository.set_expiry_disabled_at(subscription.id, None)
                 subscriber = await subscription_owner(self._user_repository, subscription)
                 await self._event_publisher.publish(
                     SubscriptionEditedEvent(

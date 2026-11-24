@@ -247,7 +247,9 @@ function SubscriptionEditDialogBody({
               </Badge>
             )}
             <Badge tone={SUBSCRIPTION_STATUS_BADGE_TONE[current.status]}>
-              {t(`subscriptions.status.${current.status}`)}
+              {current.status === "DISABLED" && current.expiry_disabled_at
+                ? t("subscriptions.disabledByExpiry")
+                : t(`subscriptions.status.${current.status}`)}
             </Badge>
           </>
         }

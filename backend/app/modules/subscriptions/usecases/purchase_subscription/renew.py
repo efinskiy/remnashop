@@ -72,7 +72,11 @@ class RenewPurchase:
                 target = await self._successor(target, data)
             # before the panel call: refusing after it would leave the panel
             # extended and a pinned key a caller can only retry, never undo
-            if data.refuse_disabled_target and target.status is SubscriptionStatus.DISABLED:
+            if (
+                data.refuse_disabled_target
+                and target.status is SubscriptionStatus.DISABLED
+                and not target.disabled_by_expiry
+            ):
                 raise ValidationError(
                     "Cannot renew a disabled subscription", code=ErrorCode.SUBSCRIPTION_DISABLED
                 )
@@ -141,6 +145,10 @@ class RenewPurchase:
         data: PurchaseSubscriptionDto,
     ) -> tuple[datetime, int, Optional[int]]:
         """The panel's new expiry, the days it added and the anchor day it leaves."""
+        if target.disabled_by_expiry:
+            # the expiry rule's switch-off ends with the renewal; the extend leaves the
+            # panel's status alone, and the row turns ACTIVE with it
+            await self._remnawave_sdk.users.enable_user(target.remnawave_user_id)
         if data.idempotency_key is None and data.duration_days == 0:
             # the panel's extend takes days, not "unlimited"
             updated = await self._set_expiry(
@@ -229,6 +237,8 @@ class RenewPurchase:
             left_grace: Optional[GraceSettingsDto] = None
             if target.grace_until is not None or locked.grace_until is not None:
                 left_grace = await self._settings_repository.get_grace_settings()
+            # the expiry rule switched it off while the panel call ran
+            revived = locked.disabled_by_expiry and not target.disabled_by_expiry
             subscription = await self._lifecycle_service.renew(
                 locked.id,
                 expire_at,
@@ -266,13 +276,27 @@ class RenewPurchase:
                 )
             )
 
-        if left_grace is not None:
-            await self._push_out_of_grace(subscription, left_grace)
+        await self._push_after_commit(subscription, left_grace, revived=revived)
 
         logger.info(
             f"{actor.log} Renewed subscription '{subscription.id}' by {data.duration_days}d"
         )
         return subscription, True
+
+    async def _push_after_commit(
+        self,
+        subscription: SubscriptionDto,
+        left_grace: Optional[GraceSettingsDto],
+        *,
+        revived: bool,
+    ) -> None:
+        if left_grace is not None:
+            await self._push_out_of_grace(subscription, left_grace)
+        if revived:
+            try:
+                await self._remnawave_sdk.users.enable_user(subscription.remnawave_user_id)
+            except Exception:
+                logger.exception(f"Failed to enable renewed subscription '{subscription.id}'")
 
     async def _push_out_of_grace(
         self, subscription: SubscriptionDto, grace: GraceSettingsDto

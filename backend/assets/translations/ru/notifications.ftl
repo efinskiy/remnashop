@@ -174,6 +174,12 @@ ntf-customer-subscription-grace-started = Ваша подписка истекл
     }. Продлите подписку, чтобы вернуть тариф.
     .title = Подписка истекла
     .emoji = ⏳
+ntf-customer-subscription-expiry-disable-warning = { $is_trial ->
+        [yes] Ваш пробный период закончился, и { $disable_date } доступ будет отключён полностью. Оформите подписку, чтобы продолжить пользоваться VPN.
+       *[no] Ваша подписка истекла, и { $disable_date } доступ будет отключён полностью. Продлите подписку, чтобы продолжить пользоваться VPN.
+    }
+    .title = Доступ скоро отключится
+    .emoji = ⚠️
 ntf-customer-subscription-traffic-limited = Ваш трафик израсходован. { $is_trial ->
         [yes] Оформите подписку, чтобы продолжить пользоваться сервисом.
        *[no] { $traffic_strategy ->

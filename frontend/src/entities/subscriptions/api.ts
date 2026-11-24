@@ -64,6 +64,8 @@ export interface SubscriptionListItem {
   expire_at: string;
   /** end of the grace period the subscription is in; null outside one */
   grace_until: string | null;
+  /** set while DISABLED by the expiry rule rather than by an admin: a renewal turns it back on */
+  expiry_disabled_at: string | null;
   created_at: string | null;
   first_connected_at: string | null;
   /** the client's own last device removal, removal of all devices and link reissue */

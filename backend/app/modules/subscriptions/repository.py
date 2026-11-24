@@ -117,6 +117,8 @@ class SubscriptionRepository:
             grace_started_at=row.grace_started_at,
             grace_ended_at=row.grace_ended_at,
             panel_restore_due_at=row.panel_restore_due_at,
+            expiry_disabled_at=row.expiry_disabled_at,
+            expiry_disable_warned_at=row.expiry_disable_warned_at,
             addon_entitlements=entitlements,
             created_at=row.created_at,
             updated_at=row.updated_at,
@@ -214,7 +216,15 @@ class SubscriptionRepository:
     async def get_active_by_user(self, user_id: int) -> list[SubscriptionDto]:
         result = await self.session.execute(
             select(Subscription)
-            .where(Subscription.user_id == user_id, Subscription.status.in_(OWNED_STATUSES))
+            .where(
+                Subscription.user_id == user_id,
+                Subscription.status.in_(OWNED_STATUSES),
+                # switched off by the expiry rule: an expired one to the customer
+                or_(
+                    Subscription.status != SubscriptionStatus.DISABLED,
+                    Subscription.expiry_disabled_at.is_(None),
+                ),
+            )
             .order_by(Subscription.id)
         )
         rows = result.scalars().all()
@@ -673,6 +683,51 @@ class SubscriptionRepository:
             limit=limit,
         )
 
+    async def list_expiry_disable_due(
+        self, lapsed_before: datetime, limit: int
+    ) -> list[SubscriptionDto]:
+        """Expired rows out of grace whose expiry (`expiry_disable.lapsed_at`) is at or before
+        `lapsed_before`."""
+        return await self._list_where(
+            Subscription.status == SubscriptionStatus.EXPIRED,
+            Subscription.grace_until.is_(None),
+            _lapsed_at() <= lapsed_before,
+            limit=limit,
+            order=Subscription.expire_at,
+        )
+
+    async def list_expiry_disable_warn_due(
+        self, lapsed_before: datetime, lapsed_after: datetime, limit: int
+    ) -> list[SubscriptionDto]:
+        """Expired rows out of grace whose expiry falls in (`lapsed_after`, `lapsed_before`],
+        not yet warned about it."""
+        lapsed_at = _lapsed_at()
+        return await self._list_where(
+            Subscription.status == SubscriptionStatus.EXPIRED,
+            Subscription.grace_until.is_(None),
+            lapsed_at <= lapsed_before,
+            lapsed_at > lapsed_after,
+            or_(
+                Subscription.expiry_disable_warned_at.is_(None),
+                Subscription.expiry_disable_warned_at < lapsed_at,
+            ),
+            limit=limit,
+            order=Subscription.expire_at,
+        )
+
+    async def set_expiry_disabled_at(self, subscription_id: int, at: Optional[datetime]) -> None:
+        row = await self._get_or_raise(subscription_id)
+        row.expiry_disabled_at = at
+        await self.session.flush()
+
+    async def mark_expiry_disable_warned(self, subscription_id: int, at: datetime) -> None:
+        await self.session.execute(
+            update(Subscription)
+            .where(Subscription.id == subscription_id)
+            # bookkeeping, not a change to the subscription
+            .values(expiry_disable_warned_at=at, updated_at=Subscription.updated_at)
+        )
+
     async def list_grace_ended(self, now: datetime, limit: int) -> list[SubscriptionDto]:
         return await self._list_where(
             Subscription.grace_until <= now,
@@ -778,3 +833,8 @@ class SubscriptionRepository:
         await self.session.refresh(row)
         entitlements_by_subscription = await self._load_entitlements([row.id])
         return self._to_dto(row, entitlements_by_subscription.get(row.id, []))
+
+
+def _lapsed_at() -> ColumnElement[datetime]:
+    # GREATEST skips a NULL: no grace leaves expire_at
+    return func.greatest(Subscription.expire_at, Subscription.grace_ended_at)

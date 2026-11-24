@@ -19,6 +19,8 @@ SHORT_RETENTION_EVENT_TYPES: Final[frozenset[str]] = frozenset(
         "SubscriptionExpiredAgoEvent",
         "SubscriptionExpiredEvent",
         "SubscriptionExpiringEvent",
+        "SubscriptionExpiryDisabledEvent",
+        "SubscriptionExpiryDisableWarningEvent",
         "SubscriptionFirstConnectedEvent",
         "SubscriptionGraceStartedEvent",
         "SubscriptionNotConnectedEvent",

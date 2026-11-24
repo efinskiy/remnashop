@@ -67,6 +67,7 @@ from app.modules.subscriptions import (
     SubscriptionExpiredAgoEvent,
     SubscriptionExpiredEvent,
     SubscriptionExpiringEvent,
+    SubscriptionExpiryDisableWarningEvent,
     SubscriptionGraceStartedEvent,
     SubscriptionGrantedEvent,
     SubscriptionNotConnectedEvent,
@@ -104,6 +105,7 @@ _RENEWABLE: Final[frozenset[str]] = frozenset(
         SubscriptionExpiringEvent,
         SubscriptionExpiredEvent,
         SubscriptionGraceStartedEvent,
+        SubscriptionExpiryDisableWarningEvent,
         SubscriptionExpiredAgoEvent,
         SubscriptionTrafficLimitedEvent,
     )
@@ -445,6 +447,11 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
         args = {**data.args, "is_trial": "yes" if subscription and subscription.is_trial else "no"}
         if data.event_type == SubscriptionTrafficLimitedEvent.__name__ and subscription:
             args["traffic_strategy"] = subscription.traffic_limit_strategy.value
+        if data.event_type == SubscriptionExpiryDisableWarningEvent.__name__ and (
+            # renewed or switched off since: nothing left to warn about
+            subscription is None or subscription.status is not SubscriptionStatus.EXPIRED
+        ):
+            return None
         if data.event_type == SubscriptionTrafficThresholdEvent.__name__:
             # limited, expired or gone since the panel sent it: nothing left to warn about
             if subscription is None or subscription.status is not SubscriptionStatus.ACTIVE:

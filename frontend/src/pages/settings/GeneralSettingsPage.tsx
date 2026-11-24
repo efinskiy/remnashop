@@ -1,6 +1,7 @@
 import { usePermissions } from "@entities/user/use-current-user";
 import { AccessSettingsForm } from "@features/access-settings/AccessSettingsForm";
 import { DailyReportSettingsForm } from "@features/daily-report-settings/DailyReportSettingsForm";
+import { ExpiryDisableSettingsSection } from "@features/expiry-disable-settings/ExpiryDisableSettingsSection";
 import { GraceSettingsSection } from "@features/grace-settings/GraceSettingsSection";
 import { LegalDocumentsEditor } from "@features/legal-documents-editor/LegalDocumentsEditor";
 import { OAuthSettingsForm } from "@features/oauth-settings/OAuthSettingsForm";
@@ -16,6 +17,7 @@ export function GeneralSettingsPage() {
       {permissions.includes("ACCESS_SETTINGS_VIEW") && <AccessSettingsForm />}
       {permissions.includes("SHOP_SETTINGS_VIEW") && <ShopSettingsForm />}
       {permissions.includes("GRACE_SETTINGS_VIEW") && <GraceSettingsSection />}
+      {permissions.includes("GRACE_SETTINGS_VIEW") && <ExpiryDisableSettingsSection />}
       {permissions.includes("SHOP_SETTINGS_VIEW") && <SupportSettingsForm />}
       {permissions.includes("NOTIFICATION_SETTINGS_VIEW") && <WebPushSettingsForm />}
       {permissions.includes("NOTIFICATION_SETTINGS_VIEW") && <DailyReportSettingsForm />}

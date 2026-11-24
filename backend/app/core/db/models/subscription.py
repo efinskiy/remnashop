@@ -66,6 +66,11 @@ class Subscription(BaseSql, TimestampMixin):
     link_reset_at: Mapped[Optional[datetime]]
     # disabled because the customer left the required channel; only these come back on rejoin
     paused_by_channel_leave: Mapped[bool] = mapped_column(default=False, server_default="false")
+    # switched off by the expiry rule, not by an admin: a renewal turns it back on.
+    # Meaningful only while DISABLED; an admin's own switch clears it
+    expiry_disabled_at: Mapped[Optional[datetime]]
+    # the expiry rule's warning went out; one per expiry, compared with it
+    expiry_disable_warned_at: Mapped[Optional[datetime]]
     # set while the grace period holds the panel user active past expiry; cleared on renewal
     grace_until: Mapped[Optional[datetime]]
     # the grace entry finished (pushed, traffic reset, customer told); a claim without it

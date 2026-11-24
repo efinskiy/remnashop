@@ -211,11 +211,23 @@ class SubscriptionDto(BaseDto, TimestampMixin):
     grace_started_at: Optional[datetime] = None
     grace_ended_at: Optional[datetime] = None
     panel_restore_due_at: Optional[datetime] = None
+    expiry_disabled_at: Optional[datetime] = None
+    expiry_disable_warned_at: Optional[datetime] = None
     addon_entitlements: list[AddOnEntitlementDto] = Field(default_factory=list)
 
     @property
     def is_unlimited(self) -> bool:
         return is_unlimited_expiry(self.expire_at)
+
+    @property
+    def disabled_by_expiry(self) -> bool:
+        """Switched off by the expiry rule: a renewal or plan change turns it back on."""
+        return self.status is SubscriptionStatus.DISABLED and self.expiry_disabled_at is not None
+
+    @property
+    def customer_status(self) -> SubscriptionStatus:
+        # to the customer it is an expired subscription to renew, not an admin's switch-off
+        return SubscriptionStatus.EXPIRED if self.disabled_by_expiry else self.status
 
 
 @dataclass(frozen=True, kw_only=True)

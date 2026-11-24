@@ -203,8 +203,12 @@ class SubscriptionLifecycleService:
         if dto.grace_until is not None:
             # every renewal ends grace; the sync heeds the panel again from here
             await self._subscription_repository.set_grace_until(subscription_id, None)
+        if dto.expiry_disabled_at is not None:
+            await self._subscription_repository.set_expiry_disabled_at(subscription_id, None)
         renewed = await self._subscription_repository.apply_state(
-            _dto_to_state(dto).reactivate_on_renew(new_expire_at)
+            _dto_to_state(dto).reactivate_on_renew(
+                new_expire_at, disabled_by_expiry=dto.disabled_by_expiry
+            )
         )
         if not is_unlimited_expiry(new_expire_at):
             # a lapsed term restarts today; its old segments lie in the past and credit nothing

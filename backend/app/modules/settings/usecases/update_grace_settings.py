@@ -38,6 +38,15 @@ class UpdateGraceSettingsUseCase(UseCase[UpdateGraceSettingsDto, GraceSettingsDt
         async with self._uow:
             before = await self._settings_repository.get_grace_settings()
             settings = await self._settings_repository.update_grace_settings(data)
+            # checked on the result: a request may send one of the two days alone
+            if not 0 <= settings.expiry_disable_warn_days <= settings.expiry_disable_after_days or (
+                settings.expiry_disable_after_days < 1
+            ):
+                raise ValidationError(
+                    "expiry_disable_after_days must be at least 1 and expiry_disable_warn_days "
+                    "between 0 and it",
+                    code=ErrorCode.GRACE_SETTINGS_INVALID,
+                )
             await self._event_publisher.publish(
                 GraceSettingsChangedEvent(
                     actor=actor, changed_fields=changed_fields(before, settings, data.fields_set)
