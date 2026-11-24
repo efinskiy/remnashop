@@ -11,6 +11,7 @@
     "continueButton": "Continue"
   },
   "common": {
+    "daysSuffix": "days",
     "today": "Today",
     "yesterday": "Yesterday",
     "cancel": "Cancel",
@@ -1637,7 +1638,7 @@
         "MB": "MB",
         "GB": "GB"
       },
-      "durationLabel": "Duration, days",
+      "durationLabel": "Duration",
       "internalSquadsHint": "Leave empty to keep the subscription’s own squads.",
       "externalSquadHint": "“None” keeps the subscription’s own external squad.",
       "tagHint": "Leave empty to keep the subscription’s tag. Capital Latin letters, digits and “_”.",
@@ -1651,7 +1652,6 @@
       "afterDaysLabel": "Switch off after",
       "afterDaysHint": "Counted from the subscription's end, or from the grace period's end if there was one.",
       "warnDaysLabel": "Warn the customer before",
-      "daysSuffix": "days",
       "warnDaysHint": "The customer gets a Telegram or email message with the date and a renew button. 0 means no warning. Subscriptions already past their switch-off date when the rule is turned on get no warning: they are switched off at once."
     },
     "shop": {

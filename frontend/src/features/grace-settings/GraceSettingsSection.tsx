@@ -176,6 +176,7 @@ export function GraceSettingsSection() {
                   onKeyDown={blockNonIntegerKeys}
                   step="1"
                   min="0"
+                  suffix={t("common.daysSuffix")}
                   value={days}
                   onChange={(event) => setDays(event.target.value)}
                 />
