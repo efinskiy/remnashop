@@ -108,6 +108,7 @@ export function ExpiryDisableSettingsSection() {
                   step="1"
                   min="1"
                   max={MAX_DAYS}
+                  suffix={t("settings.expiryDisable.daysSuffix")}
                   value={afterDays}
                   onChange={(event) => setAfterDays(event.target.value)}
                 />
@@ -130,6 +131,7 @@ export function ExpiryDisableSettingsSection() {
                   onKeyDown={blockNonIntegerKeys}
                   step="1"
                   min="0"
+                  suffix={t("settings.expiryDisable.daysSuffix")}
                   value={warnDays}
                   onChange={(event) => setWarnDays(event.target.value)}
                 />
