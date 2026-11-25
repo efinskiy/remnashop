@@ -129,10 +129,14 @@ export interface SubscriptionListPage {
   total: number;
 }
 
+export type SubscriptionSort = "created_at" | "expire_at";
+
 export interface SubscriptionListFilters {
   status?: SubscriptionStatus;
   search?: string;
   userId?: number;
+  sort?: SubscriptionSort;
+  descending?: boolean;
   page?: number;
   pageSize?: number;
 }
@@ -145,6 +149,8 @@ export function listSubscriptions(
   if (filters.status) params.set("status", filters.status);
   if (filters.search) params.set("search", filters.search);
   if (filters.userId !== undefined) params.set("user_id", String(filters.userId));
+  if (filters.sort) params.set("sort", filters.sort);
+  if (filters.descending !== undefined) params.set("descending", String(filters.descending));
   params.set("page", String(filters.page ?? 1));
   params.set("page_size", String(filters.pageSize ?? DEFAULT_PAGE_SIZE));
 

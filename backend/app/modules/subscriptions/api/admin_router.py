@@ -41,6 +41,7 @@ from app.modules.subscriptions.dto import (
     ListSubscriptionsDto,
     PushSubscriptionToPanelDto,
     SetSubscriptionEnabledDto,
+    SubscriptionSort,
     SyncFromPanelOptionsDto,
     SyncToPanelOptionsDto,
     UpdateSubscriptionDto,
@@ -168,13 +169,21 @@ async def list_subscriptions(
     status_filter: Optional[SubscriptionStatus] = Query(None, alias="status"),
     search: Optional[str] = Query(None, max_length=SEARCH_MAX_LENGTH),
     user_id: Optional[int] = None,
+    sort: SubscriptionSort = "created_at",
+    descending: bool = True,
     page: int = Query(1, ge=1),
     page_size: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
 ) -> SubscriptionPageResponse:
     items, total = await use_case(
         actor,
         ListSubscriptionsDto(
-            status=status_filter, search=search, user_id=user_id, page=page, page_size=page_size
+            status=status_filter,
+            search=search,
+            user_id=user_id,
+            sort=sort,
+            descending=descending,
+            page=page,
+            page_size=page_size,
         ),
     )
     return SubscriptionPageResponse(

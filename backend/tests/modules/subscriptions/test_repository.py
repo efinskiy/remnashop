@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Optional
@@ -355,6 +356,30 @@ async def test_list_paginated_orders_newest_first_and_live_first_for_one_user(
 
     assert [row.id for row in everyone] == [newer_active.id, expired.id, older_active.id]
     assert [row.id for row in own] == [newer_active.id, older_active.id, expired.id]
+
+
+async def test_list_paginated_sorts_by_expiry_both_ways(
+    subscription_repository: SubscriptionRepository, user_repository: UserRepository
+) -> None:
+    user_id = await _create_user(user_repository, 145)
+    now = datetime_now()
+    long_expired, recently_expired, live = [
+        await subscription_repository.create(
+            replace(_create_dto(user_id, 54501 + offset), expire_at=now + timedelta(days=days))
+        )
+        for offset, days in enumerate((-30, -1, 30))
+    ]
+
+    oldest_first, _ = await subscription_repository.list_paginated(
+        user_id=user_id, sort="expire_at", descending=False
+    )
+    latest_first, _ = await subscription_repository.list_paginated(
+        user_id=user_id, sort="expire_at"
+    )
+
+    expected = [long_expired.id, recently_expired.id, live.id]
+    assert [row.id for row in oldest_first] == expected
+    assert [row.id for row in latest_first] == expected[::-1]
 
 
 async def test_list_non_terminal_keeps_recently_expired_and_excludes_deleted(
