@@ -25,6 +25,8 @@ from app.modules.plans import PlanDto
 from app.modules.subscriptions.events import StatusSyncSource
 from app.modules.subscriptions.unlimited import is_unlimited_expiry
 
+SubscriptionSort = Literal["created_at", "expire_at"]
+
 
 @dataclass(frozen=True, kw_only=True)
 class PlanSnapshot:
@@ -702,6 +704,8 @@ class ListSubscriptionsDto:
     status: Optional[SubscriptionStatus] = None
     search: Optional[str] = None
     user_id: Optional[int] = None
+    sort: SubscriptionSort = "created_at"
+    descending: bool = True
     page: int = 1
     page_size: int = DEFAULT_PAGE_SIZE
 

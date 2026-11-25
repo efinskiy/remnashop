@@ -30,6 +30,8 @@ class ListSubscriptionsUseCase(
                 status=data.status,
                 search=data.search,
                 user_id=data.user_id,
+                sort=data.sort,
+                descending=data.descending,
                 page=data.page,
                 page_size=data.page_size,
                 hide_staff_from=None

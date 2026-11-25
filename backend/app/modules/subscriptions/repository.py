@@ -35,6 +35,7 @@ from app.modules.subscriptions.dto import (
     PlanSnapshot,
     SubscriptionConfigUpdateDto,
     SubscriptionDto,
+    SubscriptionSort,
     UpdateSubscriptionDto,
     UpdateSubscriptionSquadsDto,
 )
@@ -166,6 +167,8 @@ class SubscriptionRepository:
         status: Optional[SubscriptionStatus] = None,
         search: Optional[str] = None,
         user_id: Optional[int] = None,
+        sort: SubscriptionSort = "created_at",
+        descending: bool = True,
         page: int = 1,
         page_size: int = DEFAULT_PAGE_SIZE,
         hide_staff_from: Optional[int] = None,
@@ -197,8 +200,13 @@ class SubscriptionRepository:
         count_stmt = select(func.count()).select_from(Subscription).where(*filters)
         total = await self.session.scalar(count_stmt)
 
-        # newest first; one user's list puts the working ones (active, limited) on top
-        order: list[ColumnElement[Any]] = [Subscription.id.desc()]
+        # one user's list puts the working ones (active, limited) on top;
+        # ties by id keep offset pages stable
+        sort_col = Subscription.id if sort == "created_at" else Subscription.expire_at
+        order: list[ColumnElement[Any]] = [
+            sort_col.desc() if descending else sort_col.asc(),
+            Subscription.id.desc(),
+        ]
         if user_id is not None:
             order.insert(0, Subscription.status.notin_(_LIVE_STATUSES))
         stmt = (
