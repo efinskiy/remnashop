@@ -80,3 +80,69 @@ async def test_failed_commit_rolls_back_and_drops_callbacks(
     assert ran == []
     async with uow:
         await session.execute(select(1))
+
+
+async def test_nested_block_leaves_the_commit_to_the_outer_one(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    uow = UnitOfWork(session)
+    commits: list[str] = []
+    ran: list[str] = []
+    real_commit = session.commit
+
+    async def recording_commit() -> None:
+        commits.append("commit")
+        await real_commit()
+
+    async def callback() -> None:
+        ran.append("ran")
+
+    monkeypatch.setattr(session, "commit", recording_commit)
+
+    async with uow:
+        async with uow:
+            await uow.after_commit(callback)
+        assert commits == []
+        assert ran == []
+
+    assert commits == ["commit"]
+    assert ran == ["ran"]
+
+
+async def test_nested_block_failure_rolls_back_with_the_outer_one(session: AsyncSession) -> None:
+    uow = UnitOfWork(session)
+    ran: list[str] = []
+
+    async def callback() -> None:
+        ran.append("ran")
+
+    with pytest.raises(RuntimeError):
+        async with uow:
+            await uow.after_commit(callback)
+            async with uow:
+                raise RuntimeError("abort")
+
+    assert ran == []
+
+
+async def test_a_caught_nested_failure_rolls_back_the_outer_block(session: AsyncSession) -> None:
+    uow = UnitOfWork(session)
+    ran: list[str] = []
+
+    async def callback() -> None:
+        ran.append("ran")
+
+    with pytest.raises(RuntimeError, match="inner unit of work failed"):
+        async with uow:
+            try:
+                async with uow:
+                    await uow.after_commit(callback)
+                    raise ValueError("inner")
+            except ValueError:
+                pass
+
+    assert ran == []
+    # the next transaction starts clean
+    async with uow:
+        await uow.after_commit(callback)
+    assert ran == ["ran"]
