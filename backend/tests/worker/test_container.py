@@ -1,12 +1,15 @@
 import importlib
-import re
+import subprocess
 import typing
 from pathlib import Path
-from typing import Any, Final
+from typing import Any, Final, Union
 
 import pytest
+import taskiq.cli.utils as taskiq_cli_utils
 from dishka import Scope
 from taskiq import AsyncTaskiqDecoratedTask
+from taskiq.cli.scheduler.args import SchedulerArgs
+from taskiq.cli.worker.args import WorkerArgs
 
 import app.modules
 from app.core.config import AppConfig
@@ -14,21 +17,34 @@ from app.worker.container import create_worker_container
 
 _ENTRYPOINT: Final[Path] = Path(__file__).parents[3] / "docker-entrypoint.sh"
 _MODULES_DIR: Final[Path] = Path(app.modules.__file__).parent
-
-
 _BACKEND_DIR: Final[Path] = _ENTRYPOINT.parent / "backend"
+_COMMAND_ARGS: Final[dict[str, type[Union[WorkerArgs, SchedulerArgs]]]] = {
+    "worker": WorkerArgs,
+    "scheduler": SchedulerArgs,
+}
 
 
-def _discovered_task_modules(command: str) -> set[str]:
-    # the pattern taskiq globs from WORKDIR (/opt/remnashop, laid out like backend/)
-    line = next(line for line in _ENTRYPOINT.read_text().splitlines() if command in line)
-    assert "--fs-discover" in line
-    match = re.search(r'--tasks-pattern "([^"]+)"', line)
-    assert match is not None, f"{command} has no quoted --tasks-pattern"
-    return {
-        ".".join(path.relative_to(_BACKEND_DIR).with_suffix("").parts)
-        for path in _BACKEND_DIR.glob(match.group(1))
-    }
+def _command_argv(command: str) -> list[str]:
+    # the shell's own word splitting and globbing, run from a directory laid out
+    # like WORKDIR (/opt/remnashop), so an unquoted pattern would expand here too
+    line = next(
+        line for line in _ENTRYPOINT.read_text().splitlines() if f"exec taskiq {command}" in line
+    )
+    script = line.replace(f"exec taskiq {command}", "printf '%s\\n'", 1)
+    result = subprocess.run(
+        ["sh", "-c", script], cwd=_BACKEND_DIR, capture_output=True, text=True, check=True
+    )
+    return result.stdout.splitlines()
+
+
+def _discovered_task_modules(command: str, monkeypatch: pytest.MonkeyPatch) -> set[str]:
+    args = _COMMAND_ARGS[command].from_cli(_command_argv(command))
+    assert args.fs_discover
+    imported: list[str] = []
+    monkeypatch.setattr(taskiq_cli_utils, "import_from_modules", imported.extend)
+    monkeypatch.chdir(_BACKEND_DIR)
+    taskiq_cli_utils.import_tasks([], args.tasks_pattern, args.fs_discover)
+    return set(imported)
 
 
 _TASK_MODULES_ON_DISK: Final[set[str]] = {
@@ -47,10 +63,12 @@ def _injected_types(task: AsyncTaskiqDecoratedTask[Any, Any]) -> list[Any]:
     ]
 
 
-@pytest.mark.parametrize("command", ["exec taskiq worker", "exec taskiq scheduler"])
-def test_command_discovers_every_tasks_module(command: str) -> None:
+@pytest.mark.parametrize("command", sorted(_COMMAND_ARGS))
+def test_command_discovers_every_tasks_module(
+    command: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # a module the scheduler misses is never kicked; one the worker misses never runs
-    assert _discovered_task_modules(command) == _TASK_MODULES_ON_DISK
+    assert _discovered_task_modules(command, monkeypatch) == _TASK_MODULES_ON_DISK
 
 
 @pytest.mark.parametrize("module_name", sorted(_TASK_MODULES_ON_DISK))
