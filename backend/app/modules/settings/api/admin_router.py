@@ -1,6 +1,6 @@
 from dishka import FromDishka
 from dishka.integrations.fastapi import inject
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Request, Response, status
 
 from app.api.dependencies.admin import require_admin
 from app.api.errors import error_responses
@@ -386,7 +386,7 @@ async def update_grace_settings(
     return GraceSettingsResponse.model_validate(settings, from_attributes=True)
 
 
-@router.post("/bot/actions/restart", status_code=status.HTTP_202_ACCEPTED)
+@router.post("/bot/actions/restart", response_class=Response, status_code=status.HTTP_202_ACCEPTED)
 @inject
 async def restart_bot(
     use_case: FromDishka[RestartBotUseCase],

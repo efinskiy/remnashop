@@ -17,7 +17,9 @@ router = APIRouter(prefix="/emoji-packs", tags=["emoji-packs"])
 _CACHE_CONTROL: Final[str] = "public, max-age=31536000, immutable"
 
 
-@router.get("/thumbnails/{custom_emoji_id}", responses=error_responses(404))
+@router.get(
+    "/thumbnails/{custom_emoji_id}", response_class=Response, responses=error_responses(404)
+)
 @inject
 async def get_emoji_thumbnail(
     custom_emoji_id: str,
@@ -29,7 +31,9 @@ async def get_emoji_thumbnail(
     )
 
 
-@router.get("/animations/{custom_emoji_id}", responses=error_responses(404))
+@router.get(
+    "/animations/{custom_emoji_id}", response_class=Response, responses=error_responses(404)
+)
 @inject
 async def get_emoji_animation(
     custom_emoji_id: str,
