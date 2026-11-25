@@ -50,11 +50,7 @@ export function reorderPlans(planIds: number[]): Promise<Plan[]> {
   );
 }
 
-export interface SetPlanDurationsItem {
-  days: number;
-  order_index: number;
-  base_price: string;
-}
+export type SetPlanDurationsItem = ApiSchema<"PlanDurationRequest">;
 
 export function setPlanDurations(planId: number, durations: SetPlanDurationsItem[]): Promise<Plan> {
   return apiPut<Plan, ApiSchema<"SetPlanDurationsRequest">>(`/plans/${planId}/durations`, { durations });

@@ -1,6 +1,5 @@
 import { apiDelete, apiGet, apiPatch, apiPost } from "@shared/api/http";
 import type { UserBase } from "@entities/user/api";
-import type { Permission } from "@shared/types/rbac";
 import type { ApiSchema } from "@shared/api/schemas";
 
 /** the user fields plus the permission breakdown */
@@ -48,13 +47,7 @@ export function deleteAdmin(userId: number): Promise<void> {
   return apiDelete<void>(`/admins/${userId}`);
 }
 
-export interface PermissionCatalogEntry {
-  permission: Permission;
-  resource: string;
-  kind: "read" | "write";
-  token_grantable: boolean;
-  admin_default: boolean;
-}
+export type PermissionCatalogEntry = ApiSchema<"PermissionCatalogEntryResponse">;
 
 export function getPermissionCatalog(signal?: AbortSignal): Promise<PermissionCatalogEntry[]> {
   return apiGet<ApiSchema<"PermissionCatalogResponse">>("/permissions/catalog", signal).then((response) => response.items);

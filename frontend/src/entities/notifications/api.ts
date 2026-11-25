@@ -9,11 +9,7 @@ export type PushSubscriptionBody = ApiSchema<"SubscribePushRequest">;
 
 export type NotificationSettings = ApiSchema<"NotificationSettingsResponse">;
 
-interface NotificationSettingsUpdate {
-  vapid_contact?: string;
-  report_timezone?: string;
-  daily_report_hour?: number;
-}
+type NotificationSettingsUpdate = ApiSchema<"UpdateNotificationSettingsRequest">;
 
 export function getNotificationChannels(signal?: AbortSignal): Promise<NotificationChannels> {
   return apiGet<NotificationChannels>("/notifications/channels", signal);

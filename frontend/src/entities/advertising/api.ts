@@ -108,13 +108,7 @@ export function listAdLinkAttributedUsers(
   return apiGet<AttributedUserPage>(`/advertising/links/${adLinkId}/users?${params.toString()}`, signal);
 }
 
-export interface UserAdAttribution {
-  ad_link_id: number;
-  name: string;
-  code: string;
-  channel: AdLinkChannel;
-  attributed_at: string;
-}
+export type UserAdAttribution = ApiSchema<"AdAttributionResponse">;
 
 export function getUserAdAttribution(userId: number, signal?: AbortSignal): Promise<UserAdAttribution | null> {
   return apiGet<ApiSchema<"UserAdAttributionResponse">>(`/users/${userId}/ad-attribution`, signal).then(

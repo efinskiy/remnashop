@@ -5,25 +5,9 @@ export type Gateway = ApiSchema<"GatewayResponse">;
 
 export type GatewayChannels = Partial<Pick<Gateway, "telegram_enabled" | "cabinet_enabled">>;
 
-export type GatewayFieldKind = "text" | "secret" | "number" | "boolean" | "url";
+export type GatewayFieldSpec = ApiSchema<"GatewayFieldSpecResponse">;
 
-export interface GatewayFieldSpec {
-  key: string;
-  kind: GatewayFieldKind;
-  required: boolean;
-  /** the boolean field that shows this one (its own key, for that switch); null: always shown */
-  group: string | null;
-  /** a group's switch shown only while every channel is on (or the switch is) */
-  requires_all_channels: boolean;
-  /** asked for while this switch is off; a grouped value field is asked for while shown */
-  required_unless: string | null;
-}
-
-export interface GatewayCatalogEntry {
-  type: string;
-  webhook_url: string | null;
-  fields: GatewayFieldSpec[];
-}
+export type GatewayCatalogEntry = ApiSchema<"GatewayCatalogEntryResponse">;
 
 export function listGateways(signal?: AbortSignal): Promise<Gateway[]> {
   return apiGet<ApiSchema<"GatewayListResponse">>("/gateways", signal).then((response) => response.items);

@@ -36,18 +36,7 @@ export type DialogCatalog = ApiSchema<"DialogCatalogResponse">;
 
 export type DialogTextEntry = ApiSchema<"DialogTextResponse">;
 
-export interface DialogButtonInput {
-  row: number;
-  column: number;
-  text_key: string;
-  link_type: ButtonLinkType;
-  style?: ButtonStyleKind | null;
-  visibility_condition?: string | null;
-  action_key?: string | null;
-  target_window_key?: string | null;
-  url_value?: string | null;
-  is_hidden?: boolean;
-}
+export type DialogButtonInput = ApiSchema<"DialogButtonRequest">;
 
 export function toButtonInput(button: DialogButtonItem): DialogButtonInput {
   return {

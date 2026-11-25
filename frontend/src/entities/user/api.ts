@@ -139,27 +139,7 @@ export function unbindUserTelegram(userId: number): Promise<UserListItem> {
   return apiDelete<UserListItem>(`/users/${userId}/telegram`);
 }
 
-export type RegistrationSource = ApiSchema<"RegistrationSource">;
-
-export interface RegistrationSnapshot {
-  source: RegistrationSource;
-  start_payload: string | null;
-  telegram_language_code: string | null;
-  telegram_is_premium: boolean | null;
-  ip_address: string | null;
-  user_agent: string | null;
-  browser: string | null;
-  landing_url: string | null;
-  referer: string | null;
-  utm_source: string | null;
-  utm_medium: string | null;
-  utm_campaign: string | null;
-  utm_content: string | null;
-  utm_term: string | null;
-  click_id: string | null;
-  platform: string | null;
-  created_at: string;
-}
+export type RegistrationSnapshot = ApiSchema<"RegistrationSnapshotResponse">;
 
 // registration is null for accounts made before snapshots were kept
 export function getUserRegistration(
