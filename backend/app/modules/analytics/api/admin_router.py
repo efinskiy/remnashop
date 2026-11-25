@@ -21,7 +21,7 @@ from app.modules.analytics.api.schemas import (
     RetentionResponse,
     RevenueResponse,
     SourcesResponse,
-    TrialResponse,
+    TrialStatsResponse,
 )
 from app.modules.analytics.dto import (
     AnalyticsPeriodQueryDto,
@@ -117,14 +117,14 @@ async def get_analytics_revenue(
     return RevenueResponse.model_validate(revenue, from_attributes=True)
 
 
-@router.get("/trial", response_model=TrialResponse, responses=error_responses(400))
+@router.get("/trial", response_model=TrialStatsResponse, responses=error_responses(400))
 @inject
 async def get_analytics_trial(
     use_case: FromDishka[GetTrialUseCase],
     actor: Actor = Depends(require_admin),
     query: AnalyticsPeriodQueryDto = Depends(_period_query),
-) -> TrialResponse:
-    return TrialResponse.model_validate(await use_case(actor, query), from_attributes=True)
+) -> TrialStatsResponse:
+    return TrialStatsResponse.model_validate(await use_case(actor, query), from_attributes=True)
 
 
 @router.get("/retention", response_model=RetentionResponse)

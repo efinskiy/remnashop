@@ -2,20 +2,19 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal, Optional
 
-from pydantic import BaseModel
-
+from app.core.dto import ResponseModel
 from app.core.enums import Currency, PaymentGatewayType, PromocodeRewardType, PromocodeStatus
 from app.modules.analytics.sources import SourceKind
 
 
-class AnalyticsPeriodInfoResponse(BaseModel):
+class AnalyticsPeriodInfoResponse(ResponseModel):
     start: datetime
     end: datetime
     previous_start: datetime
     previous_end: datetime
 
 
-class PeriodKpiResponse(BaseModel):
+class PeriodKpiResponse(ResponseModel):
     revenue: Decimal
     payments: int
     paying_users: int
@@ -29,7 +28,7 @@ class PeriodKpiResponse(BaseModel):
     churn_rate: float
 
 
-class SnapshotKpiResponse(BaseModel):
+class SnapshotKpiResponse(ResponseModel):
     mrr: Decimal
     paid_subscriptions: int
     limited_subscriptions: int
@@ -45,7 +44,7 @@ class SnapshotKpiResponse(BaseModel):
     bonus_days_owed: int
 
 
-class AnalyticsResponse(BaseModel):
+class AnalyticsResponse(ResponseModel):
     period: AnalyticsPeriodInfoResponse
     report_currency: Currency
     revenue_by_currency: dict[Currency, Decimal]
@@ -55,14 +54,14 @@ class AnalyticsResponse(BaseModel):
     snapshot: SnapshotKpiResponse
 
 
-class FunnelStepResponse(BaseModel):
+class FunnelStepResponse(ResponseModel):
     key: str
     count: int
     pct_of_start: float
     pct_of_prev: float
 
 
-class FunnelSourceRowResponse(BaseModel):
+class FunnelSourceRowResponse(ResponseModel):
     source: SourceKind
     ad_link_id: Optional[int]
     name: Optional[str]
@@ -72,7 +71,7 @@ class FunnelSourceRowResponse(BaseModel):
     repeat_paid: int
 
 
-class FunnelResponse(BaseModel):
+class FunnelResponse(ResponseModel):
     period: AnalyticsPeriodInfoResponse
     steps: list[FunnelStepResponse]
     paid_via_trial: int
@@ -80,25 +79,25 @@ class FunnelResponse(BaseModel):
     by_source: list[FunnelSourceRowResponse]
 
 
-class CohortRowResponse(BaseModel):
+class CohortRowResponse(ResponseModel):
     cohort: str
     cohort_size: int
     retention_by_month: list[float]
 
 
-class CohortsResponse(BaseModel):
+class CohortsResponse(ResponseModel):
     items: list[CohortRowResponse]
     total: int
 
 
-class LtvBucketResponse(BaseModel):
+class LtvBucketResponse(ResponseModel):
     label: str
     lower_bound: Decimal
     upper_bound: Optional[Decimal]
     users: int
 
 
-class LtvDistributionResponse(BaseModel):
+class LtvDistributionResponse(ResponseModel):
     report_currency: Currency
     buckets: list[LtvBucketResponse]
     payers: int
@@ -106,14 +105,14 @@ class LtvDistributionResponse(BaseModel):
     median: Decimal
 
 
-class LtvGroupResponse(BaseModel):
+class LtvGroupResponse(ResponseModel):
     key: str
     source: Optional[SourceKind]
     customers: int
     avg_ltv: Decimal
 
 
-class TopPayerResponse(BaseModel):
+class TopPayerResponse(ResponseModel):
     user_id: int
     name: str
     username: Optional[str]
@@ -123,14 +122,14 @@ class TopPayerResponse(BaseModel):
     last_paid_at: datetime
 
 
-class LtvBreakdownResponse(BaseModel):
+class LtvBreakdownResponse(ResponseModel):
     report_currency: Currency
     by_first_plan: list[LtvGroupResponse]
     by_source: list[LtvGroupResponse]
     top_payers: list[TopPayerResponse]
 
 
-class RevenueTotalsResponse(BaseModel):
+class RevenueTotalsResponse(ResponseModel):
     revenue: Decimal
     payments: int
     avg_check: Decimal
@@ -142,7 +141,7 @@ class RevenueTotalsResponse(BaseModel):
     previous_refunds: int
 
 
-class RevenueBucketResponse(BaseModel):
+class RevenueBucketResponse(ResponseModel):
     start: datetime
     new: Decimal
     renew: Decimal
@@ -150,13 +149,13 @@ class RevenueBucketResponse(BaseModel):
     previous_total: Decimal
 
 
-class RevenueGroupResponse(BaseModel):
+class RevenueGroupResponse(ResponseModel):
     key: str
     payments: int
     revenue: Decimal
 
 
-class GatewayStatsResponse(BaseModel):
+class GatewayStatsResponse(ResponseModel):
     gateway_type: PaymentGatewayType
     paid: int
     canceled: int
@@ -165,7 +164,7 @@ class GatewayStatsResponse(BaseModel):
     revenue: Decimal
 
 
-class RevenueResponse(BaseModel):
+class RevenueResponse(ResponseModel):
     period: AnalyticsPeriodInfoResponse
     report_currency: Currency
     granularity: Literal["day", "week", "month"]
@@ -177,18 +176,18 @@ class RevenueResponse(BaseModel):
     gateways: list[GatewayStatsResponse]
 
 
-class TrialDayBucketResponse(BaseModel):
+class TrialDayBucketResponse(ResponseModel):
     key: str
     count: int
 
 
-class TimeToPayBucketResponse(BaseModel):
+class TimeToPayBucketResponse(ResponseModel):
     key: str
     via_trial: int
     direct: int
 
 
-class TrialResponse(BaseModel):
+class TrialStatsResponse(ResponseModel):
     period: AnalyticsPeriodInfoResponse
     report_currency: Currency
     trials: int
@@ -205,19 +204,19 @@ class TrialResponse(BaseModel):
     plans_after_trial: list[RevenueGroupResponse]
 
 
-class RetentionPointResponse(BaseModel):
+class RetentionPointResponse(ResponseModel):
     months: int
     rate: float
     eligible: int
 
 
-class ExpiringWeekResponse(BaseModel):
+class ExpiringWeekResponse(ResponseModel):
     key: str
     count: int
     mrr_at_risk: Decimal
 
 
-class ExpiringCustomerResponse(BaseModel):
+class ExpiringCustomerResponse(ResponseModel):
     user_id: int
     name: str
     username: Optional[str]
@@ -227,25 +226,25 @@ class ExpiringCustomerResponse(BaseModel):
     renewals: int
 
 
-class ExpiringCustomerPageResponse(BaseModel):
+class ExpiringCustomerPageResponse(ResponseModel):
     items: list[ExpiringCustomerResponse]
     total: int
 
 
-class PlanActiveResponse(BaseModel):
+class PlanActiveResponse(ResponseModel):
     plan_name: str
     active: int
     limited: int
 
 
-class MonthlyChurnResponse(BaseModel):
+class MonthlyChurnResponse(ResponseModel):
     month: str
     base: int
     churned: int
     rate: float
 
 
-class RetentionResponse(BaseModel):
+class RetentionResponse(ResponseModel):
     report_currency: Currency
     points: list[RetentionPointResponse]
     avg_paid_months: float
@@ -256,7 +255,7 @@ class RetentionResponse(BaseModel):
     monthly_churn: list[MonthlyChurnResponse]
 
 
-class SourceRowResponse(BaseModel):
+class SourceRowResponse(ResponseModel):
     source: SourceKind
     ad_link_id: Optional[int]
     name: Optional[str]
@@ -267,7 +266,7 @@ class SourceRowResponse(BaseModel):
     revenue_per_payer: Decimal
 
 
-class ReferralPaybackResponse(BaseModel):
+class ReferralPaybackResponse(ResponseModel):
     referred_revenue: Decimal
     reward_days: int
     reward_points: int
@@ -275,7 +274,7 @@ class ReferralPaybackResponse(BaseModel):
     deep_levels_revenue_share: float
 
 
-class TopReferrerResponse(BaseModel):
+class TopReferrerResponse(ResponseModel):
     user_id: int
     name: str
     invited: int
@@ -284,12 +283,12 @@ class TopReferrerResponse(BaseModel):
     reward_days: int
 
 
-class ChannelRevenueResponse(BaseModel):
+class ChannelRevenueResponse(ResponseModel):
     source: SourceKind
     revenue: Decimal
 
 
-class SourcesResponse(BaseModel):
+class SourcesResponse(ResponseModel):
     period: AnalyticsPeriodInfoResponse
     report_currency: Currency
     channels: list[SourceRowResponse]
@@ -299,12 +298,12 @@ class SourcesResponse(BaseModel):
     top_referrers: list[TopReferrerResponse]
 
 
-class RewardTypeCountResponse(BaseModel):
+class RewardTypeCountResponse(ResponseModel):
     reward_type: PromocodeRewardType
     activations: int
 
 
-class PromocodeRowResponse(BaseModel):
+class PromocodeRowResponse(ResponseModel):
     promocode_id: int
     code: str
     reward_type: PromocodeRewardType
@@ -318,7 +317,7 @@ class PromocodeRowResponse(BaseModel):
     status: PromocodeStatus
 
 
-class PromocodeStatsResponse(BaseModel):
+class PromocodeStatsResponse(ResponseModel):
     period: AnalyticsPeriodInfoResponse
     report_currency: Currency
     activations: int
