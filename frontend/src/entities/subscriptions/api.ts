@@ -7,6 +7,16 @@ import type { ApiSchema } from "@shared/api/schemas";
 export type SubscriptionStatus = ApiSchema<"SubscriptionStatus">;
 export type TrafficLimitStrategy = ApiSchema<"TrafficLimitStrategy">;
 
+// a Record, so a strategy the API adds fails tsc until it is listed here
+const TRAFFIC_LIMIT_STRATEGY_KEYS: Record<TrafficLimitStrategy, true> = {
+  NO_RESET: true,
+  DAY: true,
+  WEEK: true,
+  MONTH: true,
+  MONTH_ROLLING: true,
+};
+export const TRAFFIC_LIMIT_STRATEGIES = Object.keys(TRAFFIC_LIMIT_STRATEGY_KEYS) as TrafficLimitStrategy[];
+
 /** a stretch of the term and what was paid for it; a plan change credits what's left of each */
 export type CreditSegment = ApiSchema<"CreditSegmentResponse">;
 
@@ -103,7 +113,7 @@ export function getSubscription(subscriptionId: number, signal?: AbortSignal): P
 
 export type PanelSquad = ApiSchema<"PanelSquadResponse">;
 
-export function listPanelSquads(signal?: AbortSignal): Promise<{ items: PanelSquad[]; total: number }> {
+export function listPanelSquads(signal?: AbortSignal): Promise<ApiSchema<"PanelSquadListResponse">> {
   return apiGet<ApiSchema<"PanelSquadListResponse">>("/subscriptions/squads", signal);
 }
 
@@ -111,7 +121,7 @@ export function deleteSubscription(subscriptionId: number): Promise<void> {
   return apiDelete<void>(`/subscriptions/${subscriptionId}`);
 }
 
-export function deleteUserSubscriptions(userId: number): Promise<{ deleted: number }> {
+export function deleteUserSubscriptions(userId: number): Promise<ApiSchema<"DeletedSubscriptionsResponse">> {
   return apiPost<ApiSchema<"DeletedSubscriptionsResponse">, Record<string, never>>(`/users/${userId}/subscriptions/bulk/delete`, {});
 }
 
@@ -173,7 +183,7 @@ export type SquadReplacements = Record<string, string | null>;
 
 export type SubscriptionPanelDiff = ApiSchema<"SubscriptionPanelDiffResponse">;
 
-export function listMissingPanelSquads(signal?: AbortSignal): Promise<{ items: MissingSquad[]; total: number }> {
+export function listMissingPanelSquads(signal?: AbortSignal): Promise<ApiSchema<"MissingSquadListResponse">> {
   return apiGet<ApiSchema<"MissingSquadListResponse">>("/subscriptions/panel-sync/missing-squads", signal);
 }
 

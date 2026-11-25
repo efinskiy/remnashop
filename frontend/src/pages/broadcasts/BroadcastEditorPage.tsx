@@ -12,7 +12,7 @@ import {
   sendTestBroadcast,
   updateBroadcast,
 } from "@entities/broadcasts/api";
-import type { Broadcast } from "@entities/broadcasts/api";
+import type { Broadcast, BroadcastChannel } from "@entities/broadcasts/api";
 import { BROADCAST_STATUS_TONE, broadcastTitle, isEditable } from "@entities/broadcasts/display";
 import { listPlans } from "@entities/plans/api";
 import { listPromocodes } from "@entities/promocodes/api";
@@ -266,7 +266,7 @@ function BroadcastEditor({ initial, botLocales, defaultLocale }: BroadcastEditor
   const showEmail = sendsEmail(form) && (!bothChannels || contentTab === "EMAIL");
   const previewTelegram = sendsTelegram(form) && (!bothChannels || previewTab === "TELEGRAM");
   const previewEmail = sendsEmail(form) && (!bothChannels || previewTab === "EMAIL");
-  const channelTabs = (active: "TELEGRAM" | "EMAIL", onSelect: (key: "TELEGRAM" | "EMAIL") => void) =>
+  const channelTabs = (active: BroadcastChannel, onSelect: (key: BroadcastChannel) => void) =>
     bothChannels ? (
       <PillTabs
         items={(["TELEGRAM", "EMAIL"] as const).map((key) => ({ key, label: t(`broadcasts.channel.${key}`) }))}

@@ -58,17 +58,17 @@ export function listUserReferralRewards(
   return apiGet<ReferralRewardPage>(`/users/${userId}/referrals/rewards?${params.toString()}`, signal);
 }
 
-export function adjustUserPoints(userId: number, delta: string): Promise<{ points: string }> {
+export function adjustUserPoints(userId: number, delta: string): Promise<ApiSchema<"PointsBalanceResponse">> {
   return apiPost<ApiSchema<"PointsBalanceResponse">, ApiSchema<"AdjustPointsRequest">>(`/users/${userId}/actions/adjust-points`, { delta });
 }
 
-export function adjustUserBonusDays(userId: number, delta: number): Promise<{ bonus_days: number }> {
+export function adjustUserBonusDays(userId: number, delta: number): Promise<ApiSchema<"BonusDaysBalanceResponse">> {
   return apiPost<ApiSchema<"BonusDaysBalanceResponse">, ApiSchema<"AdjustBonusDaysRequest">>(`/users/${userId}/actions/adjust-bonus-days`, {
     delta,
   });
 }
 
-export function resetUserReferralCode(userId: number): Promise<{ referral_code: string | null }> {
+export function resetUserReferralCode(userId: number): Promise<ApiSchema<"ReferralCodeResponse">> {
   return apiPost<ApiSchema<"ReferralCodeResponse">, Record<string, never>>(
     `/users/${userId}/referral-code/actions/reset`,
     {},

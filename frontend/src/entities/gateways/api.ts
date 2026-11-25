@@ -52,7 +52,7 @@ export function createTestPayment(type: PaymentGatewayType, channel: TestPayment
   );
 }
 
-export function getTestPaymentStatus(orderId: number): Promise<{ status: TestPaymentStatus }> {
+export function getTestPaymentStatus(orderId: number): Promise<ApiSchema<"TestPaymentStatusResponse">> {
   return apiGet<ApiSchema<"TestPaymentStatusResponse">>(`/transactions/test-payments/${orderId}`);
 }
 

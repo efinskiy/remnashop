@@ -15,6 +15,7 @@ import { endOfDayToIso, isoToLastDay } from "@shared/lib/iso-date";
 import { parseOptionalInt } from "@shared/lib/number-input";
 import type { BadgeTone } from "@shared/ui/Badge";
 import type { ApiSchema } from "@shared/api/schemas";
+import { allValues } from "@shared/lib/all-values";
 
 export type PromocodeStatus = ApiSchema<"PromocodeStatus">;
 export type PromocodeReward = Pick<
@@ -43,16 +44,16 @@ type LimitsPayload = Required<
   >
 >;
 
-export const PROMOCODE_STATUSES: PromocodeStatus[] = ["ACTIVE", "EXHAUSTED", "INACTIVE", "EXPIRED"];
-export const REWARD_TYPES: PromocodeRewardType[] = [
+export const PROMOCODE_STATUSES = allValues<PromocodeStatus>()(["ACTIVE", "EXHAUSTED", "INACTIVE", "EXPIRED"]);
+export const REWARD_TYPES = allValues<PromocodeRewardType>()([
   "DURATION",
   "TRAFFIC",
   "DEVICES",
   "SUBSCRIPTION",
   "PERSONAL_DISCOUNT",
   "PURCHASE_DISCOUNT",
-];
-export const AVAILABILITIES: PromocodeAvailability[] = ["ALL", "NEW", "EXISTING", "INVITED", "ALLOWED"];
+]);
+export const AVAILABILITIES = allValues<PromocodeAvailability>()(["ALL", "NEW", "EXISTING", "INVITED", "ALLOWED"]);
 
 export const REWARD_TYPE_ICON: Record<PromocodeRewardType, ComponentType<{ className?: string }>> = {
   DURATION: CalendarPlus,

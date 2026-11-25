@@ -3,6 +3,7 @@ import { DollarSign, RussianRuble, Star, type LucideIcon } from "lucide-react";
 import { apiGet, apiPost } from "@shared/api/http";
 import type { BadgeTone } from "@shared/ui/Badge";
 import type { ApiSchema } from "@shared/api/schemas";
+import { allValues } from "@shared/lib/all-values";
 
 export type TransactionStatus = ApiSchema<"TransactionStatus">;
 export type PurchaseType = ApiSchema<"PurchaseType">;
@@ -161,7 +162,7 @@ export function rateUnratedAnchorAmounts(): Promise<UnratedAnchorCount[]> {
   ).then((response) => response.items);
 }
 
-export const PURCHASE_TYPES: readonly PurchaseType[] = ["NEW", "RENEW", "CHANGE"];
+export const PURCHASE_TYPES = allValues<PurchaseType>()(["NEW", "RENEW", "CHANGE"]);
 
 /** The status filter's "paid, not issued" choice; sent as `unfulfilled`, not as a status. */
 export const UNFULFILLED_STATUS = "UNFULFILLED";

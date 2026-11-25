@@ -21,7 +21,7 @@ export function updateNotificationChannels(channels: Record<string, string[]>): 
   });
 }
 
-export function getPushPublicKey(): Promise<{ public_key: string | null }> {
+export function getPushPublicKey(): Promise<ApiSchema<"PushPublicKeyResponse">> {
   return apiGet<ApiSchema<"PushPublicKeyResponse">>("/notifications/push/public-key");
 }
 
@@ -37,7 +37,7 @@ export function deletePushSubscription(id: number): Promise<void> {
   return apiDelete<void>(`/notifications/push-subscriptions/${id}`);
 }
 
-export function sendTestPush(): Promise<{ delivered: number }> {
+export function sendTestPush(): Promise<ApiSchema<"TestPushResponse">> {
   return apiPost<ApiSchema<"TestPushResponse">, Record<string, never>>("/notifications/push-subscriptions/actions/test", {});
 }
 

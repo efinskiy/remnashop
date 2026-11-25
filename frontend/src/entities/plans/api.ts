@@ -4,7 +4,6 @@ import type { ApiSchema } from "@shared/api/schemas";
 export type PlanType = ApiSchema<"PlanType">;
 export type PlanAvailability = ApiSchema<"PlanAvailability">;
 export type PlanBadge = ApiSchema<"PlanBadge">;
-export type TrafficLimitStrategy = ApiSchema<"TrafficLimitStrategy">;
 
 export interface PlanIconValue {
   /** a Telegram custom emoji from an imported pack */

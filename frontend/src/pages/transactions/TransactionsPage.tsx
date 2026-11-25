@@ -44,8 +44,9 @@ import { Badge } from "@shared/ui/Badge";
 import { IconCircle } from "@shared/ui/glass/IconCircle";
 import { GLASS_LIST_HEAD_CLASS, LIST_BODY_CLASS, LIST_SCROLL_X_CLASS, PAGE_CLASS, PAGE_SCROLL_UNDER_BAR_CLASS, PAGE_TOOLBAR_CLASS } from "@shared/ui/classes";
 import { ListRow } from "@shared/ui/ListRow";
+import { allValues } from "@shared/lib/all-values";
 
-const STATUSES: TransactionStatus[] = ["PENDING", "PAID", "FAILED", "CANCELED", "REFUNDED"];
+const STATUSES = allValues<TransactionStatus>()(["PENDING", "PAID", "FAILED", "CANCELED", "REFUNDED"]);
 
 const STATUS_DOT_ICONS = Object.fromEntries(
   STATUSES.map((value) => [value, dotIcon(PAYMENT_STATUS_DOT_CLASSNAME[value])]),

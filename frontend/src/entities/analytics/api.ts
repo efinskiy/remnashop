@@ -20,8 +20,8 @@ export const ANALYTICS_TAB_PERMISSIONS = {
   promocodes: "ANALYTICS_PROMOCODES_VIEW",
 } as const satisfies Record<string, Permission>;
 
-export type SourceKind = "organic" | "ad_link" | "referral";
-export type RevenueGranularity = "day" | "week" | "month";
+export type SourceKind = ApiSchema<"SourceKind">;
+export type RevenueGranularity = ApiSchema<"RevenueResponse">["granularity"];
 
 export type Analytics = ApiSchema<"AnalyticsResponse">;
 
@@ -91,8 +91,6 @@ export function getTrial(period: AnalyticsPeriod, signal?: AbortSignal): Promise
   return apiGet<Trial>(`/analytics/trial?${periodParams(period).toString()}`, signal);
 }
 
-export type ExpiringCustomer = ApiSchema<"ExpiringCustomerResponse">;
-
 export type Retention = ApiSchema<"RetentionResponse">;
 
 export function getRetention(signal?: AbortSignal): Promise<Retention> {
@@ -103,7 +101,7 @@ export function listExpiringCustomers(
   page: number,
   pageSize: number,
   signal?: AbortSignal,
-): Promise<{ items: ExpiringCustomer[]; total: number }> {
+): Promise<ApiSchema<"ExpiringCustomerPageResponse">> {
   const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
   return apiGet<ApiSchema<"ExpiringCustomerPageResponse">>(`/analytics/retention/expiring?${params.toString()}`, signal);
 }

@@ -83,7 +83,7 @@ export function setUserMarkup(userId: number, markupPercent: number): Promise<Us
 
 export function setUserDiscount(
   userId: number,
-  discounts: { personal_discount?: number; purchase_discount?: number },
+  discounts: ApiSchema<"SetDiscountRequest">,
 ): Promise<UserListItem> {
   return apiPatch<UserListItem, ApiSchema<"SetDiscountRequest">>(`/users/${userId}/discount`, discounts);
 }
@@ -111,7 +111,7 @@ export function unblockUser(userId: number): Promise<UserListItem> {
   return apiPost<UserListItem, Record<string, never>>(`/users/${userId}/actions/unblock`, {});
 }
 
-export type MergeSide = "source" | "target";
+export type MergeSide = NonNullable<ApiSchema<"MergeConflictResponse">["forced"]>;
 
 export type MergePreview = ApiSchema<"MergePreviewResponse">;
 
@@ -145,6 +145,6 @@ export type RegistrationSnapshot = ApiSchema<"RegistrationSnapshotResponse">;
 export function getUserRegistration(
   userId: number,
   signal?: AbortSignal,
-): Promise<{ registration: RegistrationSnapshot | null }> {
+): Promise<ApiSchema<"UserRegistrationResponse">> {
   return apiGet<ApiSchema<"UserRegistrationResponse">>(`/users/${userId}/registration`, signal);
 }

@@ -3,7 +3,7 @@ import type { ApiSchema } from "@shared/api/schemas";
 
 export type AppearanceImageKind = "logo" | "favicon" | "app-icon";
 
-export type AppearanceTarget = "dashboard" | "cabinet";
+export type AppearanceTarget = ApiSchema<"AppearanceTarget">;
 
 export const DEFAULT_FAVICON_HREF = "/favicon.svg";
 

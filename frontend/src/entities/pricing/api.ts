@@ -3,12 +3,13 @@ import type { TFunction } from "i18next";
 import { apiGet, apiPost, apiPut } from "@shared/api/http";
 import { formatDuration } from "@shared/lib/duration";
 import type { ApiSchema } from "@shared/api/schemas";
+import { allValues } from "@shared/lib/all-values";
 
 // Decimals arrive as strings (pydantic v2's JSON mode) and stay strings, so
 // a round-trip through <input type="number"> loses no precision.
 
 export type Currency = ApiSchema<"Currency">;
-export const CURRENCIES: readonly Currency[] = ["USD", "XTR", "RUB"];
+export const CURRENCIES = allValues<Currency>()(["USD", "XTR", "RUB"]);
 export type RoundingMode = ApiSchema<"RoundingMode">;
 export type BulkAdjustScope = ApiSchema<"PriceAdjustScope">;
 

@@ -1,5 +1,6 @@
 import { apiDelete, apiGet, apiPatch, apiPut } from "@shared/api/http";
 import type { ApiSchema } from "@shared/api/schemas";
+import { allValues } from "@shared/lib/all-values";
 
 export type LegalKind = ApiSchema<"LegalDocumentKind">;
 export type LegalChannel = ApiSchema<"PurchaseChannel">;
@@ -12,9 +13,7 @@ type LegalDocumentFlags = Omit<LegalDocument, "texts" | "templates">;
 
 export type LegalDocumentsResponse = ApiSchema<"LegalDocumentsResponse">;
 
-export type LegalAcceptance = ApiSchema<"LegalAcceptanceResponse">;
-
-export const LEGAL_KINDS: LegalKind[] = ["OFFER", "USER_AGREEMENT", "PRIVACY_POLICY"];
+export const LEGAL_KINDS = allValues<LegalKind>()(["OFFER", "USER_AGREEMENT", "PRIVACY_POLICY"]);
 
 export function listLegalDocuments(signal?: AbortSignal): Promise<LegalDocumentsResponse> {
   return apiGet<LegalDocumentsResponse>("/legal-documents", signal);
@@ -22,7 +21,7 @@ export function listLegalDocuments(signal?: AbortSignal): Promise<LegalDocuments
 
 export function updateLegalDocument(
   kind: LegalKind,
-  payload: { show_in_bot?: boolean; show_in_cabinet?: boolean },
+  payload: ApiSchema<"UpdateLegalDocumentRequest">,
 ): Promise<LegalDocumentFlags> {
   return apiPatch<ApiSchema<"LegalDocumentResponse">, ApiSchema<"UpdateLegalDocumentRequest">>(`/legal-documents/${kind}`, payload);
 }
@@ -47,6 +46,6 @@ export function removeLegalText(kind: LegalKind, locale: string, channel: LegalC
 export function listUserLegalAcceptances(
   userId: number,
   signal?: AbortSignal,
-): Promise<{ items: LegalAcceptance[]; total: number }> {
+): Promise<ApiSchema<"LegalAcceptancesResponse">> {
   return apiGet<ApiSchema<"LegalAcceptancesResponse">>(`/users/${userId}/legal-acceptances`, signal);
 }

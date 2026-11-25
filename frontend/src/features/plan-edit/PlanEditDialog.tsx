@@ -34,11 +34,11 @@ import {
   type PlanTranslation,
   type PlanType,
   setPlanDurations,
-  type TrafficLimitStrategy,
   updatePlan,
   updatePlanAccess,
   updatePlanSquads,
 } from "@entities/plans/api";
+import { TRAFFIC_LIMIT_STRATEGIES, type TrafficLimitStrategy } from "@entities/subscriptions/api";
 import { listActiveLocales } from "@entities/translations/api";
 import { usePermissions } from "@entities/user/use-current-user";
 import { PlanAccessFields } from "@features/plan-access/PlanAccessDialog";
@@ -67,16 +67,16 @@ import { ChoiceChip } from "@shared/ui/ChoiceChip";
 import { PillTabs } from "@shared/ui/PillTabs";
 import { Pressable } from "@shared/ui/Pressable";
 import type { Locale } from "@entities/translations/api";
+import { allValues } from "@shared/lib/all-values";
 
-const PLAN_BADGES: PlanBadge[] = ["POPULAR", "BEST_VALUE"];
-const PLAN_TYPES: PlanType[] = ["TRAFFIC", "DEVICES", "BOTH", "UNLIMITED"];
+const PLAN_BADGES = allValues<PlanBadge>()(["POPULAR", "BEST_VALUE"]);
+const PLAN_TYPES = allValues<PlanType>()(["TRAFFIC", "DEVICES", "BOTH", "UNLIMITED"]);
 const PLAN_TYPE_ICON: Record<PlanType, ComponentType<{ className?: string }>> = {
   TRAFFIC: ArrowDownUp,
   DEVICES: Smartphone,
   BOTH: Columns2,
   UNLIMITED: InfinityIcon,
 };
-const STRATEGIES: TrafficLimitStrategy[] = ["NO_RESET", "DAY", "WEEK", "MONTH", "MONTH_ROLLING"];
 const DURATION_PRESETS = [7, 30, 60, 90, 365];
 
 // the tab that edits the plan's own name, shown in any language without a translation
@@ -533,7 +533,7 @@ function PlanEditDialogBody({
             {hasTraffic && (
               <Field label={t("plans.edit.strategyLabel")}>
                 <div className="flex flex-wrap gap-1.5">
-                  {STRATEGIES.map((value) => (
+                  {TRAFFIC_LIMIT_STRATEGIES.map((value) => (
                     <ChoiceChip
                       // 36px, the fields' height above
                       className="h-9"

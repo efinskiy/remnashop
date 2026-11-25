@@ -37,10 +37,11 @@ import { Row } from "@shared/ui/glass/Row";
 import { Section, SectionRows } from "@shared/ui/glass/Section";
 import { PillTabs } from "@shared/ui/PillTabs";
 import { UserRow } from "@shared/ui/UserRow";
+import { allValues } from "@shared/lib/all-values";
 
 export type AudienceMode = "filters" | "users";
 
-const SUBSCRIPTIONS: SubscriptionFilter[] = ["ACTIVE", "TRIAL", "EXPIRED", "LIMITED", "NONE"];
+const SUBSCRIPTIONS = allValues<SubscriptionFilter>()(["ACTIVE", "TRIAL", "EXPIRED", "LIMITED", "NONE"]);
 const MAX_NOT_CONNECTED_DAYS = 30;
 const DAY_PRESETS = [3, 7, 30, 90];
 const SEARCH_DEBOUNCE_MS = 300;

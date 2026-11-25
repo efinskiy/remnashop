@@ -1,17 +1,9 @@
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "@shared/api/http";
 import type { ApiSchema } from "@shared/api/schemas";
 
-export type DialogFlow =
-  | "menu"
-  | "purchase"
-  | "renewal"
-  | "change"
-  | "subscription"
-  | "promocode"
-  | "referrals"
-  | "custom";
-export type ButtonLinkType = "action" | "navigate" | "url" | "web_app";
-export type ButtonStyleKind = "primary" | "success" | "danger";
+export type DialogFlow = ApiSchema<"DialogFlow">;
+export type ButtonLinkType = ApiSchema<"ButtonLinkType">;
+export type ButtonStyleKind = ApiSchema<"ButtonStyleKind">;
 
 export interface DialogButtonItem {
   /** Null for a button added in the editor and not saved yet. */
@@ -251,7 +243,7 @@ export function getCatalog(signal?: AbortSignal): Promise<DialogCatalog> {
 
 export function updateWindow(
   key: string,
-  data: { banner_name?: string | null; is_enabled?: boolean; name?: string },
+  data: ApiSchema<"UpdateDialogWindowRequest">,
 ): Promise<DialogWindow> {
   return apiPatch<DialogWindow, ApiSchema<"UpdateDialogWindowRequest">>(`/dialogs/windows/${encodeURIComponent(key)}`, data);
 }

@@ -5,8 +5,9 @@ import { Tags } from "lucide-react";
 
 import { Row } from "@shared/ui/glass/Row";
 import { PillTabs } from "@shared/ui/PillTabs";
+import { allValues } from "@shared/lib/all-values";
 
-const CATEGORIES: BroadcastCategory[] = ["SERVICE", "MARKETING"];
+const CATEGORIES = allValues<BroadcastCategory>()(["SERVICE", "MARKETING"]);
 
 interface CategoryPickerProps {
   value: BroadcastCategory;
