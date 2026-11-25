@@ -1,37 +1,22 @@
-import type { TrafficLimitStrategy } from "@entities/subscriptions/api";
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "@shared/api/http";
+import type { ApiSchema } from "@shared/api/schemas";
 
-export interface BotSettings {
-  is_configured: boolean;
-  is_proxy_configured: boolean;
-  drop_pending_updates: boolean;
-  remove_reply_keyboard: boolean;
-}
+export type BotSettings = ApiSchema<"BotSettingsResponse">;
 
-export interface UpdateBotSettingsPayload {
-  token?: string;
-  drop_pending_updates?: boolean;
-  remove_reply_keyboard?: boolean;
-}
+export type UpdateBotSettingsPayload = ApiSchema<"UpdateBotSettingsRequest">;
 
 export function getBotSettings(signal?: AbortSignal): Promise<BotSettings> {
   return apiGet<BotSettings>("/settings/bot", signal);
 }
 
-export interface BotStatus {
-  is_configured: boolean;
-  is_running: boolean;
-  webhook_url: string | null;
-  pending_update_count: number;
-  error: string | null;
-}
+export type BotStatus = ApiSchema<"BotStatusResponse">;
 
 export function getBotStatus(signal?: AbortSignal): Promise<BotStatus> {
   return apiGet<BotStatus>("/settings/bot/status", signal);
 }
 
 export function getBotLogs(signal?: AbortSignal): Promise<string[]> {
-  return apiGet<{ lines: string[] }>("/settings/bot/logs", signal).then((response) => response.lines);
+  return apiGet<ApiSchema<"BotLogsResponse">>("/settings/bot/logs", signal).then((response) => response.lines);
 }
 
 export function updateBotSettings(payload: UpdateBotSettingsPayload): Promise<BotSettings> {
@@ -39,7 +24,7 @@ export function updateBotSettings(payload: UpdateBotSettingsPayload): Promise<Bo
 }
 
 export function setBotProxy(proxyUrl: string): Promise<BotSettings> {
-  return apiPut<BotSettings, { proxy_url: string }>("/settings/bot/proxy", { proxy_url: proxyUrl });
+  return apiPut<BotSettings, ApiSchema<"SetBotProxyRequest">>("/settings/bot/proxy", { proxy_url: proxyUrl });
 }
 
 export function removeBotProxy(): Promise<BotSettings> {
@@ -50,71 +35,30 @@ export function restartBot(): Promise<null> {
   return apiPost<null, Record<string, never>>("/settings/bot/actions/restart", {});
 }
 
-export interface BotCommandItem {
-  command: string;
-  enabled: boolean;
-}
+export type BotCommandItem = ApiSchema<"BotCommandRequest">;
 
-export interface UpdateBotCommandsResult {
-  commands: BotCommandItem[];
-  telegram_sync_failed: boolean;
-}
+export type UpdateBotCommandsResult = ApiSchema<"UpdateBotCommandsResponse">;
 
 export function getBotCommands(
   signal?: AbortSignal,
   defaultOrder = false,
 ): Promise<BotCommandItem[]> {
-  return apiGet<{ commands: BotCommandItem[] }>(
+  return apiGet<ApiSchema<"BotCommandsResponse">>(
     `/settings/bot/commands${defaultOrder ? "?default_order=true" : ""}`,
     signal,
   ).then((response) => response.commands);
 }
 
 export function updateBotCommands(commands: BotCommandItem[]): Promise<UpdateBotCommandsResult> {
-  return apiPut<UpdateBotCommandsResult, { commands: BotCommandItem[] }>(
+  return apiPut<UpdateBotCommandsResult, ApiSchema<"UpdateBotCommandsRequest">>(
     "/settings/bot/commands",
     { commands },
   );
 }
 
-export interface OAuthSettings {
-  is_github_configured: boolean;
-  github_enabled: boolean;
-  is_telegram_configured: boolean;
-  telegram_enabled: boolean;
-  is_google_configured: boolean;
-  is_yandex_configured: boolean;
-  is_oidc_configured: boolean;
-  oidc_enabled: boolean;
-  oidc_display_name: string | null;
-  password_login_enabled: boolean;
-  is_passkey_configured: boolean;
-  passkey_enabled: boolean;
-  passkey_rp_id: string | null;
-  passkey_origin: string | null;
-}
+export type OAuthSettings = ApiSchema<"OAuthSettingsResponse">;
 
-export interface UpdateOAuthSettingsPayload {
-  github_client_id?: string;
-  github_client_secret?: string;
-  github_enabled?: boolean;
-  telegram_client_id?: string;
-  telegram_client_secret?: string;
-  telegram_enabled?: boolean;
-  google_client_id?: string;
-  google_client_secret?: string;
-  yandex_client_id?: string;
-  yandex_client_secret?: string;
-  oidc_issuer_url?: string;
-  oidc_client_id?: string;
-  oidc_client_secret?: string;
-  oidc_display_name?: string;
-  oidc_enabled?: boolean;
-  password_login_enabled?: boolean;
-  passkey_enabled?: boolean;
-  passkey_rp_id?: string;
-  passkey_origin?: string;
-}
+export type UpdateOAuthSettingsPayload = ApiSchema<"UpdateOAuthSettingsRequest">;
 
 export function getOAuthSettings(signal?: AbortSignal): Promise<OAuthSettings> {
   return apiGet<OAuthSettings>("/settings/oauth", signal);
@@ -124,35 +68,11 @@ export function updateOAuthSettings(payload: UpdateOAuthSettingsPayload): Promis
   return apiPatch<OAuthSettings, UpdateOAuthSettingsPayload>("/settings/oauth", payload);
 }
 
-export type SmtpSecurity = "STARTTLS" | "TLS" | "NONE";
+export type SmtpSecurity = ApiSchema<"SmtpSecurity">;
 
-export interface EmailSettings {
-  host: string | null;
-  port: number;
-  security: SmtpSecurity;
-  username: string | null;
-  is_password_set: boolean;
-  from_address: string | null;
-  from_name: string | null;
-  rate_per_minute: number;
-  is_configured: boolean;
-  bulk_host: string | null;
-  bulk_port: number;
-  bulk_security: SmtpSecurity;
-  bulk_username: string | null;
-  is_bulk_password_set: boolean;
-  bulk_from_address: string | null;
-  bulk_from_name: string | null;
-  bulk_rate_per_minute: number;
-  is_bulk_configured: boolean;
-}
+export type EmailSettings = ApiSchema<"EmailSettingsResponse">;
 
-export type UpdateEmailSettingsPayload = Partial<
-  Omit<EmailSettings, "is_password_set" | "is_configured" | "is_bulk_password_set" | "is_bulk_configured"> & {
-    password: string;
-    bulk_password: string;
-  }
->;
+export type UpdateEmailSettingsPayload = ApiSchema<"UpdateEmailSettingsRequest">;
 
 export function getEmailSettings(signal?: AbortSignal): Promise<EmailSettings> {
   return apiGet<EmailSettings>("/settings/email", signal);
@@ -163,7 +83,7 @@ export function updateEmailSettings(payload: UpdateEmailSettingsPayload): Promis
 }
 
 export function sendTestEmail(bulk = false): Promise<null> {
-  return apiPost<null, { bulk: boolean }>("/settings/email/actions/test", { bulk });
+  return apiPost<null, ApiSchema<"SendTestEmailRequest">>("/settings/email/actions/test", { bulk });
 }
 
 export function resetEmailSettings(): Promise<EmailSettings> {
@@ -174,27 +94,11 @@ export function resetBulkEmailSettings(): Promise<EmailSettings> {
   return apiPost<EmailSettings, Record<string, never>>("/settings/email/bulk/actions/reset", {});
 }
 
-export interface CabinetAuthSettings {
-  telegram_enabled: boolean;
-  telegram_deeplink_enabled: boolean;
-  telegram_oauth_enabled: boolean;
-  google_enabled: boolean;
-  yandex_enabled: boolean;
-  email_enabled: boolean;
-  restrict_email_domains: boolean;
-  allowed_email_domains: string[];
-  email_required: boolean;
-  captcha_enabled: boolean;
-  captcha_provider: CaptchaProvider;
-  captcha_site_key: string | null;
-  is_captcha_configured: boolean;
-}
+export type CabinetAuthSettings = ApiSchema<"CabinetAuthSettingsResponse">;
 
-export type CaptchaProvider = "TURNSTILE" | "HCAPTCHA";
+export type CaptchaProvider = ApiSchema<"CaptchaProvider">;
 
-export type UpdateCabinetAuthSettingsPayload = Partial<
-  Omit<CabinetAuthSettings, "is_captcha_configured" | "captcha_site_key">
-> & { captcha_site_key?: string; captcha_secret_key?: string };
+export type UpdateCabinetAuthSettingsPayload = ApiSchema<"UpdateCabinetAuthSettingsRequest">;
 
 export function getCabinetAuthSettings(signal?: AbortSignal): Promise<CabinetAuthSettings> {
   return apiGet<CabinetAuthSettings>("/settings/cabinet-auth", signal);
@@ -206,30 +110,14 @@ export function updateCabinetAuthSettings(
   return apiPatch<CabinetAuthSettings, UpdateCabinetAuthSettingsPayload>("/settings/cabinet-auth", payload);
 }
 
-export interface ShopSettings {
-  max_active_subscriptions: number | null;
-  device_single_reset_enabled: boolean;
-  device_single_reset_cooldown_hours: number;
-  device_all_reset_enabled: boolean;
-  device_all_reset_cooldown_hours: number;
-  link_reset_enabled: boolean;
-  link_reset_cooldown_hours: number;
-  referral_reset_enabled: boolean;
-  referral_reset_cooldown_hours: number;
-  // a Telegram username without "@"; null = not set
-  support_telegram: string | null;
-  // an https page; null = not set
-  support_url: string | null;
-  // sent to every payment gateway instead of the customer's email; null = ask the customer
-  payment_email: string | null;
-  // off: a plan change is paid in full, the old term's unused part is dropped
-  plan_change_credit_enabled: boolean;
-  // on: a traffic limit that never resets caps the credit of the term running now
-  plan_change_traffic_cap_enabled: boolean;
-}
+// support_telegram: a Telegram username without "@"; support_url: an https page;
+// payment_email: sent to every gateway instead of the customer's email (null = ask the customer);
+// plan_change_credit_enabled off: a plan change is paid in full, the old term's unused part is dropped;
+// plan_change_traffic_cap_enabled: a never-resetting traffic limit caps the credit of the running term
+export type ShopSettings = ApiSchema<"ShopSettingsResponse">;
 
 // a PATCH: only the fields sent change (the support card saves its two on their own)
-export type UpdateShopSettingsPayload = Partial<ShopSettings>;
+export type UpdateShopSettingsPayload = ApiSchema<"UpdateShopSettingsRequest">;
 
 export function getShopSettings(signal?: AbortSignal): Promise<ShopSettings> {
   return apiGet<ShopSettings>("/settings/shop", signal);
@@ -239,58 +127,36 @@ export function updateShopSettings(payload: UpdateShopSettingsPayload): Promise<
   return apiPatch<ShopSettings, UpdateShopSettingsPayload>("/settings/shop", payload);
 }
 
-export type AccessMode = "PUBLIC" | "INVITED" | "RESTRICTED";
+export type AccessMode = ApiSchema<"AccessMode">;
 
-export interface AccessSettings {
-  mode: AccessMode;
-  registration_enabled: boolean;
-  payments_enabled: boolean;
-}
+export type AccessSettings = ApiSchema<"AccessSettingsResponse">;
 
 export function getAccessSettings(signal?: AbortSignal): Promise<AccessSettings> {
   return apiGet<AccessSettings>("/settings/access", signal);
 }
 
-export function updateAccessSettings(payload: Partial<AccessSettings>): Promise<AccessSettings> {
-  return apiPatch<AccessSettings, Partial<AccessSettings>>("/settings/access", payload);
+export function updateAccessSettings(payload: ApiSchema<"UpdateAccessSettingsRequest">): Promise<AccessSettings> {
+  return apiPatch<AccessSettings, ApiSchema<"UpdateAccessSettingsRequest">>("/settings/access", payload);
 }
 
-export interface BotRequirements {
-  channel_required: boolean;
-  channel_id: number | null;
-  channel_url: string | null;
-  trial_channel_guard: boolean;
-}
+export type BotRequirements = ApiSchema<"BotRequirementsResponse">;
 
 export function getBotRequirements(signal?: AbortSignal): Promise<BotRequirements> {
   return apiGet<BotRequirements>("/settings/bot/requirements", signal);
 }
 
-export function updateBotRequirements(payload: BotRequirements): Promise<BotRequirements> {
-  return apiPut<BotRequirements, BotRequirements>("/settings/bot/requirements", payload);
+export function updateBotRequirements(payload: ApiSchema<"UpdateBotRequirementsRequest">): Promise<BotRequirements> {
+  return apiPut<BotRequirements, ApiSchema<"UpdateBotRequirementsRequest">>("/settings/bot/requirements", payload);
 }
 
-export function getPaymentWaitlistCount(signal?: AbortSignal): Promise<{ total: number }> {
-  return apiGet<{ total: number }>("/transactions/waitlist", signal);
+export function getPaymentWaitlistCount(signal?: AbortSignal): Promise<ApiSchema<"PaymentWaitlistCountResponse">> {
+  return apiGet<ApiSchema<"PaymentWaitlistCountResponse">>("/transactions/waitlist", signal);
 }
 
-export interface GraceSettings {
-  enabled: boolean;
-  internal_squads: string[];
-  external_squad: string | null;
-  // MB, 0 = unlimited
-  traffic_limit_mb: number;
-  traffic_limit_strategy: TrafficLimitStrategy;
-  tag: string | null;
-  // 0 = no end
-  duration_days: number;
-  expiry_disable_enabled: boolean;
-  expiry_disable_after_days: number;
-  // 0 = no warning
-  expiry_disable_warn_days: number;
-}
+// traffic_limit_mb: MB, 0 = unlimited; duration_days: 0 = no end; expiry_disable_warn_days: 0 = no warning
+export type GraceSettings = ApiSchema<"GraceSettingsResponse">;
 
-export type UpdateGraceSettingsPayload = Partial<GraceSettings>;
+export type UpdateGraceSettingsPayload = ApiSchema<"UpdateGraceSettingsRequest">;
 
 export function getGraceSettings(signal?: AbortSignal): Promise<GraceSettings> {
   return apiGet<GraceSettings>("/settings/grace", signal);

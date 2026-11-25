@@ -117,6 +117,9 @@ jobs:
       - name: 📦 Install Dependencies
         run: npm ci --ignore-scripts
 
+      - name: 🧬 API Types Up To Date
+        run: npm run api:types && git diff --exit-code -- src/shared/api/schema.d.ts
+
       - name: 🔎 Type Check
         run: npx tsc -b
 
