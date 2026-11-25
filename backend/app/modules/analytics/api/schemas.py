@@ -1,9 +1,10 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal, Optional
+from typing import Optional
 
 from app.core.dto import ResponseModel
 from app.core.enums import Currency, PaymentGatewayType, PromocodeRewardType, PromocodeStatus
+from app.modules.analytics.aggregates import RevenueGranularity
 from app.modules.analytics.sources import SourceKind
 
 
@@ -167,7 +168,7 @@ class GatewayStatsResponse(ResponseModel):
 class RevenueResponse(ResponseModel):
     period: AnalyticsPeriodInfoResponse
     report_currency: Currency
-    granularity: Literal["day", "week", "month"]
+    granularity: RevenueGranularity
     totals: RevenueTotalsResponse
     series: list[RevenueBucketResponse]
     by_plan: list[RevenueGroupResponse]

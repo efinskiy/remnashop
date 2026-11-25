@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Optional
 
 from dishka import FromDishka
 from dishka.integrations.fastapi import inject
@@ -9,6 +9,7 @@ from app.api.dependencies.admin import require_admin
 from app.api.errors import error_responses
 from app.core.actor import Actor
 from app.core.constants import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
+from app.modules.analytics.aggregates import RevenueGranularity
 from app.modules.analytics.api.schemas import (
     AnalyticsResponse,
     CohortRowResponse,
@@ -106,7 +107,7 @@ async def get_analytics_revenue(
     use_case: FromDishka[GetRevenueUseCase],
     actor: Actor = Depends(require_admin),
     query: AnalyticsPeriodQueryDto = Depends(_period_query),
-    granularity: Literal["day", "week", "month"] = "day",
+    granularity: RevenueGranularity = RevenueGranularity.DAY,
 ) -> RevenueResponse:
     revenue = await use_case(
         actor,

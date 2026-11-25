@@ -1,7 +1,8 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal, Optional
+from enum import StrEnum
+from typing import Optional
 
 from app.core.constants import DEFAULT_PAGE_SIZE, REMNASHOP_PREFIX, WEB_PREFIX, ZERO_AMOUNT
 from app.core.dto import BaseDto, TimestampMixin
@@ -17,9 +18,20 @@ from app.core.security.permissions import Permission
 from app.core.utils.http import describe_user_agent
 from app.modules.blacklist import BlacklistOriginDto
 
-UserSort = Literal["created_at", "points", "discount", "name", "channels", "subscriptions"]
-# exclude: live users only (the default); include: both; only: soft-deleted ones
-DeletedFilter = Literal["exclude", "include", "only"]
+
+class UserSort(StrEnum):
+    CREATED_AT = "created_at"
+    POINTS = "points"
+    DISCOUNT = "discount"
+    NAME = "name"
+    CHANNELS = "channels"
+    SUBSCRIPTIONS = "subscriptions"
+
+
+class DeletedFilter(StrEnum):
+    EXCLUDE = "exclude"  # live users only, the default
+    INCLUDE = "include"
+    ONLY = "only"  # soft-deleted ones
 
 
 class UserDto(BaseDto, TimestampMixin):
@@ -237,7 +249,9 @@ class GetUserListStatsDto:
     include_staff: bool = False
 
 
-BlacklistMatchOrigin = Literal["manual", "lists"]
+class BlacklistMatchOrigin(StrEnum):
+    MANUAL = "manual"
+    LISTS = "lists"
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -289,8 +303,8 @@ class ListUsersDto:
     is_trial_available: Optional[bool] = None
     # blocked users whose telegram id/email is on that blacklist origin
     blocked_by: Optional[BlacklistMatchOrigin] = None
-    deleted: DeletedFilter = "exclude"
-    sort: UserSort = "created_at"
+    deleted: DeletedFilter = DeletedFilter.EXCLUDE
+    sort: UserSort = UserSort.CREATED_AT
     descending: bool = True
     page: int = 1
     page_size: int = DEFAULT_PAGE_SIZE

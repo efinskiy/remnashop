@@ -430,8 +430,8 @@ class UserRepository:
         is_trial_available: Optional[bool] = None,
         # (telegram_ids, emails) a user must match one of
         identities: Optional[tuple[set[int], set[str]]] = None,
-        deleted: DeletedFilter = "exclude",
-        sort: UserSort = "created_at",
+        deleted: DeletedFilter = DeletedFilter.EXCLUDE,
+        sort: UserSort = UserSort.CREATED_AT,
         descending: bool = True,
         page: int = 1,
         page_size: int = DEFAULT_PAGE_SIZE,
