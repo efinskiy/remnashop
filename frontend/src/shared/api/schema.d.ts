@@ -2319,7 +2319,7 @@ export interface components {
         /** ErrorResponse */
         ErrorResponse: {
             /** Available At */
-            available_at: string | null;
+            available_at?: string | null;
             code: components["schemas"]["ErrorCode"];
             /** Detail */
             detail: string;

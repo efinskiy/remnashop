@@ -10,6 +10,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from loguru import logger
+from pydantic import BaseModel
 from remnapy.exceptions import ApiError as RemnawaveApiError
 from sqlalchemy.exc import DBAPIError
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -54,7 +55,7 @@ _CODE_BY_STATUS: Final[dict[int, ErrorCode]] = {
 _REMNAWAVE_UNAVAILABLE_DETAIL: Final[str] = "Remnawave panel is temporarily unavailable"
 
 
-class ErrorResponse(ResponseModel):
+class ErrorResponse(BaseModel):
     detail: str
     code: ErrorCode
     # COOLDOWN_ACTIVE only: when the action is allowed again

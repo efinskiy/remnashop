@@ -7584,8 +7584,7 @@
         },
         "required": [
           "detail",
-          "code",
-          "available_at"
+          "code"
         ],
         "title": "ErrorResponse",
         "type": "object"

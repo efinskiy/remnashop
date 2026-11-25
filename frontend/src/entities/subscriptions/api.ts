@@ -3,19 +3,12 @@ import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "@shared/api/http";
 import { DAY_MS } from "@shared/lib/period";
 import type { BadgeTone } from "@shared/ui/Badge";
 import type { ApiSchema } from "@shared/api/schemas";
+import { allValues } from "@shared/lib/all-values";
 
 export type SubscriptionStatus = ApiSchema<"SubscriptionStatus">;
 export type TrafficLimitStrategy = ApiSchema<"TrafficLimitStrategy">;
 
-// a Record, so a strategy the API adds fails tsc until it is listed here
-const TRAFFIC_LIMIT_STRATEGY_KEYS: Record<TrafficLimitStrategy, true> = {
-  NO_RESET: true,
-  DAY: true,
-  WEEK: true,
-  MONTH: true,
-  MONTH_ROLLING: true,
-};
-export const TRAFFIC_LIMIT_STRATEGIES = Object.keys(TRAFFIC_LIMIT_STRATEGY_KEYS) as TrafficLimitStrategy[];
+export const TRAFFIC_LIMIT_STRATEGIES = allValues<TrafficLimitStrategy>()(["NO_RESET", "DAY", "WEEK", "MONTH", "MONTH_ROLLING"]);
 
 /** a stretch of the term and what was paid for it; a plan change credits what's left of each */
 export type CreditSegment = ApiSchema<"CreditSegmentResponse">;
