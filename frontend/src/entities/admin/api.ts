@@ -56,11 +56,6 @@ export interface PermissionCatalogEntry {
   admin_default: boolean;
 }
 
-interface PermissionCatalogResponse {
-  items: PermissionCatalogEntry[];
-  total: number;
-}
-
 export function getPermissionCatalog(signal?: AbortSignal): Promise<PermissionCatalogEntry[]> {
-  return apiGet<PermissionCatalogResponse>("/permissions/catalog", signal).then((response) => response.items);
+  return apiGet<ApiSchema<"PermissionCatalogResponse">>("/permissions/catalog", signal).then((response) => response.items);
 }

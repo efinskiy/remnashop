@@ -1,5 +1,4 @@
 import { apiDelete, apiGet, apiGetRaw, apiPost, apiPut, apiUpload } from "@shared/api/http";
-import type { ListResponse } from "@shared/api/http";
 import type { VariableOption } from "@entities/dialogs/api";
 import type { ApiSchema } from "@shared/api/schemas";
 
@@ -46,7 +45,7 @@ export interface BroadcastButton {
 }
 
 // recallable_count: only on single-broadcast reads
-export type Broadcast = Omit<ApiSchema<"BroadcastResponse">, "contents" | "email_contents"> & { contents: Record<string, BroadcastContent>; email_contents: Record<string, BroadcastEmailContent> };
+export type Broadcast = ApiSchema<"BroadcastResponse">;
 
 export interface BroadcastInput {
   title: string | null;
@@ -62,24 +61,11 @@ export interface BroadcastInput {
   post_to_channel: boolean;
 }
 
-export interface BroadcastRecipient {
-  id: number;
-  user_id: number;
-  user_name: string;
-  username: string | null;
-  telegram_id: number | null;
-  channel: BroadcastChannel;
-  email: string | null;
-  language: string;
-  status: BroadcastRecipientStatus;
-  attempts: number;
-  error: string | null;
-  sent_at: string | null;
-}
+export type BroadcastRecipient = ApiSchema<"BroadcastRecipientResponse">;
 
 export type BroadcastSummary = Omit<ApiSchema<"BroadcastSummaryResponse">, "by_status"> & { by_status: Partial<Record<BroadcastStatus, number>> };
 
-export type AudiencePreview = Omit<ApiSchema<"AudiencePreviewResponse">, "by_locale" | "by_channel"> & { by_locale: Record<string, number>; by_channel: Partial<Record<BroadcastChannel, number>> };
+export type AudiencePreview = Omit<ApiSchema<"AudiencePreviewResponse">, "by_channel"> & { by_channel: Partial<Record<BroadcastChannel, number>> };
 
 export const EMPTY_AUDIENCE: BroadcastAudience = {
   user_ids: [],
@@ -124,13 +110,13 @@ export interface BroadcastListFilters {
   pageSize?: number;
 }
 
-export function listBroadcasts(filters: BroadcastListFilters = {}, signal?: AbortSignal): Promise<ListResponse<Broadcast>> {
+export function listBroadcasts(filters: BroadcastListFilters = {}, signal?: AbortSignal): Promise<ApiSchema<"BroadcastPageResponse">> {
   const params = new URLSearchParams();
   for (const status of filters.statuses ?? []) params.append("status", status);
   if (filters.search) params.set("search", filters.search);
   params.set("page", String(filters.page ?? 1));
   params.set("page_size", String(filters.pageSize ?? DEFAULT_PAGE_SIZE));
-  return apiGet<ListResponse<Broadcast>>(`/broadcasts?${params.toString()}`, signal);
+  return apiGet<ApiSchema<"BroadcastPageResponse">>(`/broadcasts?${params.toString()}`, signal);
 }
 
 export function getBroadcast(id: number, signal?: AbortSignal): Promise<Broadcast> {
@@ -190,7 +176,7 @@ export function previewAudience(
 }
 
 export function sendBroadcast(id: number, scheduledAt: string | null): Promise<Broadcast> {
-  return apiPost<Broadcast, { scheduled_at: string | null }>(`/broadcasts/${id}/actions/send`, {
+  return apiPost<Broadcast, ApiSchema<"SendBroadcastRequest">>(`/broadcasts/${id}/actions/send`, {
     scheduled_at: scheduledAt,
   });
 }
@@ -236,11 +222,11 @@ export function listBroadcastRecipients(
   id: number,
   filters: BroadcastRecipientFilters = {},
   signal?: AbortSignal,
-): Promise<ListResponse<BroadcastRecipient>> {
+): Promise<ApiSchema<"BroadcastRecipientPageResponse">> {
   const params = new URLSearchParams();
   if (filters.status) params.set("status", filters.status);
   if (filters.channel) params.set("channel", filters.channel);
   params.set("page", String(filters.page ?? 1));
   params.set("page_size", String(filters.pageSize ?? DEFAULT_PAGE_SIZE));
-  return apiGet<ListResponse<BroadcastRecipient>>(`/broadcasts/${id}/recipients?${params.toString()}`, signal);
+  return apiGet<ApiSchema<"BroadcastRecipientPageResponse">>(`/broadcasts/${id}/recipients?${params.toString()}`, signal);
 }

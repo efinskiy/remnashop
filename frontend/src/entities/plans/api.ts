@@ -1,11 +1,10 @@
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "@shared/api/http";
-import type { ListResponse } from "@shared/api/http";
 import type { ApiSchema } from "@shared/api/schemas";
 
 export type PlanType = ApiSchema<"PlanType">;
 export type PlanAvailability = ApiSchema<"PlanAvailability">;
 export type PlanBadge = ApiSchema<"PlanBadge">;
-export type TrafficLimitStrategy = "NO_RESET" | "DAY" | "WEEK" | "MONTH" | "MONTH_ROLLING";
+export type TrafficLimitStrategy = ApiSchema<"TrafficLimitStrategy">;
 
 export interface PlanIconValue {
   /** a Telegram custom emoji from an imported pack */
@@ -26,7 +25,7 @@ export function getPlan(planId: number, signal?: AbortSignal): Promise<Plan> {
 }
 
 export function listPlans(signal?: AbortSignal): Promise<Plan[]> {
-  return apiGet<ListResponse<Plan>>("/plans", signal).then((response) => response.items);
+  return apiGet<ApiSchema<"PlanListResponse">>("/plans", signal).then((response) => response.items);
 }
 
 export type CreatePlanRequest = ApiSchema<"CreatePlanRequest">;
@@ -46,7 +45,7 @@ export function deletePlan(planId: number): Promise<void> {
 }
 
 export function reorderPlans(planIds: number[]): Promise<Plan[]> {
-  return apiPost<ListResponse<Plan>, { plan_ids: number[] }>("/plans/actions/reorder", { plan_ids: planIds }).then(
+  return apiPost<ApiSchema<"PlanListResponse">, ApiSchema<"ReorderPlansRequest">>("/plans/actions/reorder", { plan_ids: planIds }).then(
     (response) => response.items,
   );
 }
@@ -58,7 +57,7 @@ export interface SetPlanDurationsItem {
 }
 
 export function setPlanDurations(planId: number, durations: SetPlanDurationsItem[]): Promise<Plan> {
-  return apiPut<Plan, { durations: SetPlanDurationsItem[] }>(`/plans/${planId}/durations`, { durations });
+  return apiPut<Plan, ApiSchema<"SetPlanDurationsRequest">>(`/plans/${planId}/durations`, { durations });
 }
 
 // the picker holds both, a request may leave either out

@@ -1,5 +1,4 @@
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "@shared/api/http";
-import type { ListResponse } from "@shared/api/http";
 import type { ApiSchema } from "@shared/api/schemas";
 
 export type BlacklistKind = ApiSchema<"BlacklistKind">;
@@ -25,11 +24,11 @@ export function removeBlacklistEntry(kind: BlacklistKind, value: string): Promis
 }
 
 export function listBlacklistSources(signal?: AbortSignal): Promise<BlacklistSource[]> {
-  return apiGet<ListResponse<BlacklistSource>>("/blacklist/sources", signal).then((response) => response.items);
+  return apiGet<ApiSchema<"BlacklistSourceListResponse">>("/blacklist/sources", signal).then((response) => response.items);
 }
 
 export function addBlacklistSource(url: string, name?: string): Promise<BlacklistSource> {
-  return apiPost<BlacklistSource, { url: string; name?: string }>("/blacklist/sources", {
+  return apiPost<BlacklistSource, ApiSchema<"AddSourceRequest">>("/blacklist/sources", {
     url,
     name,
   });
@@ -40,7 +39,7 @@ export function removeBlacklistSource(id: number): Promise<void> {
 }
 
 export function updateBlacklistSource(id: number, enabled: boolean): Promise<BlacklistSource> {
-  return apiPatch<BlacklistSource, { enabled: boolean }>(`/blacklist/sources/${id}`, { enabled });
+  return apiPatch<BlacklistSource, ApiSchema<"UpdateSourceRequest">>(`/blacklist/sources/${id}`, { enabled });
 }
 
 export function syncBlacklistSources(): Promise<void> {
@@ -79,5 +78,5 @@ export function listBlacklistMatches(
 
 // Drops the matched users' manual entries too; source-list matches are re-blocked on the next reconcile.
 export function unblockBlacklistMatches(): Promise<{ unblocked: number }> {
-  return apiPost<{ unblocked: number }, Record<string, never>>("/users/bulk/unblock-blacklist-matches", {});
+  return apiPost<ApiSchema<"UnblockBlacklistMatchesResponse">, Record<string, never>>("/users/bulk/unblock-blacklist-matches", {});
 }

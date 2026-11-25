@@ -23,7 +23,7 @@ export const ANALYTICS_TAB_PERMISSIONS = {
 export type SourceKind = "organic" | "ad_link" | "referral";
 export type RevenueGranularity = "day" | "week" | "month";
 
-export type Analytics = Omit<ApiSchema<"AnalyticsResponse">, "revenue_by_currency"> & { revenue_by_currency: Record<string, string> };
+export type Analytics = ApiSchema<"AnalyticsResponse">;
 
 export function periodParams(period: AnalyticsPeriod, today = new Date()): URLSearchParams {
   if (period.kind === "range") return new URLSearchParams({ period_from: period.from, period_to: period.to });
@@ -91,16 +91,7 @@ export function getTrial(period: AnalyticsPeriod, signal?: AbortSignal): Promise
   return apiGet<Trial>(`/analytics/trial?${periodParams(period).toString()}`, signal);
 }
 
-export interface ExpiringCustomer {
-  user_id: number;
-  name: string;
-  username: string | null;
-  /** plans of the subscriptions expiring in the window, the nearest first */
-  plan_names: string[];
-  expire_at: string;
-  spent: string;
-  renewals: number;
-}
+export type ExpiringCustomer = ApiSchema<"ExpiringCustomerResponse">;
 
 export type Retention = ApiSchema<"RetentionResponse">;
 
@@ -114,7 +105,7 @@ export function listExpiringCustomers(
   signal?: AbortSignal,
 ): Promise<{ items: ExpiringCustomer[]; total: number }> {
   const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
-  return apiGet<{ items: ExpiringCustomer[]; total: number }>(`/analytics/retention/expiring?${params.toString()}`, signal);
+  return apiGet<ApiSchema<"ExpiringCustomerPageResponse">>(`/analytics/retention/expiring?${params.toString()}`, signal);
 }
 
 export type SourceRow = ApiSchema<"SourceRowResponse">;

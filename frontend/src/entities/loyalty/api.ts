@@ -12,7 +12,7 @@ export function getLoyaltySettings(signal?: AbortSignal): Promise<LoyaltySetting
 }
 
 export function saveLoyaltySettings(payload: SaveLoyaltySettingsRequest): Promise<LoyaltySettings> {
-  return apiPut<LoyaltySettings, SaveLoyaltySettingsRequest>("/loyalty/settings", payload);
+  return apiPut<LoyaltySettings, ApiSchema<"LoyaltySettingsRequest">>("/loyalty/settings", payload);
 }
 
 export function resetLoyaltySettings(): Promise<LoyaltySettings> {
@@ -24,5 +24,5 @@ export function getUserLoyalty(userId: number, signal?: AbortSignal): Promise<Us
 }
 
 export function setUserLoyaltyExcluded(userId: number, excluded: boolean): Promise<UserLoyalty> {
-  return apiPatch<UserLoyalty, { excluded: boolean }>(`/users/${userId}/loyalty`, { excluded });
+  return apiPatch<UserLoyalty, ApiSchema<"UserLoyaltyRequest">>(`/users/${userId}/loyalty`, { excluded });
 }

@@ -3,7 +3,7 @@ import type { ApiSchema } from "@shared/api/schemas";
 
 export const DEFAULT_PAGE_SIZE = 50;
 
-export type EventLogEntry = Omit<ApiSchema<"EventLogEntryResponse">, "payload"> & { payload: Record<string, unknown> };
+export type EventLogEntry = ApiSchema<"EventLogEntryResponse">;
 
 // `location.state` for /dashboard/events: opens that entry's detail dialog on arrival
 export interface EventLogLocationState {

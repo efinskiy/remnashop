@@ -2,7 +2,7 @@ import { Check, ChevronDown, Globe, Star } from "lucide-react";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { addLocale, type ActiveLocalesResult, removeLocale, setDefaultLocale } from "@entities/translations/api";
+import { addLocale, type ActiveLocalesResult, type Locale, removeLocale, setDefaultLocale } from "@entities/translations/api";
 import { usePermissions } from "@entities/user/use-current-user";
 import { getErrorMessage } from "@shared/api/http";
 import { localeLabel } from "@shared/i18n/locale-label";
@@ -56,7 +56,7 @@ export function LocalesManager({ locales, onChange }: LocalesManagerProps) {
   };
   const canSetDefault = permissions.includes("LOCALES_DEFAULT_SET");
 
-  const row = (locale: string, isActive: boolean) => (
+  const row = (locale: Locale, isActive: boolean) => (
     <div key={locale} className="flex items-center">
       <Pressable
         type="button"

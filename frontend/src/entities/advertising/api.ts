@@ -49,7 +49,7 @@ export function deleteAdLink(adLinkId: number): Promise<void> {
 }
 
 export function generateAdLinkCode(): Promise<string> {
-  return apiPost<{ code: string }, Record<string, never>>("/advertising/links/actions/generate-code", {}).then(
+  return apiPost<ApiSchema<"GeneratedAdLinkCodeResponse">, Record<string, never>>("/advertising/links/actions/generate-code", {}).then(
     (result) => result.code,
   );
 }
@@ -117,7 +117,7 @@ export interface UserAdAttribution {
 }
 
 export function getUserAdAttribution(userId: number, signal?: AbortSignal): Promise<UserAdAttribution | null> {
-  return apiGet<{ attribution: UserAdAttribution | null }>(`/users/${userId}/ad-attribution`, signal).then(
+  return apiGet<ApiSchema<"UserAdAttributionResponse">>(`/users/${userId}/ad-attribution`, signal).then(
     (response) => response.attribution,
   );
 }

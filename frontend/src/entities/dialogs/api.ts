@@ -1,5 +1,4 @@
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "@shared/api/http";
-import type { ListResponse } from "@shared/api/http";
 import type { ApiSchema } from "@shared/api/schemas";
 
 export type DialogFlow =
@@ -254,7 +253,7 @@ export function splitTextKey(key: string): { messageId: string; attributeId: str
 }
 
 export function listWindows(signal?: AbortSignal): Promise<DialogWindow[]> {
-  return apiGet<ListResponse<DialogWindow>>("/dialogs/windows", signal).then((response) => response.items);
+  return apiGet<ApiSchema<"DialogWindowListResponse">>("/dialogs/windows", signal).then((response) => response.items);
 }
 
 export function getCatalog(signal?: AbortSignal): Promise<DialogCatalog> {
@@ -265,11 +264,11 @@ export function updateWindow(
   key: string,
   data: { banner_name?: string | null; is_enabled?: boolean; name?: string },
 ): Promise<DialogWindow> {
-  return apiPatch<DialogWindow, typeof data>(`/dialogs/windows/${encodeURIComponent(key)}`, data);
+  return apiPatch<DialogWindow, ApiSchema<"UpdateDialogWindowRequest">>(`/dialogs/windows/${encodeURIComponent(key)}`, data);
 }
 
 export function replaceButtons(key: string, buttons: DialogButtonInput[]): Promise<DialogWindow> {
-  return apiPut<DialogWindow, { buttons: DialogButtonInput[] }>(
+  return apiPut<DialogWindow, ApiSchema<"ReplaceButtonsRequest">>(
     `/dialogs/windows/${encodeURIComponent(key)}/buttons`,
     { buttons },
   );
@@ -278,7 +277,7 @@ export function replaceButtons(key: string, buttons: DialogButtonInput[]): Promi
 /** The banner is deliberately not sent: the backend then starts the window on
  * the shared one, which is what every window gets until an admin says otherwise. */
 export function createCustomWindow(name: string): Promise<DialogWindow> {
-  return apiPost<DialogWindow, { name: string }>("/dialogs/windows", {
+  return apiPost<DialogWindow, ApiSchema<"CreateCustomWindowRequest">>("/dialogs/windows", {
     name,
   });
 }
@@ -301,7 +300,7 @@ export interface DialogExportPayload {
 }
 
 export function exportDialogs(): Promise<DialogExportPayload> {
-  return apiGet<DialogExportPayload>("/dialogs/export");
+  return apiGet<ApiSchema<"DialogExportResponse">>("/dialogs/export");
 }
 
 export function importDialogs(payload: DialogExportPayload): Promise<null> {
@@ -309,7 +308,7 @@ export function importDialogs(payload: DialogExportPayload): Promise<null> {
 }
 
 export function resetAll(): Promise<DialogWindow[]> {
-  return apiPost<ListResponse<DialogWindow>, Record<string, never>>("/dialogs/actions/reset-all", {}).then(
+  return apiPost<ApiSchema<"DialogWindowListResponse">, Record<string, never>>("/dialogs/actions/reset-all", {}).then(
     (response) => response.items,
   );
 }
@@ -321,7 +320,7 @@ export function updateDialogText(
   value: string,
 ): Promise<DialogTextEntry> {
   const query = attributeId ? `?attribute_id=${encodeURIComponent(attributeId)}` : "";
-  return apiPut<DialogTextEntry, { value: string }>(
+  return apiPut<DialogTextEntry, ApiSchema<"UpdateDialogTextRequest">>(
     `/dialogs/text/${locale}/${encodeURIComponent(messageId)}${query}`,
     { value },
   );

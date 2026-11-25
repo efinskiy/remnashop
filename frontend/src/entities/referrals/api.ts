@@ -33,7 +33,7 @@ export function resetReferralSettings(): Promise<ReferralSettings> {
 
 export type ReferralReward = ApiSchema<"ReferralRewardResponse">;
 
-export type ReferralStats = Omit<ApiSchema<"ReferralStatsResponse">, "counts_by_level" | "reward_amounts"> & { counts_by_level: Record<string, number>; reward_amounts: Partial<Record<ReferralRewardType, string>> };
+export type ReferralStats = Omit<ApiSchema<"ReferralStatsResponse">, "reward_amounts"> & { reward_amounts: Partial<Record<ReferralRewardType, string>> };
 
 /** what the user's downline has paid, in the pricing anchor currency */
 export type ReferralRevenue = ApiSchema<"ReferralRevenueResponse">;
@@ -59,17 +59,17 @@ export function listUserReferralRewards(
 }
 
 export function adjustUserPoints(userId: number, delta: string): Promise<{ points: string }> {
-  return apiPost<{ points: string }, { delta: string }>(`/users/${userId}/actions/adjust-points`, { delta });
+  return apiPost<ApiSchema<"PointsBalanceResponse">, ApiSchema<"AdjustPointsRequest">>(`/users/${userId}/actions/adjust-points`, { delta });
 }
 
 export function adjustUserBonusDays(userId: number, delta: number): Promise<{ bonus_days: number }> {
-  return apiPost<{ bonus_days: number }, { delta: number }>(`/users/${userId}/actions/adjust-bonus-days`, {
+  return apiPost<ApiSchema<"BonusDaysBalanceResponse">, ApiSchema<"AdjustBonusDaysRequest">>(`/users/${userId}/actions/adjust-bonus-days`, {
     delta,
   });
 }
 
 export function resetUserReferralCode(userId: number): Promise<{ referral_code: string | null }> {
-  return apiPost<{ referral_code: string | null }, Record<string, never>>(
+  return apiPost<ApiSchema<"ReferralCodeResponse">, Record<string, never>>(
     `/users/${userId}/referral-code/actions/reset`,
     {},
   );

@@ -1,7 +1,6 @@
 import { DollarSign, RussianRuble, Star, type LucideIcon } from "lucide-react";
 
 import { apiGet, apiPost } from "@shared/api/http";
-import type { ListResponse } from "@shared/api/http";
 import type { BadgeTone } from "@shared/ui/Badge";
 import type { ApiSchema } from "@shared/api/schemas";
 
@@ -108,7 +107,7 @@ export function getRefundPreview(transactionId: number): Promise<RefundPreview> 
 }
 
 export function refundTransaction(transactionId: number, rollbackSubscription: boolean): Promise<RefundResult> {
-  return apiPost<RefundResult, { rollback_subscription: boolean }>(
+  return apiPost<RefundResult, ApiSchema<"RefundTransactionRequest">>(
     `/transactions/${transactionId}/actions/refund`,
     { rollback_subscription: rollbackSubscription },
   );
@@ -142,24 +141,21 @@ export function checkTransactionPayment(transactionId: number): Promise<PaymentC
 
 /** Gateway types that appear in at least one (non-test) order. */
 export function listTransactionGateways(signal?: AbortSignal): Promise<string[]> {
-  return apiGet<ListResponse<string>>("/transactions/gateways", signal).then((response) => response.items);
+  return apiGet<ApiSchema<"TransactionGatewayListResponse">>("/transactions/gateways", signal).then((response) => response.items);
 }
 
-export interface UnratedAnchorCount {
-  currency: string;
-  count: number;
-}
+export type UnratedAnchorCount = ApiSchema<"UnratedAnchorCountResponse">;
 
 /** Migrated orders whose anchor amounts kept the nominal value: no rate at migration time. */
 export function listUnratedAnchorAmounts(signal?: AbortSignal): Promise<UnratedAnchorCount[]> {
-  return apiGet<ListResponse<UnratedAnchorCount>>("/transactions/unrated-anchor-amounts", signal).then(
+  return apiGet<ApiSchema<"UnratedAnchorCountListResponse">>("/transactions/unrated-anchor-amounts", signal).then(
     (response) => response.items,
   );
 }
 
 /** Converts them at the current rates; returns what is still left. */
 export function rateUnratedAnchorAmounts(): Promise<UnratedAnchorCount[]> {
-  return apiPost<ListResponse<UnratedAnchorCount>, Record<string, never>>(
+  return apiPost<ApiSchema<"UnratedAnchorCountListResponse">, Record<string, never>>(
     "/transactions/unrated-anchor-amounts/actions/rate",
     {},
   ).then((response) => response.items);

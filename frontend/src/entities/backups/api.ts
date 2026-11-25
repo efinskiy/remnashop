@@ -58,7 +58,7 @@ export function cancelBackupRun(runId: number): Promise<BackupRun> {
 }
 
 export function createBackupRun(kind: BackupKind): Promise<BackupRun> {
-  return apiPost<BackupRun, { kind: BackupKind }>("/backups/runs", { kind });
+  return apiPost<BackupRun, ApiSchema<"CreateBackupRunRequest">>("/backups/runs", { kind });
 }
 
 export function deleteBackupRun(runId: number): Promise<void> {

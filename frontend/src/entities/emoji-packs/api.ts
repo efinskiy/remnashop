@@ -1,19 +1,18 @@
 import { apiDelete, apiGet, apiPost, BASE_URL } from "@shared/api/http";
-import type { ListResponse } from "@shared/api/http";
 
 import { LUCIDE_PACK_ICONS } from "@entities/emoji-packs/lucide-pack";
 import type { ApiSchema } from "@shared/api/schemas";
 
-export type EmojiPackItem = Omit<ApiSchema<"EmojiPackItemResponse">, "animation_kind"> & { animation_kind: "lottie" | "video" | null };
+export type EmojiPackItem = ApiSchema<"EmojiPackItemResponse">;
 
 export type EmojiPack = ApiSchema<"EmojiPackResponse">;
 
 export function listEmojiPacks(signal?: AbortSignal): Promise<EmojiPack[]> {
-  return apiGet<ListResponse<EmojiPack>>("/emoji-packs", signal).then((response) => response.items);
+  return apiGet<ApiSchema<"EmojiPackListResponse">>("/emoji-packs", signal).then((response) => response.items);
 }
 
 export function importEmojiPack(link: string): Promise<EmojiPack> {
-  return apiPost<EmojiPack, { link: string }>("/emoji-packs", { link });
+  return apiPost<EmojiPack, ApiSchema<"ImportEmojiPackRequest">>("/emoji-packs", { link });
 }
 
 export function deleteEmojiPack(setName: string): Promise<null> {

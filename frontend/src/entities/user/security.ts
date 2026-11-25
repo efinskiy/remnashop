@@ -8,7 +8,7 @@ export function getOwnSecurity(signal?: AbortSignal): Promise<SecuritySettings> 
 }
 
 export function updateOwnSecurity(ipAllowlist: string[]): Promise<SecuritySettings> {
-  return apiPut<SecuritySettings, { ip_allowlist: string[] }>("/users/me/security", {
+  return apiPut<SecuritySettings, ApiSchema<"UpdateSecurityRequest">>("/users/me/security", {
     ip_allowlist: ipAllowlist,
   });
 }

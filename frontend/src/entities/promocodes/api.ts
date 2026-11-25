@@ -70,7 +70,7 @@ export function deletePromocode(promocodeId: number): Promise<void> {
 }
 
 export function generatePromocodeCode(): Promise<string> {
-  return apiPost<{ code: string }, Record<string, never>>("/promocodes/actions/generate-code", {}).then(
+  return apiPost<ApiSchema<"GeneratedPromocodeCodeResponse">, Record<string, never>>("/promocodes/actions/generate-code", {}).then(
     (result) => result.code,
   );
 }

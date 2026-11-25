@@ -1,5 +1,4 @@
 import { apiDelete, apiGet, apiPatch, apiPost } from "@shared/api/http";
-import type { ListResponse } from "@shared/api/http";
 
 import type { AuthResult } from "./api";
 import type { ApiSchema } from "@shared/api/schemas";
@@ -7,7 +6,7 @@ import type { ApiSchema } from "@shared/api/schemas";
 export type Passkey = ApiSchema<"PasskeyResponse">;
 
 export function getPasskeys(signal?: AbortSignal): Promise<Passkey[]> {
-  return apiGet<ListResponse<Passkey>>("/auth/passkeys", signal).then((response) => response.items);
+  return apiGet<ApiSchema<"PasskeyListResponse">>("/auth/passkeys", signal).then((response) => response.items);
 }
 
 export function getPasskeyRegistrationOptions(
@@ -20,14 +19,14 @@ export function verifyPasskeyRegistration(
   credential: Record<string, unknown>,
   name: string | null,
 ): Promise<Passkey> {
-  return apiPost<Passkey, { credential: Record<string, unknown>; name: string | null }>(
+  return apiPost<Passkey, ApiSchema<"VerifyPasskeyRegistrationRequest">>(
     "/auth/passkeys/register/verify",
     { credential, name },
   );
 }
 
 export function renamePasskey(id: number, name: string): Promise<Passkey> {
-  return apiPatch<Passkey, { name: string }>(`/auth/passkeys/${id}`, { name });
+  return apiPatch<Passkey, ApiSchema<"RenamePasskeyRequest">>(`/auth/passkeys/${id}`, { name });
 }
 
 export function deletePasskey(id: number): Promise<void> {
@@ -41,7 +40,7 @@ export function getPasskeyAuthenticationOptions(): Promise<Record<string, unknow
 export function verifyPasskeyAuthentication(
   credential: Record<string, unknown>,
 ): Promise<AuthResult> {
-  return apiPost<AuthResult, { credential: Record<string, unknown> }>(
+  return apiPost<AuthResult, ApiSchema<"VerifyPasskeyAuthenticationRequest">>(
     "/auth/passkeys/authenticate/verify",
     { credential },
   );

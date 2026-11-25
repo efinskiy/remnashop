@@ -1,5 +1,4 @@
 import { apiDelete, apiGet, apiPost } from "@shared/api/http";
-import type { ListResponse } from "@shared/api/http";
 import type { ApiSchema } from "@shared/api/schemas";
 
 export type OAuthProvider = "github" | "telegram" | "oidc";
@@ -19,7 +18,7 @@ export interface OAuthCallbackPayload {
 export type OAuthIdentity = ApiSchema<"OAuthIdentityResponse">;
 
 export function getOAuthLoginAuthorizeUrl(provider: OAuthProvider): Promise<OAuthAuthorizeResult> {
-  return apiPost<OAuthAuthorizeResult, { audience: "dashboard" }>(`/auth/oauth/${provider}/authorize`, {
+  return apiPost<ApiSchema<"OAuthAuthorizeResponse">, ApiSchema<"OAuthAuthorizeRequest">>(`/auth/oauth/${provider}/authorize`, {
     audience: "dashboard",
   });
 }
@@ -29,24 +28,24 @@ export function oauthLoginCallback(
   payload: OAuthCallbackPayload,
 ): Promise<{ access_token: string }> {
   // the same route signs in to the cabinet, so it answers with more than the dashboard needs
-  return apiPost<{ access_token: string }, OAuthCallbackPayload>(`/auth/oauth/${provider}/callback`, payload);
+  return apiPost<ApiSchema<"OAuthSignInResponse">, ApiSchema<"OAuthCallbackRequest">>(`/auth/oauth/${provider}/callback`, payload);
 }
 
 export function listConnectedAccounts(signal?: AbortSignal): Promise<OAuthIdentity[]> {
-  return apiGet<ListResponse<OAuthIdentity>>("/auth/oauth", signal).then((response) => response.items);
+  return apiGet<ApiSchema<"OAuthIdentityListResponse">>("/auth/oauth", signal).then((response) => response.items);
 }
 
 export function getOAuthConnectAuthorizeUrl(
   provider: OAuthProvider,
 ): Promise<OAuthAuthorizeResult> {
-  return apiPost<OAuthAuthorizeResult, Record<string, never>>(`/auth/oauth/${provider}/connect/authorize`, {});
+  return apiPost<ApiSchema<"OAuthConnectAuthorizeResponse">, Record<string, never>>(`/auth/oauth/${provider}/connect/authorize`, {});
 }
 
 export function oauthConnectCallback(
   provider: OAuthProvider,
   payload: OAuthCallbackPayload,
 ): Promise<OAuthIdentity> {
-  return apiPost<OAuthIdentity, OAuthCallbackPayload>(
+  return apiPost<OAuthIdentity, ApiSchema<"OAuthConnectCallbackRequest">>(
     `/auth/oauth/${provider}/connect/callback`,
     payload,
   );

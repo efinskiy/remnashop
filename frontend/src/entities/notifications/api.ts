@@ -1,8 +1,7 @@
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "@shared/api/http";
-import type { ListResponse } from "@shared/api/http";
 import type { ApiSchema } from "@shared/api/schemas";
 
-export type NotificationChannels = Omit<ApiSchema<"NotificationChannelsResponse">, "channels"> & { channels: Record<string, string[]> };
+export type NotificationChannels = ApiSchema<"NotificationChannelsResponse">;
 
 export type PushSubscriptionItem = ApiSchema<"PushSubscriptionResponse">;
 
@@ -21,17 +20,17 @@ export function getNotificationChannels(signal?: AbortSignal): Promise<Notificat
 }
 
 export function updateNotificationChannels(channels: Record<string, string[]>): Promise<NotificationChannels> {
-  return apiPut<NotificationChannels, { channels: Record<string, string[]> }>("/notifications/channels", {
+  return apiPut<NotificationChannels, ApiSchema<"UpdateNotificationChannelsRequest">>("/notifications/channels", {
     channels,
   });
 }
 
 export function getPushPublicKey(): Promise<{ public_key: string | null }> {
-  return apiGet<{ public_key: string | null }>("/notifications/push/public-key");
+  return apiGet<ApiSchema<"PushPublicKeyResponse">>("/notifications/push/public-key");
 }
 
-export function listPushSubscriptions(signal?: AbortSignal): Promise<ListResponse<PushSubscriptionItem>> {
-  return apiGet<ListResponse<PushSubscriptionItem>>("/notifications/push-subscriptions", signal);
+export function listPushSubscriptions(signal?: AbortSignal): Promise<ApiSchema<"PushSubscriptionListResponse">> {
+  return apiGet<ApiSchema<"PushSubscriptionListResponse">>("/notifications/push-subscriptions", signal);
 }
 
 export function subscribePush(body: PushSubscriptionBody): Promise<PushSubscriptionItem> {
@@ -43,7 +42,7 @@ export function deletePushSubscription(id: number): Promise<void> {
 }
 
 export function sendTestPush(): Promise<{ delivered: number }> {
-  return apiPost<{ delivered: number }, Record<string, never>>("/notifications/push-subscriptions/actions/test", {});
+  return apiPost<ApiSchema<"TestPushResponse">, Record<string, never>>("/notifications/push-subscriptions/actions/test", {});
 }
 
 export function getNotificationSettings(signal?: AbortSignal): Promise<NotificationSettings> {
@@ -51,7 +50,7 @@ export function getNotificationSettings(signal?: AbortSignal): Promise<Notificat
 }
 
 export function updateNotificationSettings(body: NotificationSettingsUpdate): Promise<NotificationSettings> {
-  return apiPatch<NotificationSettings, NotificationSettingsUpdate>("/notifications/settings", body);
+  return apiPatch<NotificationSettings, ApiSchema<"UpdateNotificationSettingsRequest">>("/notifications/settings", body);
 }
 
 export function generateVapidKeys(): Promise<NotificationSettings> {

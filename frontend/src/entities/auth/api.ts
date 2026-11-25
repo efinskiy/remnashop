@@ -1,7 +1,7 @@
 import { apiGet, apiPost } from "@shared/api/http";
 import type { ApiSchema } from "@shared/api/schemas";
 
-export type AuthStatus = Omit<ApiSchema<"StatusResponse">, "oauth_providers"> & { oauth_providers: Record<string, boolean> };
+export type AuthStatus = ApiSchema<"StatusResponse">;
 
 export type AuthResult = ApiSchema<"AuthResponse">;
 

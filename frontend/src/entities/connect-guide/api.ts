@@ -1,4 +1,5 @@
 import { apiGet, apiPost, apiPut } from "@shared/api/http";
+import type { ApiSchema } from "@shared/api/schemas";
 
 export const PLATFORM_IDS = ["ios", "android", "windows", "macos", "linux", "androidtv", "appletv"] as const;
 export type PlatformId = (typeof PLATFORM_IDS)[number];
@@ -48,13 +49,13 @@ export interface ConnectGuide {
 export type SaveConnectGuideRequest = Omit<ConnectGuide, "is_default">;
 
 export function getConnectGuide(signal?: AbortSignal): Promise<ConnectGuide> {
-  return apiGet<ConnectGuide>("/connect-guide", signal);
+  return apiGet<ApiSchema<"ConnectGuideResponse">>("/connect-guide", signal);
 }
 
 export function saveConnectGuide(payload: SaveConnectGuideRequest): Promise<ConnectGuide> {
-  return apiPut<ConnectGuide, SaveConnectGuideRequest>("/connect-guide", payload);
+  return apiPut<ApiSchema<"ConnectGuideResponse">, ApiSchema<"ConnectGuideRequest">>("/connect-guide", payload);
 }
 
 export function resetConnectGuide(): Promise<ConnectGuide> {
-  return apiPost<ConnectGuide, Record<string, never>>("/connect-guide/actions/reset", {});
+  return apiPost<ApiSchema<"ConnectGuideResponse">, Record<string, never>>("/connect-guide/actions/reset", {});
 }

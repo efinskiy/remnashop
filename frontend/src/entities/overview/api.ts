@@ -1,4 +1,3 @@
-import type { ListResponse } from "@shared/api/http";
 import { apiGet } from "@shared/api/http";
 import type { ApiSchema } from "@shared/api/schemas";
 
@@ -55,13 +54,7 @@ export type AttentionKind =
   | "plan_squads_missing"
   | "unrated_anchor_amounts";
 
-export interface AttentionItem {
-  kind: AttentionKind;
-  severity: "critical" | "warning";
-  count: number;
-  subject: string | null;
-  since: string | null;
-}
+export type AttentionItem = ApiSchema<"AttentionItemResponse">;
 
 export function getOverview(signal?: AbortSignal): Promise<Overview> {
   return apiGet<Overview>("/overview", signal);
@@ -93,6 +86,6 @@ export function getRecap(signal?: AbortSignal): Promise<Recap> {
   return apiGet<Recap>("/overview/recap", signal);
 }
 
-export function getAttention(signal?: AbortSignal): Promise<ListResponse<AttentionItem>> {
-  return apiGet<ListResponse<AttentionItem>>("/overview/attention", signal);
+export function getAttention(signal?: AbortSignal): Promise<ApiSchema<"AttentionResponse">> {
+  return apiGet<ApiSchema<"AttentionResponse">>("/overview/attention", signal);
 }

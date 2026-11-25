@@ -101,14 +101,10 @@ export function getSubscription(subscriptionId: number, signal?: AbortSignal): P
   return apiGet<SubscriptionDetail>(`/subscriptions/${subscriptionId}`, signal);
 }
 
-export interface PanelSquad {
-  uuid: string;
-  name: string;
-  kind: "internal" | "external";
-}
+export type PanelSquad = ApiSchema<"PanelSquadResponse">;
 
 export function listPanelSquads(signal?: AbortSignal): Promise<{ items: PanelSquad[]; total: number }> {
-  return apiGet<{ items: PanelSquad[]; total: number }>("/subscriptions/squads", signal);
+  return apiGet<ApiSchema<"PanelSquadListResponse">>("/subscriptions/squads", signal);
 }
 
 export function deleteSubscription(subscriptionId: number): Promise<void> {
@@ -116,7 +112,7 @@ export function deleteSubscription(subscriptionId: number): Promise<void> {
 }
 
 export function deleteUserSubscriptions(userId: number): Promise<{ deleted: number }> {
-  return apiPost<{ deleted: number }, Record<string, never>>(`/users/${userId}/subscriptions/bulk/delete`, {});
+  return apiPost<ApiSchema<"DeletedSubscriptionsResponse">, Record<string, never>>(`/users/${userId}/subscriptions/bulk/delete`, {});
 }
 
 export type GrantSubscriptionRequest = ApiSchema<"GrantSubscriptionRequest">;
@@ -178,7 +174,7 @@ export type SquadReplacements = Record<string, string | null>;
 export type SubscriptionPanelDiff = ApiSchema<"SubscriptionPanelDiffResponse">;
 
 export function listMissingPanelSquads(signal?: AbortSignal): Promise<{ items: MissingSquad[]; total: number }> {
-  return apiGet<{ items: MissingSquad[]; total: number }>("/subscriptions/panel-sync/missing-squads", signal);
+  return apiGet<ApiSchema<"MissingSquadListResponse">>("/subscriptions/panel-sync/missing-squads", signal);
 }
 
 export type SubscriptionListStats = ApiSchema<"SubscriptionListStatsResponse">;
@@ -203,7 +199,7 @@ export async function startPanelSync(
   squadReplacements: SquadReplacements = {},
 ): Promise<PanelSyncDirectionStatus> {
   const action = direction === "FROM_PANEL" ? "pull" : "push";
-  return apiPost<PanelSyncDirectionStatus, PanelSyncOptions & { squad_replacements: SquadReplacements }>(
+  return apiPost<PanelSyncDirectionStatus, ApiSchema<"PanelSyncPullRequest"> | ApiSchema<"PanelSyncPushRequest">>(
     `/subscriptions/panel-sync/actions/${action}`,
     { ...options, squad_replacements: squadReplacements },
   );
@@ -219,7 +215,7 @@ export async function getSubscriptionPanelDiff(
 export const pullSubscriptionFromPanel = (subscriptionId: number) =>
   subscriptionAction(subscriptionId, "pull-from-panel");
 export const pushSubscriptionToPanel = (subscriptionId: number, squadReplacements: SquadReplacements = {}) =>
-  apiPost<SubscriptionListItem, { squad_replacements: SquadReplacements }>(
+  apiPost<SubscriptionListItem, ApiSchema<"PushToPanelRequest">>(
     `/subscriptions/${subscriptionId}/actions/push-to-panel`,
     { squad_replacements: squadReplacements },
   );

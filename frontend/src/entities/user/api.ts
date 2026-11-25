@@ -42,15 +42,7 @@ export interface UserListFilters {
   pageSize?: number;
 }
 
-export interface UserListStats {
-  total: number;
-  subscribed: number;
-  blocked: number;
-  /** registrations over the last 30 days */
-  total_growth: number;
-  /** an expired subscription and nothing active or limited */
-  churned: number;
-}
+export type UserListStats = ApiSchema<"UserListStatsResponse">;
 
 export function listUsers(
   filters: UserListFilters = {},
@@ -84,7 +76,7 @@ export function deleteUser(userId: number): Promise<void> {
 }
 
 export function setUserMarkup(userId: number, markupPercent: number): Promise<UserListItem> {
-  return apiPatch<UserListItem, { markup_percent: number }>(`/users/${userId}/markup`, {
+  return apiPatch<UserListItem, ApiSchema<"SetMarkupRequest">>(`/users/${userId}/markup`, {
     markup_percent: markupPercent,
   });
 }
@@ -93,7 +85,7 @@ export function setUserDiscount(
   userId: number,
   discounts: { personal_discount?: number; purchase_discount?: number },
 ): Promise<UserListItem> {
-  return apiPatch<UserListItem, typeof discounts>(`/users/${userId}/discount`, discounts);
+  return apiPatch<UserListItem, ApiSchema<"SetDiscountRequest">>(`/users/${userId}/discount`, discounts);
 }
 
 export function blockUser(userId: number): Promise<UserListItem> {
@@ -101,7 +93,7 @@ export function blockUser(userId: number): Promise<UserListItem> {
 }
 
 export function setUserTrialAvailability(userId: number, isTrialAvailable: boolean): Promise<UserListItem> {
-  return apiPatch<UserListItem, { is_trial_available: boolean }>(`/users/${userId}/trial`, {
+  return apiPatch<UserListItem, ApiSchema<"SetTrialAvailabilityRequest">>(`/users/${userId}/trial`, {
     is_trial_available: isTrialAvailable,
   });
 }
@@ -133,14 +125,14 @@ export function mergeUsers(
   choices: Record<string, MergeSide>,
   fingerprint: string,
 ): Promise<UserListItem> {
-  return apiPost<UserListItem, { source_id: number; choices: Record<string, MergeSide>; fingerprint: string }>(
+  return apiPost<UserListItem, ApiSchema<"MergeAccountsRequest">>(
     `/users/${targetId}/actions/merge`,
     { source_id: sourceId, choices, fingerprint },
   );
 }
 
 export function bindUserTelegram(userId: number, telegramId: number): Promise<UserListItem> {
-  return apiPut<UserListItem, { telegram_id: number }>(`/users/${userId}/telegram`, { telegram_id: telegramId });
+  return apiPut<UserListItem, ApiSchema<"BindTelegramRequest">>(`/users/${userId}/telegram`, { telegram_id: telegramId });
 }
 
 export function unbindUserTelegram(userId: number): Promise<UserListItem> {
@@ -174,5 +166,5 @@ export function getUserRegistration(
   userId: number,
   signal?: AbortSignal,
 ): Promise<{ registration: RegistrationSnapshot | null }> {
-  return apiGet<{ registration: RegistrationSnapshot | null }>(`/users/${userId}/registration`, signal);
+  return apiGet<ApiSchema<"UserRegistrationResponse">>(`/users/${userId}/registration`, signal);
 }

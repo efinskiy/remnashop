@@ -34,7 +34,7 @@ export function updateCurrencyRate(currency: Currency, body: UpdateCurrencyRateB
 }
 
 export function switchAnchorCurrency(newAnchor: Currency): Promise<PriceBook> {
-  return apiPost<PriceBook, { new_anchor: Currency }>("/pricing/actions/switch-anchor", { new_anchor: newAnchor });
+  return apiPost<PriceBook, ApiSchema<"SwitchAnchorRequest">>("/pricing/actions/switch-anchor", { new_anchor: newAnchor });
 }
 
 export type PriceAdjustMode = ApiSchema<"PriceAdjustMode">;
@@ -48,7 +48,7 @@ export type PreviewPricingChangeBody =
   | { adjust: AdjustBasePricesBody };
 
 export function previewPricingChange(body: PreviewPricingChangeBody): Promise<PricingDiff> {
-  return apiPost<PricingDiff, PreviewPricingChangeBody>("/pricing/actions/preview", body);
+  return apiPost<PricingDiff, ApiSchema<"PreviewPricingChangeRequest">>("/pricing/actions/preview", body);
 }
 
 export function adjustBasePrices(body: AdjustBasePricesBody): Promise<PriceBook> {

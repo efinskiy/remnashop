@@ -1,17 +1,10 @@
 import { apiDelete, apiGet, apiPost } from "@shared/api/http";
-import type { ListResponse } from "@shared/api/http";
+import type { ApiSchema } from "@shared/api/schemas";
 
-export interface Session {
-  id: number;
-  ip_address: string;
-  user_agent: string | null;
-  created_at: string;
-  last_used_at: string;
-  expires_at: string;
-}
+export type Session = ApiSchema<"SessionResponse">;
 
 export function listOwnSessions(signal?: AbortSignal): Promise<Session[]> {
-  return apiGet<ListResponse<Session>>("/auth/sessions", signal).then((response) => response.items);
+  return apiGet<ApiSchema<"SessionListResponse">>("/auth/sessions", signal).then((response) => response.items);
 }
 
 export function revokeOwnSession(sessionId: number): Promise<void> {
@@ -23,7 +16,7 @@ export function revokeOtherOwnSessions(): Promise<void> {
 }
 
 export function listUserSessions(userId: number, signal?: AbortSignal): Promise<Session[]> {
-  return apiGet<ListResponse<Session>>(`/users/${userId}/sessions`, signal).then((response) => response.items);
+  return apiGet<ApiSchema<"SessionListResponse">>(`/users/${userId}/sessions`, signal).then((response) => response.items);
 }
 
 export function revokeUserSession(userId: number, sessionId: number): Promise<void> {
