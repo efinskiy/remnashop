@@ -92,7 +92,7 @@ function BroadcastEditorLoader({ id }: { id: number | null }) {
   if (broadcast && !isEditable(broadcast)) return <Navigate to={`${LIST_PATH}/${broadcast.id}`} replace />;
 
   const botLocales = localesState.kind === "ready" ? localesState.data.active : [];
-  const defaultLocale = botLocales.includes(i18n.language) ? i18n.language : (botLocales[0] ?? "en");
+  const defaultLocale = botLocales.find((locale) => locale === i18n.language) ?? botLocales[0] ?? "en";
   return <BroadcastEditor initial={broadcast} botLocales={botLocales} defaultLocale={defaultLocale} />;
 }
 

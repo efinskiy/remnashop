@@ -1,20 +1,8 @@
 import { apiGet, apiPatch, apiPost, apiPut } from "@shared/api/http";
 import type { ListResponse } from "@shared/api/http";
+import type { ApiSchema } from "@shared/api/schemas";
 
-export interface Gateway {
-  type: string;
-  order_index: number;
-  is_active: boolean;
-  is_configured: boolean;
-  /** current state of the gateway's boolean settings, the only readable ones */
-  flags: Record<string, boolean>;
-  /** the bot and the cabinet pay into different shops */
-  splits_channels: boolean;
-  /** offered in the bot and Mini App sessions */
-  telegram_enabled: boolean;
-  /** offered in the cabinet opened in a browser */
-  cabinet_enabled: boolean;
-}
+export type Gateway = ApiSchema<"GatewayResponse">;
 
 export type GatewayChannels = Partial<Pick<Gateway, "telegram_enabled" | "cabinet_enabled">>;
 
@@ -71,14 +59,11 @@ export function setGatewayActive(type: string, active: boolean): Promise<Gateway
   return apiPost<Gateway, Record<string, never>>(`/gateways/${type}/actions/${action}`, {});
 }
 
-export interface TestPayment {
-  order_id: number;
-  confirmation_url: string | null;
-}
+export type TestPayment = ApiSchema<"TestPaymentResponse">;
 
-export type TestPaymentStatus = "PENDING" | "PAID" | "FAILED" | "CANCELED" | "REFUNDED";
+export type TestPaymentStatus = ApiSchema<"TransactionStatus">;
 
-export type TestPaymentChannel = "BOT" | "CABINET";
+export type TestPaymentChannel = ApiSchema<"PurchaseChannel">;
 
 export function createTestPayment(type: string, channel: TestPaymentChannel): Promise<TestPayment> {
   return apiPost<TestPayment, { gateway_type: string; channel: TestPaymentChannel }>(

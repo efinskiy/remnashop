@@ -1,22 +1,11 @@
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "@shared/api/http";
 import type { ListResponse } from "@shared/api/http";
+import type { ApiSchema } from "@shared/api/schemas";
 
-export type PlanType = "TRAFFIC" | "DEVICES" | "BOTH" | "UNLIMITED";
-export type PlanAvailability = "ALL" | "NEW" | "EXISTING" | "INVITED" | "ALLOWED" | "LINK";
-export type PlanBadge = "POPULAR" | "BEST_VALUE";
+export type PlanType = ApiSchema<"PlanType">;
+export type PlanAvailability = ApiSchema<"PlanAvailability">;
+export type PlanBadge = ApiSchema<"PlanBadge">;
 export type TrafficLimitStrategy = "NO_RESET" | "DAY" | "WEEK" | "MONTH" | "MONTH_ROLLING";
-
-export interface PlanPriceOverride {
-  currency: string;
-  price: string;
-}
-
-export interface PlanDuration {
-  days: number;
-  order_index: number;
-  base_price: string;
-  overrides: PlanPriceOverride[];
-}
 
 export interface PlanIconValue {
   /** a Telegram custom emoji from an imported pack */
@@ -28,40 +17,9 @@ export const NO_PLAN_ICON: PlanIconValue = { icon_emoji_id: null, icon_emoji_fal
 // lucide_dev's "box"
 export const DEFAULT_PLAN_ICON: PlanIconValue = { icon_emoji_id: "5429613693287578957", icon_emoji_fallback: "📦" };
 
-export interface PlanTranslation {
-  locale: string;
-  name: string;
-  description: string | null;
-}
+export type PlanTranslation = ApiSchema<"PlanTranslationResponse">;
 
-export interface Plan extends PlanIconValue {
-  id: number;
-  public_code: string;
-  name: string;
-  description: string | null;
-  tag: string | null;
-  badge: PlanBadge | null;
-  type: PlanType;
-  availability: PlanAvailability;
-  traffic_limit_strategy: TrafficLimitStrategy;
-  traffic_limit: number;
-  device_limit: number;
-  allowed_telegram_ids: number[];
-  allowed_emails: string[];
-  internal_squads: string[];
-  external_squad: string | null;
-  order_index: number;
-  is_active: boolean;
-  is_trial: boolean;
-  allow_bonus_days: boolean;
-  allow_promocodes: boolean;
-  allow_renewal: boolean;
-  discount_percent: number;
-  discount_starts_at: string | null;
-  discount_ends_at: string | null;
-  durations: PlanDuration[];
-  translations: PlanTranslation[];
-}
+export type Plan = ApiSchema<"PlanResponse">;
 
 export function getPlan(planId: number, signal?: AbortSignal): Promise<Plan> {
   return apiGet<Plan>(`/plans/${planId}`, signal);
@@ -71,46 +29,13 @@ export function listPlans(signal?: AbortSignal): Promise<Plan[]> {
   return apiGet<ListResponse<Plan>>("/plans", signal).then((response) => response.items);
 }
 
-export interface CreatePlanRequest {
-  name: string;
-  description?: string | null;
-  tag?: string | null;
-  badge?: PlanBadge | null;
-  icon_emoji_id?: string | null;
-  icon_emoji_fallback?: string | null;
-  type: PlanType;
-  traffic_limit_strategy: TrafficLimitStrategy;
-  traffic_limit: number;
-  device_limit: number;
-  is_trial: boolean;
-  allow_bonus_days: boolean;
-  allow_promocodes: boolean;
-  allow_renewal: boolean;
-  translations: PlanTranslation[];
-}
+export type CreatePlanRequest = ApiSchema<"CreatePlanRequest">;
 
 export function createPlan(payload: CreatePlanRequest): Promise<Plan> {
   return apiPost<Plan, CreatePlanRequest>("/plans", payload);
 }
 
-export interface UpdatePlanRequest {
-  name?: string;
-  description?: string | null;
-  tag?: string | null;
-  badge?: PlanBadge | null;
-  icon_emoji_id?: string | null;
-  icon_emoji_fallback?: string | null;
-  type?: PlanType;
-  traffic_limit_strategy?: TrafficLimitStrategy;
-  traffic_limit?: number;
-  device_limit?: number;
-  is_active?: boolean;
-  is_trial?: boolean;
-  allow_bonus_days?: boolean;
-  allow_promocodes?: boolean;
-  allow_renewal?: boolean;
-  translations?: PlanTranslation[];
-}
+export type UpdatePlanRequest = ApiSchema<"UpdatePlanRequest">;
 
 export function updatePlan(planId: number, payload: UpdatePlanRequest): Promise<Plan> {
   return apiPatch<Plan, UpdatePlanRequest>(`/plans/${planId}`, payload);
@@ -136,39 +61,26 @@ export function setPlanDurations(planId: number, durations: SetPlanDurationsItem
   return apiPut<Plan, { durations: SetPlanDurationsItem[] }>(`/plans/${planId}/durations`, { durations });
 }
 
-export interface PlanSquads {
-  internal_squads: string[];
-  external_squad: string | null;
-}
+// the picker holds both, a request may leave either out
+export type PlanSquads = Required<ApiSchema<"UpdatePlanSquadsRequest">>;
 
 export function updatePlanSquads(planId: number, squads: PlanSquads): Promise<Plan> {
   return apiPut<Plan, PlanSquads>(`/plans/${planId}/squads`, squads);
 }
 
-export interface UpdatePlanAccessRequest {
-  availability: PlanAvailability;
-  allowed_telegram_ids: number[];
-  allowed_emails: string[];
-}
+export type UpdatePlanAccessRequest = ApiSchema<"UpdatePlanAccessRequest">;
 
 export function updatePlanAccess(planId: number, payload: UpdatePlanAccessRequest): Promise<Plan> {
   return apiPut<Plan, UpdatePlanAccessRequest>(`/plans/${planId}/access`, payload);
 }
 
-export interface UpdatePlanDiscountRequest {
-  discount_percent: number;
-  discount_starts_at: string | null;
-  discount_ends_at: string | null;
-}
+export type UpdatePlanDiscountRequest = ApiSchema<"UpdatePlanDiscountRequest">;
 
 export function updatePlanDiscount(planId: number, payload: UpdatePlanDiscountRequest): Promise<Plan> {
   return apiPut<Plan, UpdatePlanDiscountRequest>(`/plans/${planId}/discount`, payload);
 }
 
-export interface PlanShareUrls {
-  bot_url: string | null;
-  webcabinet_url: string | null;
-}
+export type PlanShareUrls = ApiSchema<"PlanShareUrlsResponse">;
 
 export function getPlanShareUrls(planId: number, signal?: AbortSignal): Promise<PlanShareUrls> {
   return apiGet<PlanShareUrls>(`/plans/${planId}/share`, signal);

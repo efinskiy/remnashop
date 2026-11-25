@@ -1,46 +1,22 @@
 import { apiDelete, apiGet, apiPatch, apiPost } from "@shared/api/http";
 import type { UserBase } from "@entities/user/api";
-import type { ListResponse } from "@shared/api/http";
 import type { Permission } from "@shared/types/rbac";
+import type { ApiSchema } from "@shared/api/schemas";
 
 /** the user fields plus the permission breakdown */
-export interface Admin extends UserBase {
-  permission_grants: Permission[];
-  permission_revokes: Permission[];
-  role_permissions: Permission[];
-  effective_permissions: Permission[];
-}
+export type Admin = ApiSchema<"AdminResponse">;
 
-export interface AdminWithPassword {
-  admin: Admin;
-  password: string;
-}
+export type AdminWithPassword = ApiSchema<"AdminWithPasswordResponse">;
 
-export interface AdminPromoteResult {
-  admin: Admin;
-  password: string | null;
-}
+export type AdminPromoteResult = ApiSchema<"AdminPromoteResponse">;
 
-export interface CreateAdminPayload {
-  login: string;
-  permission_grants: Permission[];
-  permission_revokes: Permission[];
-}
+export type CreateAdminPayload = ApiSchema<"CreateAdminRequest">;
 
-export interface PromoteAdminPayload {
-  user_id: number;
-  login?: string;
-}
+export type PromoteAdminPayload = ApiSchema<"PromoteAdminRequest">;
 
-export interface UpdateAdminPayload {
-  permission_grants: Permission[];
-  permission_revokes: Permission[];
-}
+export type UpdateAdminPayload = ApiSchema<"UpdateAdminRequest">;
 
-export interface AdminList extends ListResponse<Admin> {
-  /** admins who can still sign in once demoted (Telegram, email or OAuth) */
-  customer_sign_in_ids: number[];
-}
+export type AdminList = ApiSchema<"AdminListResponse">;
 
 export function listAdmins(signal?: AbortSignal): Promise<AdminList> {
   return apiGet<AdminList>("/admins", signal);
@@ -58,10 +34,7 @@ export function updateAdmin(userId: number, payload: UpdateAdminPayload): Promis
   return apiPatch<Admin, UpdateAdminPayload>(`/admins/${userId}`, payload);
 }
 
-export interface AdminDetail extends Admin {
-  /** Telegram, email or OAuth left once demoted */
-  can_sign_in_after_demote: boolean;
-}
+export type AdminDetail = ApiSchema<"AdminDetailResponse">;
 
 export function getAdmin(userId: number, signal?: AbortSignal): Promise<AdminDetail> {
   return apiGet<AdminDetail>(`/admins/${userId}`, signal);

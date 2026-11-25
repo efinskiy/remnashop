@@ -3,6 +3,7 @@ import type { ParseKeys, TFunction } from "i18next";
 import { RECALL_REPEAT_AFTER_MS, RECALL_WINDOW_MS } from "@entities/broadcasts/api";
 import type {
   Broadcast,
+  BroadcastInput,
   BroadcastAudience,
   BroadcastRecipientStatus,
   BroadcastStatus,
@@ -43,7 +44,7 @@ function plainText(html: string): string {
 }
 
 export function broadcastTitle(
-  b: Pick<Broadcast, "title" | "contents" | "default_locale">,
+  b: Pick<BroadcastInput, "title" | "contents" | "default_locale">,
   fallback: string,
 ): string {
   if (b.title) return b.title;

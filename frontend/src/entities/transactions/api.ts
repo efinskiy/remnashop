@@ -1,59 +1,13 @@
 import { DollarSign, RussianRuble, Star, type LucideIcon } from "lucide-react";
 
-import type { PlanSnapshot } from "@entities/subscriptions/api";
 import { apiGet, apiPost } from "@shared/api/http";
 import type { ListResponse } from "@shared/api/http";
 import type { BadgeTone } from "@shared/ui/Badge";
+import type { ApiSchema } from "@shared/api/schemas";
 
-export type TransactionStatus = "PENDING" | "PAID" | "FAILED" | "CANCELED" | "REFUNDED";
-export type PurchaseType = "NEW" | "RENEW" | "CHANGE";
-export type DiscountSource = "NONE" | "PERSONAL" | "PURCHASE" | "LOYALTY";
-
-export type FulfillmentHold = "PURCHASE_DISCOUNT_SPENT" | "PLAN_CHANGED";
-
-export interface TransactionUser {
-  name: string;
-  username: string | null;
-  telegram_id: number | null;
-  email: string | null;
-}
-
-export interface TransactionItem {
-  id: number;
-  user_id: number;
-  /** null once the user is deleted */
-  user: TransactionUser | null;
-  plan_id: number | null;
-  plan_snapshot: PlanSnapshot;
-  /** a CHANGE order's plan before it; null on other orders and older ones */
-  previous_plan_snapshot: PlanSnapshot | null;
-  duration_days: number;
-  currency: string;
-  purchase_type: PurchaseType;
-  target_subscription_id: number | null;
-  /** the subscription the order provisioned, once reconciled */
-  fulfilled_subscription_id: number | null;
-  /** null: a free order */
-  gateway_type: string | null;
-  channel: "BOT" | "CABINET";
-  external_payment_id: string | null;
-  status: TransactionStatus;
-  base_price: string;
-  discount_percent: number;
-  discount_source: DiscountSource;
-  plan_discount_percent: number;
-  /** the customer's hidden markup, already in base_price */
-  markup_percent: number;
-  final_price: string;
-  change_credit: string;
-  customer_email: string | null;
-  idempotency_key: string;
-  is_test: boolean;
-  /** set: paid, left to an admin to issue or refund */
-  fulfillment_hold: FulfillmentHold | null;
-  expires_at: string;
-  created_at: string;
-}
+export type TransactionStatus = ApiSchema<"TransactionStatus">;
+export type PurchaseType = ApiSchema<"PurchaseType">;
+export type TransactionItem = ApiSchema<"TransactionResponse">;
 
 export function hasDiscount(order: TransactionItem): boolean {
   return order.discount_percent > 0 || order.plan_discount_percent > 0;
@@ -66,10 +20,7 @@ export function totalDiscountPercent(order: TransactionItem): number {
 
 export const DEFAULT_PAGE_SIZE = 50;
 
-export interface TransactionListPage {
-  items: TransactionItem[];
-  total: number;
-}
+export type TransactionListPage = ApiSchema<"TransactionPageResponse">;
 
 export interface TransactionListFilters {
   status?: TransactionStatus;
@@ -120,18 +71,7 @@ export async function listTransactionsAfter(
   return { items: page.items, total: loaded.length + page.total };
 }
 
-export interface TransactionSummary {
-  report_currency: string;
-  total_count: number;
-  pending_count: number;
-  paid_count: number;
-  conversion_rate: string;
-  revenue: string;
-  average_check: string | null;
-  average_discount: string | null;
-  discount_amount: string;
-  refunded_amount: string;
-}
+export type TransactionSummary = ApiSchema<"TransactionSummaryResponse">;
 
 export function getTransactionSummary(
   filters: Omit<TransactionListFilters, "page" | "pageSize"> = {},
@@ -159,16 +99,9 @@ export function fulfillTransaction(transactionId: number): Promise<TransactionIt
   return apiPost<TransactionItem, Record<string, never>>(`/transactions/${transactionId}/actions/fulfill`, {});
 }
 
-export interface RefundPreview {
-  refundable: boolean;
-  reason: string | null;
-  rollback: { available: boolean; blocked_reason: string | null; old_term_expired: boolean } | null;
-}
+export type RefundPreview = ApiSchema<"RefundPreviewResponse">;
 
-export interface RefundResult {
-  transaction: TransactionItem;
-  rollback_failed: boolean;
-}
+export type RefundResult = ApiSchema<"RefundTransactionResponse">;
 
 export function getRefundPreview(transactionId: number): Promise<RefundPreview> {
   return apiGet<RefundPreview>(`/transactions/${transactionId}/refund-preview`);
@@ -198,10 +131,7 @@ export function canCheckTransactionPayment(order: TransactionItem): boolean {
   return unpaid && order.gateway_type !== null && !NO_STATUS_CHECK_GATEWAYS.has(order.gateway_type);
 }
 
-export interface PaymentCheckResult {
-  transaction: TransactionItem;
-  paid: boolean;
-}
+export type PaymentCheckResult = ApiSchema<"PaymentCheckResponse">;
 
 export function checkTransactionPayment(transactionId: number): Promise<PaymentCheckResult> {
   return apiPost<PaymentCheckResult, Record<string, never>>(

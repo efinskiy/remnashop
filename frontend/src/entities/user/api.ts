@@ -1,22 +1,9 @@
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "@shared/api/http";
-import type { Permission, Role } from "@shared/types/rbac";
+import type { ApiSchema } from "@shared/api/schemas";
 
-export interface CurrentUser {
-  id: number;
-  login: string | null;
-  name: string;
-  role: Role;
-  effective_permissions: Permission[];
-  password_change_required: boolean;
-  language: string;
-}
+export type CurrentUser = ApiSchema<"CurrentUserResponse">;
 
-export interface UpdateOwnProfileRequest {
-  name?: string;
-  current_password?: string;
-  new_password?: string;
-  language?: string;
-}
+export type UpdateOwnProfileRequest = ApiSchema<"UpdateOwnProfileRequest">;
 
 export function getCurrentUser(signal?: AbortSignal): Promise<CurrentUser> {
   return apiGet<CurrentUser>("/users/me", signal);
@@ -26,44 +13,13 @@ export function updateOwnProfile(payload: UpdateOwnProfileRequest): Promise<Curr
   return apiPatch<CurrentUser, UpdateOwnProfileRequest>("/users/me", payload);
 }
 
-export interface UserBase {
-  id: number;
-  name: string;
-  role: Role;
-  telegram_id: number | null;
-  username: string | null;
-  email: string | null;
-  login: string | null;
-  language: string;
-  is_blocked: boolean;
-  personal_discount: number;
-  purchase_discount: number;
-  loyalty_discount: number;
-  /** admin only, the customer never sees it */
-  markup_percent: number;
-  referral_code?: string | null;
-  points: string;
-  bonus_days: number;
-  is_trial_available: boolean;
-  created_at: string | null;
-  /** set once the account is soft-deleted; name and contacts are wiped then */
-  deleted_at?: string | null;
-  email_undeliverable_at?: string | null;
-  is_bot_blocked?: boolean;
-}
+export type UserBase = ApiSchema<"UserResponse">;
 
-export interface UserListItem extends UserBase {
-  active_subscriptions: number;
-  limited_subscriptions: number;
-  expired_subscriptions: number;
-}
+export type UserListItem = ApiSchema<"UserListItemResponse">;
 
 export const DEFAULT_PAGE_SIZE = 50;
 
-export interface UserListPage {
-  items: UserListItem[];
-  total: number;
-}
+export type UserListPage = ApiSchema<"UserPageResponse">;
 
 export type UserSort = "created_at" | "points" | "discount" | "name" | "channels" | "subscriptions";
 
@@ -165,28 +121,7 @@ export function unblockUser(userId: number): Promise<UserListItem> {
 
 export type MergeSide = "source" | "target";
 
-export interface MergeConflict {
-  key: string;
-  source_value: string | null;
-  target_value: string | null;
-  forced: MergeSide | null;
-}
-
-export interface MergePreview {
-  source: UserBase;
-  target: UserBase;
-  conflicts: MergeConflict[];
-  /** keeping this side's inviter would loop, so the merge drops the link */
-  referrer_cycles: { side: MergeSide; referrer_id: number }[];
-  fingerprint: string;
-  source_counts: {
-    subscriptions: number;
-    transactions: number;
-    referrals: number;
-    passkeys: number;
-    oauth_identities: number;
-  };
-}
+export type MergePreview = ApiSchema<"MergePreviewResponse">;
 
 export function getMergePreview(targetId: number, sourceId: number, signal?: AbortSignal): Promise<MergePreview> {
   return apiGet<MergePreview>(`/users/${targetId}/merge-preview?source_id=${sourceId}`, signal);
@@ -212,14 +147,7 @@ export function unbindUserTelegram(userId: number): Promise<UserListItem> {
   return apiDelete<UserListItem>(`/users/${userId}/telegram`);
 }
 
-export type RegistrationSource =
-  | "BOT"
-  | "CABINET_TELEGRAM"
-  | "CABINET_MINI_APP"
-  | "CABINET_BOT_LINK"
-  | "CABINET_EMAIL"
-  | "CABINET_GOOGLE"
-  | "CABINET_YANDEX";
+export type RegistrationSource = ApiSchema<"RegistrationSource">;
 
 export interface RegistrationSnapshot {
   source: RegistrationSource;

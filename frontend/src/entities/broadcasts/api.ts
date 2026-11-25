@@ -1,15 +1,16 @@
 import { apiDelete, apiGet, apiGetRaw, apiPost, apiPut, apiUpload } from "@shared/api/http";
 import type { ListResponse } from "@shared/api/http";
 import type { VariableOption } from "@entities/dialogs/api";
+import type { ApiSchema } from "@shared/api/schemas";
 
-export type BroadcastStatus = "DRAFT" | "SCHEDULED" | "SENDING" | "COMPLETED" | "CANCELED" | "FAILED";
-export type BroadcastCategory = "SERVICE" | "MARKETING";
-export type BroadcastRecipientStatus = "PENDING" | "SENT" | "FAILED" | "BLOCKED" | "CANCELED" | "RECALLED";
-export type BroadcastButtonKind = "URL" | "PROMOCODE" | "MENU" | "CLOSE" | "SHARE_REFERRAL";
-export type BroadcastMediaType = "PHOTO" | "VIDEO" | "ANIMATION" | "DOCUMENT";
-export type SubscriptionFilter = "ACTIVE" | "TRIAL" | "EXPIRED" | "LIMITED" | "NONE";
-export type BroadcastDelivery = "TELEGRAM" | "EMAIL" | "ALL";
-export type BroadcastChannel = "TELEGRAM" | "EMAIL";
+export type BroadcastStatus = ApiSchema<"BroadcastStatus">;
+export type BroadcastCategory = ApiSchema<"BroadcastCategory">;
+export type BroadcastRecipientStatus = ApiSchema<"BroadcastRecipientStatus">;
+export type BroadcastButtonKind = ApiSchema<"BroadcastButtonKind">;
+export type BroadcastMediaType = ApiSchema<"BroadcastMediaType">;
+export type SubscriptionFilter = ApiSchema<"BroadcastSubscriptionFilter">;
+export type BroadcastDelivery = ApiSchema<"BroadcastDelivery">;
+export type BroadcastChannel = ApiSchema<"BroadcastChannel">;
 
 export interface BroadcastAudience {
   user_ids: number[];
@@ -44,40 +45,8 @@ export interface BroadcastButton {
   icon_custom_emoji_id: string | null;
 }
 
-export interface Broadcast {
-  id: number;
-  title: string | null;
-  status: BroadcastStatus;
-  category: BroadcastCategory;
-  audience: BroadcastAudience;
-  default_locale: string;
-  delivery: BroadcastDelivery;
-  email_fallback: boolean;
-  contents: Record<string, BroadcastContent>;
-  email_contents: Record<string, BroadcastEmailContent>;
-  buttons: BroadcastButton[];
-  promocode_id: number | null;
-  post_to_channel: boolean;
-  has_channel_post: boolean;
-  recall_requested: boolean;
-  recall_requested_at: string | null;
-  // only on single-broadcast reads
-  recallable_count?: number | null;
-  media_type: BroadcastMediaType | null;
-  media_size_bytes: number | null;
-  scheduled_at: string | null;
-  created_by: number | null;
-  created_by_name: string | null;
-  started_at: string | null;
-  completed_at: string | null;
-  total_count: number;
-  sent_count: number;
-  failed_count: number;
-  blocked_count: number;
-  recalled_count: number;
-  created_at: string | null;
-  updated_at: string | null;
-}
+// recallable_count: only on single-broadcast reads
+export type Broadcast = Omit<ApiSchema<"BroadcastResponse">, "contents" | "email_contents"> & { contents: Record<string, BroadcastContent>; email_contents: Record<string, BroadcastEmailContent> };
 
 export interface BroadcastInput {
   title: string | null;
@@ -108,21 +77,9 @@ export interface BroadcastRecipient {
   sent_at: string | null;
 }
 
-export interface BroadcastSummary {
-  by_status: Partial<Record<BroadcastStatus, number>>;
-  next_scheduled_at: string | null;
-  delivered_30d: number;
-  processed_30d: number;
-  opted_out: number;
-  reachable_customers: number;
-  reachable_by_email: number;
-}
+export type BroadcastSummary = Omit<ApiSchema<"BroadcastSummaryResponse">, "by_status"> & { by_status: Partial<Record<BroadcastStatus, number>> };
 
-export interface AudiencePreview {
-  total: number;
-  by_locale: Record<string, number>;
-  by_channel: Partial<Record<BroadcastChannel, number>>;
-}
+export type AudiencePreview = Omit<ApiSchema<"AudiencePreviewResponse">, "by_locale" | "by_channel"> & { by_locale: Record<string, number>; by_channel: Partial<Record<BroadcastChannel, number>> };
 
 export const EMPTY_AUDIENCE: BroadcastAudience = {
   user_ids: [],
@@ -204,11 +161,7 @@ export function deleteBroadcastMedia(id: number): Promise<Broadcast> {
   return apiDelete<Broadcast>(`/broadcasts/${id}/media`);
 }
 
-export interface BroadcastEmailImage {
-  id: number;
-  content_type: string;
-  size_bytes: number;
-}
+export type BroadcastEmailImage = ApiSchema<"BroadcastEmailImageResponse">;
 
 export function uploadEmailImage(broadcastId: number, file: File): Promise<BroadcastEmailImage> {
   return apiUpload<BroadcastEmailImage>(`/broadcasts/${broadcastId}/email-images`, file, "POST");
@@ -262,11 +215,7 @@ export function sendTestBroadcast(id: number): Promise<void> {
   return apiPost<void, Record<string, never>>(`/broadcasts/${id}/actions/send-test`, {});
 }
 
-export interface BroadcastEmailPreview {
-  subject: string;
-  html: string;
-  text: string;
-}
+export type BroadcastEmailPreview = ApiSchema<"BroadcastEmailPreviewResponse">;
 
 export function previewBroadcastEmail(id: number, locale: string): Promise<BroadcastEmailPreview> {
   return apiPost<BroadcastEmailPreview, { locale: string }>(`/broadcasts/${id}/actions/preview-email`, { locale });

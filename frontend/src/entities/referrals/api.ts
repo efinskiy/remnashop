@@ -1,44 +1,27 @@
 import { apiGet, apiPatch, apiPost } from "@shared/api/http";
+import type { ApiSchema } from "@shared/api/schemas";
 
-export type ReferralAccrualStrategy = "FIRST_PAYMENT" | "EVERY_PAYMENT";
-export type ReferralRewardType = "EXTRA_DAYS" | "POINTS";
-export type ReferralRewardStrategy = "AMOUNT" | "PERCENT";
+export type ReferralAccrualStrategy = ApiSchema<"ReferralAccrualStrategy">;
+export type ReferralRewardType = ApiSchema<"ReferralRewardType">;
+export type ReferralRewardStrategy = ApiSchema<"ReferralRewardStrategy">;
 
 export type ReferralLevel = 1 | 2 | 3;
 /** Every level always has an amount; max_level decides which of them pay. */
 export type ReferralRewardAmounts = Record<ReferralLevel, string>;
 
-export interface ReferralSettings {
-  enabled: boolean;
-  max_level: number;
-  accrual_strategy: ReferralAccrualStrategy;
-  reward_type: ReferralRewardType;
-  reward_strategy: ReferralRewardStrategy;
+// anchor_currency: pricing's anchor: a PERCENT points reward is counted from the payment in it
+// reward_amounts: keyed by level, which the generated schema types as any string
+export type ReferralSettings = Omit<ApiSchema<"ReferralSettingsResponse">, "reward_amounts"> & {
   reward_amounts: ReferralRewardAmounts;
-  days_require_paid_subscription: boolean;
-  unlimited_reward_days: number;
-  invitee_reward_type: ReferralRewardType;
-  invitee_reward_amount: number;
-  // pricing's anchor: a PERCENT points reward is counted from the payment in it
-  anchor_currency: string | null;
-}
+};
 
 export function getReferralSettings(signal?: AbortSignal): Promise<ReferralSettings> {
   return apiGet<ReferralSettings>("/referrals/settings", signal);
 }
 
-export interface UpdateReferralSettingsRequest {
-  enabled?: boolean;
-  max_level?: number;
-  accrual_strategy?: ReferralAccrualStrategy;
-  reward_type?: ReferralRewardType;
-  reward_strategy?: ReferralRewardStrategy;
-  reward_amounts?: ReferralRewardAmounts;
-  days_require_paid_subscription?: boolean;
-  unlimited_reward_days?: number;
-  invitee_reward_type?: ReferralRewardType;
-  invitee_reward_amount?: number;
-}
+export type UpdateReferralSettingsRequest = Omit<ApiSchema<"UpdateReferralSettingsRequest">, "reward_amounts"> & {
+  reward_amounts?: ReferralRewardAmounts | null;
+};
 
 export function updateReferralSettings(payload: UpdateReferralSettingsRequest): Promise<ReferralSettings> {
   return apiPatch<ReferralSettings, UpdateReferralSettingsRequest>("/referrals/settings", payload);
@@ -48,33 +31,12 @@ export function resetReferralSettings(): Promise<ReferralSettings> {
   return apiPost<ReferralSettings, Record<string, never>>("/referrals/settings/actions/reset", {});
 }
 
-export interface ReferralReward {
-  type: ReferralRewardType;
-  amount: string;
-  created_at: string;
-  /** whose payment earned it; admin endpoints only */
-  buyer?: ReferralUser | null;
-  /** buyer's depth below the rewarded user */
-  level?: number | null;
-}
+export type ReferralReward = ApiSchema<"ReferralRewardResponse">;
 
-export interface ReferralStats {
-  referral_code: string | null;
-  referrer_id: number | null;
-  points: string;
-  bonus_days: number;
-  counts_by_level: Record<string, number>;
-  reward_count: number;
-  reward_amounts: Partial<Record<ReferralRewardType, string>>;
-  referrer: ReferralUser | null;
-}
+export type ReferralStats = Omit<ApiSchema<"ReferralStatsResponse">, "counts_by_level" | "reward_amounts"> & { counts_by_level: Record<string, number>; reward_amounts: Partial<Record<ReferralRewardType, string>> };
 
 /** what the user's downline has paid, in the pricing anchor currency */
-export interface ReferralRevenue {
-  amount: string;
-  currency: string;
-  paying_count: number;
-}
+export type ReferralRevenue = ApiSchema<"ReferralRevenueResponse">;
 
 export function getUserReferralRevenue(userId: number, signal?: AbortSignal): Promise<ReferralRevenue> {
   return apiGet<ReferralRevenue>(`/users/${userId}/referrals/revenue`, signal);
@@ -84,10 +46,7 @@ export function getUserReferralStats(userId: number, signal?: AbortSignal): Prom
   return apiGet<ReferralStats>(`/users/${userId}/referrals`, signal);
 }
 
-export interface ReferralRewardPage {
-  items: ReferralReward[];
-  total: number;
-}
+export type ReferralRewardPage = ApiSchema<"ReferralRewardPageResponse">;
 
 export function listUserReferralRewards(
   userId: number,
@@ -118,28 +77,11 @@ export function resetUserReferralCode(userId: number): Promise<{ referral_code: 
 
 export const REFERRALS_PAGE_SIZE = 50;
 
-export interface ReferralUser {
-  id: number;
-  name: string;
-  username: string | null;
-  telegram_id: number | null;
-  email: string | null;
-}
+export type ReferralUser = ApiSchema<"ReferralUserResponse">;
 
-export interface ReferralListItem {
-  id: number;
-  level: number;
-  created_at: string;
-  referred: ReferralUser | null;
-  referrer: ReferralUser | null;
-  reward_count: number;
-  reward_amounts: Partial<Record<ReferralRewardType, string>>;
-}
+export type ReferralListItem = Omit<ApiSchema<"ReferralListItemResponse">, "reward_amounts"> & { reward_amounts: Partial<Record<ReferralRewardType, string>> };
 
-export interface ReferralListPage {
-  items: ReferralListItem[];
-  total: number;
-}
+export type ReferralListPage = ApiSchema<"ReferralPageResponse">;
 
 export interface ReferralListFilters {
   level?: number;
@@ -163,13 +105,7 @@ export function listReferrals(filters: ReferralListFilters = {}, signal?: AbortS
   return apiGet<ReferralListPage>(`/referrals?${params.toString()}`, signal);
 }
 
-export interface ReferralSummary {
-  total_count: number;
-  referrers_count: number;
-  rewarded_count: number;
-  conversion_rate: string;
-  reward_amounts: Partial<Record<ReferralRewardType, string>>;
-}
+export type ReferralSummary = Omit<ApiSchema<"ReferralSummaryResponse">, "reward_amounts"> & { reward_amounts: Partial<Record<ReferralRewardType, string>> };
 
 export function getReferralSummary(
   /** createdTo: the summary as it looked at that moment (later referrals and rewards left out) */
@@ -186,19 +122,9 @@ export function getReferralSummary(
   return apiGet<ReferralSummary>(`/referrals/summary?${params.toString()}`, signal);
 }
 
-export interface InvitedUser {
-  user: ReferralUser | null;
-  /** direct inviter, set only below the first level */
-  via: ReferralUser | null;
-  level: number;
-  created_at: string;
-  reward_amounts: Partial<Record<ReferralRewardType, string>>;
-}
+export type InvitedUser = Omit<ApiSchema<"InvitedUserResponse">, "reward_amounts"> & { reward_amounts: Partial<Record<ReferralRewardType, string>> };
 
-export interface InvitedUserPage {
-  items: InvitedUser[];
-  total: number;
-}
+export type InvitedUserPage = ApiSchema<"InvitedUserPageResponse">;
 
 export interface InvitedUserFilters {
   level?: number;

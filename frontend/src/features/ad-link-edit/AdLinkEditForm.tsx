@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { ChannelsPicker } from "@entities/advertising/ChannelsPicker";
 import { PromocodePicker } from "@entities/advertising/PromocodePicker";
 import { RevenueSharePercentField } from "@entities/advertising/RevenueSharePercentField";
-import { CURRENCIES } from "@entities/pricing/api";
+import { CURRENCIES, type Currency } from "@entities/pricing/api";
 import { CURRENCY_ICON } from "@entities/transactions/api";
 import { usePermissions } from "@entities/user/use-current-user";
 import { AD_LINK_EDIT_FORM_ID, type AdLinkEditFormState } from "@features/ad-link-edit/use-ad-link-edit-form";
@@ -64,7 +64,8 @@ export function AdLinkEditForm({ form }: { form: AdLinkEditFormState }) {
               size="compact"
               id="adlink-edit-currency"
               value={currency}
-              onChange={setCurrency}
+              // the options are CURRENCIES
+              onChange={(value) => setCurrency(value as Currency)}
               icon={Coins}
               placeholder={currency}
               options={CURRENCIES.map((value) => ({

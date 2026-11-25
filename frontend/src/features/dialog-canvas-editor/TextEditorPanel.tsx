@@ -22,7 +22,7 @@ export type SaveText = (
   messageId: string,
   attributeId: string,
   value: string,
-) => Promise<{ locale: string; message_id: string; value: string; default_value: string }>;
+) => Promise<Pick<TranslationEntry, "locale" | "message_id" | "value" | "default_value">>;
 
 interface TextEditorPanelProps {
   textKey: string;

@@ -1056,6 +1056,12 @@
             "title": "Referral Code"
           },
           "role": {
+            "enum": [
+              "USER",
+              "ADMIN",
+              "OWNER",
+              "SYSTEM"
+            ],
             "title": "Role",
             "type": "string"
           },
@@ -1315,6 +1321,12 @@
             "title": "Referral Code"
           },
           "role": {
+            "enum": [
+              "USER",
+              "ADMIN",
+              "OWNER",
+              "SYSTEM"
+            ],
             "title": "Role",
             "type": "string"
           },
@@ -5762,6 +5774,12 @@
             "type": "integer"
           },
           "role": {
+            "enum": [
+              "USER",
+              "ADMIN",
+              "OWNER",
+              "SYSTEM"
+            ],
             "title": "Role",
             "type": "string"
           },
@@ -7115,6 +7133,10 @@
           "animation_kind": {
             "anyOf": [
               {
+                "enum": [
+                  "lottie",
+                  "video"
+                ],
                 "type": "string"
               },
               {
@@ -10561,6 +10583,12 @@
             "type": "array"
           },
           "days": {
+            "enum": [
+              0,
+              7,
+              30,
+              90
+            ],
             "title": "Days",
             "type": "integer"
           },
@@ -15466,6 +15494,12 @@
             "type": "array"
           },
           "days": {
+            "enum": [
+              0,
+              7,
+              30,
+              90
+            ],
             "title": "Days",
             "type": "integer"
           },
@@ -17730,16 +17764,9 @@
             "$ref": "#/components/schemas/PurchaseChannel"
           },
           "created_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created At"
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
           },
           "currency": {
             "$ref": "#/components/schemas/Currency"
@@ -17879,16 +17906,9 @@
             "title": "Target Subscription Id"
           },
           "updated_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Updated At"
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
           },
           "user": {
             "anyOf": [
@@ -20960,6 +20980,12 @@
             "title": "Referral Code"
           },
           "role": {
+            "enum": [
+              "USER",
+              "ADMIN",
+              "OWNER",
+              "SYSTEM"
+            ],
             "title": "Role",
             "type": "string"
           },
@@ -21344,6 +21370,12 @@
             "title": "Referral Code"
           },
           "role": {
+            "enum": [
+              "USER",
+              "ADMIN",
+              "OWNER",
+              "SYSTEM"
+            ],
             "title": "Role",
             "type": "string"
           },

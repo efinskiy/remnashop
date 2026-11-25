@@ -50,7 +50,7 @@ export interface components {
              * Mini App
              * @default false
              */
-            mini_app: boolean;
+            mini_app?: boolean;
         };
         /** ActiveLocalesResponse */
         ActiveLocalesResponse: {
@@ -270,15 +270,15 @@ export interface components {
              * Ladder Base Days
              * @default 30
              */
-            ladder_base_days: number;
+            ladder_base_days?: number;
             /** Ladder Discounts */
             ladder_discounts?: {
                 [key: string]: number | string;
             };
             /** @default MULTIPLY */
-            mode: components["schemas"]["PriceAdjustMode"];
+            mode?: components["schemas"]["PriceAdjustMode"];
             /** @default KEEP */
-            pinned: components["schemas"]["PinnedPriceAction"];
+            pinned?: components["schemas"]["PinnedPriceAction"];
             /** Plan Duration Ids */
             plan_duration_ids?: number[];
             /** Price */
@@ -344,8 +344,11 @@ export interface components {
             purchase_discount: number;
             /** Referral Code */
             referral_code: string | null;
-            /** Role */
-            role: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "USER" | "ADMIN" | "OWNER" | "SYSTEM";
             /** Role Permissions */
             role_permissions: components["schemas"]["Permission"][];
             /** Telegram Id */
@@ -415,8 +418,11 @@ export interface components {
             purchase_discount: number;
             /** Referral Code */
             referral_code: string | null;
-            /** Role */
-            role: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "USER" | "ADMIN" | "OWNER" | "SYSTEM";
             /** Role Permissions */
             role_permissions: components["schemas"]["Permission"][];
             /** Telegram Id */
@@ -900,7 +906,7 @@ export interface components {
              * Ad Link Ids
              * @default []
              */
-            ad_link_ids: number[];
+            ad_link_ids?: number[];
             /** Expired Within Days */
             expired_within_days?: number | null;
             /** Expires Within Days */
@@ -913,7 +919,7 @@ export interface components {
              * Locales
              * @default []
              */
-            locales: components["schemas"]["Locale"][];
+            locales?: components["schemas"]["Locale"][];
             /** Not Connected Within Days */
             not_connected_within_days?: number | null;
             /** Paid */
@@ -922,7 +928,7 @@ export interface components {
              * Plan Ids
              * @default []
              */
-            plan_ids: number[];
+            plan_ids?: number[];
             /** Referred */
             referred?: boolean | null;
             /** Registered From */
@@ -933,12 +939,12 @@ export interface components {
              * Subscription
              * @default []
              */
-            subscription: components["schemas"]["BroadcastSubscriptionFilter"][];
+            subscription?: components["schemas"]["BroadcastSubscriptionFilter"][];
             /**
              * User Ids
              * @default []
              */
-            user_ids: number[];
+            user_ids?: number[];
         };
         /** BroadcastAudienceDto */
         "BroadcastAudienceDto-Output": {
@@ -1023,7 +1029,7 @@ export interface components {
              * Button Labels
              * @default []
              */
-            button_labels: string[];
+            button_labels?: string[];
             /** Text */
             text: string;
         };
@@ -1122,35 +1128,35 @@ export interface components {
              * Buttons
              * @default []
              */
-            buttons: components["schemas"]["BroadcastButtonDto-Input"][];
+            buttons?: components["schemas"]["BroadcastButtonDto-Input"][];
             category: components["schemas"]["BroadcastCategory"];
             /**
              * Contents
              * @default {}
              */
-            contents: {
+            contents?: {
                 [key: string]: components["schemas"]["BroadcastContentDto-Input"];
             };
             default_locale: components["schemas"]["Locale"];
             /** @default TELEGRAM */
-            delivery: components["schemas"]["BroadcastDelivery"];
+            delivery?: components["schemas"]["BroadcastDelivery"];
             /**
              * Email Contents
              * @default {}
              */
-            email_contents: {
+            email_contents?: {
                 [key: string]: components["schemas"]["BroadcastEmailContentDto"];
             };
             /**
              * Email Fallback
              * @default false
              */
-            email_fallback: boolean;
+            email_fallback?: boolean;
             /**
              * Post To Channel
              * @default false
              */
-            post_to_channel: boolean;
+            post_to_channel?: boolean;
             /** Promocode Id */
             promocode_id?: number | null;
             /** Title */
@@ -1419,7 +1425,7 @@ export interface components {
              * Featured
              * @default false
              */
-            featured: boolean;
+            featured?: boolean;
             /** Id */
             id: string;
             /** Name */
@@ -1447,7 +1453,7 @@ export interface components {
              * Platforms
              * @default []
              */
-            platforms: components["schemas"]["ConnectPlatform-Input"][];
+            platforms?: components["schemas"]["ConnectPlatform-Input"][];
         };
         /** ConnectCatalog */
         "ConnectCatalog-Output": {
@@ -1513,7 +1519,7 @@ export interface components {
              * Buttons
              * @default []
              */
-            buttons: (components["schemas"]["ExternalButton"] | components["schemas"]["DeepLinkButton-Input"] | components["schemas"]["CopyLinkButton"])[];
+            buttons?: (components["schemas"]["ExternalButton"] | components["schemas"]["DeepLinkButton-Input"] | components["schemas"]["CopyLinkButton"])[];
             /**
              * Icon
              * @enum {string}
@@ -1574,21 +1580,21 @@ export interface components {
              * Allow Bot
              * @default true
              */
-            allow_bot: boolean;
+            allow_bot?: boolean;
             /**
              * Allow Webcabinet
              * @default true
              */
-            allow_webcabinet: boolean;
+            allow_webcabinet?: boolean;
             /** Code */
             code: string;
             /**
              * Cost
              * @default 0
              */
-            cost: number | string;
+            cost?: number | string;
             /** @default USD */
-            cost_currency: components["schemas"]["Currency"];
+            cost_currency?: components["schemas"]["Currency"];
             /** Name */
             name: string;
             /** Note */
@@ -1599,7 +1605,7 @@ export interface components {
              * Revenue Share Percent
              * @default 0
              */
-            revenue_share_percent: number | string;
+            revenue_share_percent?: number | string;
         };
         /** CreateAddOnRequest */
         CreateAddOnRequest: {
@@ -1628,7 +1634,7 @@ export interface components {
              * Ip Allowlist
              * @default []
              */
-            ip_allowlist: string[];
+            ip_allowlist?: string[];
             /** Name */
             name: string;
             /** Scopes */
@@ -1665,7 +1671,7 @@ export interface components {
              * Banner Name
              * @default default
              */
-            banner_name: string | null;
+            banner_name?: string | null;
             /** Name */
             name: string;
         };
@@ -1675,17 +1681,17 @@ export interface components {
              * Allow Bonus Days
              * @default true
              */
-            allow_bonus_days: boolean;
+            allow_bonus_days?: boolean;
             /**
              * Allow Promocodes
              * @default true
              */
-            allow_promocodes: boolean;
+            allow_promocodes?: boolean;
             /**
              * Allow Renewal
              * @default true
              */
-            allow_renewal: boolean;
+            allow_renewal?: boolean;
             badge?: components["schemas"]["PlanBadge"] | null;
             /** Description */
             description?: string | null;
@@ -1699,7 +1705,7 @@ export interface components {
              * Is Trial
              * @default false
              */
-            is_trial: boolean;
+            is_trial?: boolean;
             /** Name */
             name: string;
             /** Tag */
@@ -1707,12 +1713,12 @@ export interface components {
             /** Traffic Limit */
             traffic_limit: number;
             /** @default NO_RESET */
-            traffic_limit_strategy: components["schemas"]["TrafficLimitStrategy"];
+            traffic_limit_strategy?: components["schemas"]["TrafficLimitStrategy"];
             /**
              * Translations
              * @default []
              */
-            translations: components["schemas"]["PlanTranslationRequest"][];
+            translations?: components["schemas"]["PlanTranslationRequest"][];
             type: components["schemas"]["PlanType"];
         };
         /** CreatePromocodeRequest */
@@ -1722,7 +1728,7 @@ export interface components {
             /** Allowed User Ids */
             allowed_user_ids?: number[];
             /** @default ALL */
-            availability: components["schemas"]["PromocodeAvailability"];
+            availability?: components["schemas"]["PromocodeAvailability"];
             /** Code */
             code: string;
             /** Expires At */
@@ -1731,14 +1737,14 @@ export interface components {
              * Is Reusable
              * @default false
              */
-            is_reusable: boolean;
+            is_reusable?: boolean;
             /** Max Activations */
             max_activations?: number | null;
             /**
              * Prior Customers Only
              * @default false
              */
-            prior_customers_only: boolean;
+            prior_customers_only?: boolean;
             /** Reward */
             reward?: number | null;
             /** Reward Addon Id */
@@ -1752,7 +1758,7 @@ export interface components {
         /** CreateTestPaymentRequest */
         CreateTestPaymentRequest: {
             /** @default BOT */
-            channel: components["schemas"]["PurchaseChannel"];
+            channel?: components["schemas"]["PurchaseChannel"];
             gateway_type: components["schemas"]["PaymentGatewayType"];
         };
         /** CreatedApiTokenResponse */
@@ -1833,8 +1839,11 @@ export interface components {
             points: string;
             /** Purchase Discount */
             purchase_discount: number;
-            /** Role */
-            role: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "USER" | "ADMIN" | "OWNER" | "SYSTEM";
             /** Telegram Id */
             telegram_id: number | null;
             /** Username */
@@ -1910,7 +1919,7 @@ export interface components {
              * @default raw
              * @enum {string}
              */
-            encode: "raw" | "component";
+            encode?: "raw" | "component";
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
@@ -2020,7 +2029,7 @@ export interface components {
              * Is Hidden
              * @default false
              */
-            is_hidden: boolean;
+            is_hidden?: boolean;
             link_type: components["schemas"]["ButtonLinkType"];
             /** Row */
             row: number;
@@ -2134,7 +2143,7 @@ export interface components {
              * Attribute Id
              * @default
              */
-            attribute_id: string;
+            attribute_id?: string;
             locale: components["schemas"]["Locale"];
             /** Message Id */
             message_id: string;
@@ -2177,7 +2186,7 @@ export interface components {
              * Is Enabled
              * @default true
              */
-            is_enabled: boolean;
+            is_enabled?: boolean;
             /** Key */
             key: string;
             kind: components["schemas"]["DialogWindowKind"];
@@ -2187,7 +2196,7 @@ export interface components {
              * Position
              * @default 0
              */
-            position: number;
+            position?: number;
         };
         /**
          * DialogWindowKind
@@ -2270,7 +2279,7 @@ export interface components {
         /** EmojiPackItemResponse */
         EmojiPackItemResponse: {
             /** Animation Kind */
-            animation_kind: string | null;
+            animation_kind: ("lottie" | "video") | null;
             /** Custom Emoji Id */
             custom_emoji_id: string;
             /** Fallback Emoji */
@@ -2783,7 +2792,7 @@ export interface components {
              * Requires Reacceptance
              * @default false
              */
-            requires_reacceptance: boolean;
+            requires_reacceptance?: boolean;
             /** Title */
             title: string;
         };
@@ -2819,7 +2828,7 @@ export interface components {
             /** Email */
             email: string;
             /** @default en */
-            locale: components["schemas"]["Locale"];
+            locale?: components["schemas"]["Locale"];
         };
         /** LinkEmailVerifyRequest */
         LinkEmailVerifyRequest: {
@@ -2987,7 +2996,7 @@ export interface components {
              * Choices
              * @default {}
              */
-            choices: {
+            choices?: {
                 [key: string]: "source" | "target";
             };
             /** Fingerprint */
@@ -3248,8 +3257,11 @@ export interface components {
             current: number;
             /** Daily Peak */
             daily_peak: components["schemas"]["DailyCountResponse"][];
-            /** Days */
-            days: number;
+            /**
+             * Days
+             * @enum {integer}
+             */
+            days: 0 | 7 | 30 | 90;
             /**
              * Granularity
              * @enum {string}
@@ -3489,17 +3501,17 @@ export interface components {
              * Adopt Unnamed
              * @default true
              */
-            adopt_unnamed: boolean;
+            adopt_unnamed?: boolean;
             /**
              * Create Users
              * @default false
              */
-            create_users: boolean;
+            create_users?: boolean;
             /**
              * Respect Subscription Limit
              * @default true
              */
-            respect_subscription_limit: boolean;
+            respect_subscription_limit?: boolean;
         };
         /** PanelSyncPushRequest */
         PanelSyncPushRequest: {
@@ -3507,12 +3519,12 @@ export interface components {
              * Delete Orphans
              * @default true
              */
-            delete_orphans: boolean;
+            delete_orphans?: boolean;
             /**
              * Recreate Missing
              * @default true
              */
-            recreate_missing: boolean;
+            recreate_missing?: boolean;
             /** Squad Replacements */
             squad_replacements?: {
                 [key: string]: string | null;
@@ -3719,7 +3731,7 @@ export interface components {
              * Order Index
              * @default 0
              */
-            order_index: number;
+            order_index?: number;
         };
         /** PlanDurationResponse */
         PlanDurationResponse: {
@@ -3874,12 +3886,12 @@ export interface components {
             audience: components["schemas"]["BroadcastAudienceDto-Input"];
             category: components["schemas"]["BroadcastCategory"];
             /** @default TELEGRAM */
-            delivery: components["schemas"]["BroadcastDelivery"];
+            delivery?: components["schemas"]["BroadcastDelivery"];
             /**
              * Email Fallback
              * @default false
              */
-            email_fallback: boolean;
+            email_fallback?: boolean;
         };
         /** PreviewBroadcastEmailRequest */
         PreviewBroadcastEmailRequest: {
@@ -4674,7 +4686,7 @@ export interface components {
             email: string;
             first_touch?: components["schemas"]["FirstTouchRequest"] | null;
             /** @default en */
-            locale: components["schemas"]["Locale"];
+            locale?: components["schemas"]["Locale"];
             /** Ref */
             ref?: string | null;
         };
@@ -4733,8 +4745,11 @@ export interface components {
         RevenueChartResponse: {
             /** Daily */
             daily: components["schemas"]["DailyAmountResponse"][];
-            /** Days */
-            days: number;
+            /**
+             * Days
+             * @enum {integer}
+             */
+            days: 0 | 7 | 30 | 90;
             /**
              * Granularity
              * @enum {string}
@@ -4878,7 +4893,7 @@ export interface components {
              * Bulk
              * @default false
              */
-            bulk: boolean;
+            bulk?: boolean;
         };
         /** SessionListResponse */
         SessionListResponse: {
@@ -5430,8 +5445,11 @@ export interface components {
             /** Change Credit */
             change_credit: string;
             channel: components["schemas"]["PurchaseChannel"];
-            /** Created At */
-            created_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
             currency: components["schemas"]["Currency"];
             /** Customer Email */
             customer_email: string | null;
@@ -5471,8 +5489,11 @@ export interface components {
             status: components["schemas"]["TransactionStatus"];
             /** Target Subscription Id */
             target_subscription_id: number | null;
-            /** Updated At */
-            updated_at: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
             user: components["schemas"]["TransactionUserResponse"] | null;
             /** User Id */
             user_id: number;
@@ -5737,14 +5758,14 @@ export interface components {
              * Channel Required
              * @default false
              */
-            channel_required: boolean;
+            channel_required?: boolean;
             /** Channel Url */
             channel_url?: string | null;
             /**
              * Trial Channel Guard
              * @default false
              */
-            trial_channel_guard: boolean;
+            trial_channel_guard?: boolean;
         };
         /** UpdateBotSettingsRequest */
         UpdateBotSettingsRequest: {
@@ -6165,8 +6186,11 @@ export interface components {
             purchase_discount: number;
             /** Referral Code */
             referral_code: string | null;
-            /** Role */
-            role: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "USER" | "ADMIN" | "OWNER" | "SYSTEM";
             /** Telegram Id */
             telegram_id: number | null;
             /** Username */
@@ -6282,8 +6306,11 @@ export interface components {
             purchase_discount: number;
             /** Referral Code */
             referral_code: string | null;
-            /** Role */
-            role: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "USER" | "ADMIN" | "OWNER" | "SYSTEM";
             /** Telegram Id */
             telegram_id: number | null;
             /** Username */

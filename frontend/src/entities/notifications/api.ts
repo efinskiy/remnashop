@@ -1,34 +1,14 @@
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "@shared/api/http";
 import type { ListResponse } from "@shared/api/http";
+import type { ApiSchema } from "@shared/api/schemas";
 
-export interface NotificationChannels {
-  channels: Record<string, string[]>;
-  available_groups: string[];
-  available_channels: string[];
-  is_push_configured: boolean;
-  telegram_available: boolean;
-}
+export type NotificationChannels = Omit<ApiSchema<"NotificationChannelsResponse">, "channels"> & { channels: Record<string, string[]> };
 
-export interface PushSubscriptionItem {
-  id: number;
-  endpoint: string;
-  user_agent: string | null;
-  created_at: string;
-  last_seen_at: string;
-}
+export type PushSubscriptionItem = ApiSchema<"PushSubscriptionResponse">;
 
-export interface PushSubscriptionBody {
-  endpoint: string;
-  keys: { p256dh: string; auth: string };
-}
+export type PushSubscriptionBody = ApiSchema<"SubscribePushRequest">;
 
-export interface NotificationSettings {
-  is_push_configured: boolean;
-  vapid_public_key: string | null;
-  vapid_contact: string | null;
-  report_timezone: string;
-  daily_report_hour: number;
-}
+export type NotificationSettings = ApiSchema<"NotificationSettingsResponse">;
 
 interface NotificationSettingsUpdate {
   vapid_contact?: string;

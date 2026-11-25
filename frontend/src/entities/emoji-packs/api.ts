@@ -2,20 +2,11 @@ import { apiDelete, apiGet, apiPost, BASE_URL } from "@shared/api/http";
 import type { ListResponse } from "@shared/api/http";
 
 import { LUCIDE_PACK_ICONS } from "@entities/emoji-packs/lucide-pack";
+import type { ApiSchema } from "@shared/api/schemas";
 
-export interface EmojiPackItem {
-  custom_emoji_id: string;
-  /** The plain emoji Telegram shows in place of this one; drawn when the
-   * artwork is missing. */
-  fallback_emoji: string;
-  animation_kind: "lottie" | "video" | null;
-}
+export type EmojiPackItem = Omit<ApiSchema<"EmojiPackItemResponse">, "animation_kind"> & { animation_kind: "lottie" | "video" | null };
 
-export interface EmojiPack {
-  set_name: string;
-  title: string;
-  items: EmojiPackItem[];
-}
+export type EmojiPack = ApiSchema<"EmojiPackResponse">;
 
 export function listEmojiPacks(signal?: AbortSignal): Promise<EmojiPack[]> {
   return apiGet<ListResponse<EmojiPack>>("/emoji-packs", signal).then((response) => response.items);

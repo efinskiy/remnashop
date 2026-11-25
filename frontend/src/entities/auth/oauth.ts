@@ -1,5 +1,6 @@
 import { apiDelete, apiGet, apiPost } from "@shared/api/http";
 import type { ListResponse } from "@shared/api/http";
+import type { ApiSchema } from "@shared/api/schemas";
 
 export type OAuthProvider = "github" | "telegram" | "oidc";
 
@@ -15,10 +16,7 @@ export interface OAuthCallbackPayload {
   state: string;
 }
 
-export interface OAuthIdentity {
-  provider: string;
-  external_login: string | null;
-}
+export type OAuthIdentity = ApiSchema<"OAuthIdentityResponse">;
 
 export function getOAuthLoginAuthorizeUrl(provider: OAuthProvider): Promise<OAuthAuthorizeResult> {
   return apiPost<OAuthAuthorizeResult, { audience: "dashboard" }>(`/auth/oauth/${provider}/authorize`, {

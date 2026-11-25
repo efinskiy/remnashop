@@ -12,7 +12,7 @@ import {
 import { type AdLinkChannels, ChannelsPicker } from "@entities/advertising/ChannelsPicker";
 import { PromocodePicker } from "@entities/advertising/PromocodePicker";
 import { RevenueSharePercentField } from "@entities/advertising/RevenueSharePercentField";
-import { CURRENCIES } from "@entities/pricing/api";
+import { CURRENCIES, type Currency } from "@entities/pricing/api";
 import { CURRENCY_ICON } from "@entities/transactions/api";
 import { usePermissions } from "@entities/user/use-current-user";
 import { getErrorMessage } from "@shared/api/http";
@@ -54,7 +54,7 @@ function AdLinkCreateDialogBody({
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [cost, setCost] = useState("0");
-  const [currency, setCurrency] = useState("USD");
+  const [currency, setCurrency] = useState<Currency>("USD");
   const [revenueSharePercent, setRevenueSharePercent] = useState("0");
   const [note, setNote] = useState("");
   const [promocodeId, setPromocodeId] = useState<number | null>(null);
@@ -138,7 +138,8 @@ function AdLinkCreateDialogBody({
                   size="compact"
                   id="adlink-currency"
                   value={currency}
-                  onChange={setCurrency}
+                  // the options are CURRENCIES
+                  onChange={(value) => setCurrency(value as Currency)}
                   icon={Coins}
                   placeholder={currency}
                   options={CURRENCIES.map((value) => ({

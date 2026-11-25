@@ -1,38 +1,14 @@
 import { apiDelete, apiGet, apiPatch, apiPost } from "@shared/api/http";
+import type { ApiSchema } from "@shared/api/schemas";
 
 // mirrors CreatePromocodeRequest.code on the backend
 export const PROMOCODE_CODE_MAX_LENGTH = 64;
 export const PROMOCODE_CODE_PATTERN = /^[A-Z0-9_-]+$/;
 
-export type PromocodeRewardType =
-  | "DURATION"
-  | "TRAFFIC"
-  | "DEVICES"
-  | "SUBSCRIPTION"
-  | "PERSONAL_DISCOUNT"
-  | "PURCHASE_DISCOUNT";
-export type PromocodeAvailability = "ALL" | "NEW" | "EXISTING" | "INVITED" | "ALLOWED";
+export type PromocodeRewardType = ApiSchema<"PromocodeRewardType">;
+export type PromocodeAvailability = ApiSchema<"PromocodeAvailability">;
 
-export interface Promocode {
-  id: number;
-  code: string;
-  is_active: boolean;
-  reward_type: PromocodeRewardType;
-  reward: number | null;
-  reward_addon_id: number | null;
-  reward_plan_id: number | null;
-  reward_duration_days: number | null;
-  availability: PromocodeAvailability;
-  allowed_user_ids: number[];
-  prior_customers_only: boolean;
-  allowed_plan_ids: number[];
-  expires_at: string | null;
-  max_activations: number | null;
-  is_reusable: boolean;
-  /** all-time activations */
-  activations_count: number;
-  created_at: string | null;
-}
+export type Promocode = ApiSchema<"PromocodeResponse">;
 
 export const DEFAULT_PAGE_SIZE = 50;
 // the backend's MAX_PAGE_SIZE: a picker lists a shop's live promocodes in one page
@@ -46,10 +22,7 @@ export interface PromocodeListFilters {
   pageSize?: number;
 }
 
-export interface PromocodeListPage {
-  items: Promocode[];
-  total: number;
-}
+export type PromocodeListPage = ApiSchema<"PromocodePageResponse">;
 
 export function listPromocodes(filters: PromocodeListFilters = {}, signal?: AbortSignal): Promise<PromocodeListPage> {
   const params = new URLSearchParams();
@@ -62,20 +35,9 @@ export function listPromocodes(filters: PromocodeListFilters = {}, signal?: Abor
   return apiGet<PromocodeListPage>(`/promocodes?${params.toString()}`, signal);
 }
 
-export interface UserPromocodeActivation {
-  activation_id: number;
-  promocode_id: number;
-  code: string;
-  reward_type: PromocodeRewardType;
-  reward: number | null;
-  reward_duration_days: number | null;
-  activated_at: string;
-}
+export type UserPromocodeActivation = ApiSchema<"UserPromocodeActivationResponse">;
 
-export interface UserPromocodeActivationPage {
-  items: UserPromocodeActivation[];
-  total: number;
-}
+export type UserPromocodeActivationPage = ApiSchema<"UserPromocodeActivationPageResponse">;
 
 export function listUserPromocodeActivations(
   userId: number,
@@ -87,36 +49,13 @@ export function listUserPromocodeActivations(
   return apiGet<UserPromocodeActivationPage>(`/users/${userId}/promocode-activations?${params.toString()}`, signal);
 }
 
-export interface CreatePromocodeRequest {
-  code: string;
-  reward_type: PromocodeRewardType;
-  reward?: number | null;
-  reward_addon_id?: number | null;
-  reward_plan_id?: number | null;
-  reward_duration_days?: number | null;
-  availability: PromocodeAvailability;
-  allowed_user_ids: number[];
-  prior_customers_only: boolean;
-  allowed_plan_ids: number[];
-  expires_at?: string | null;
-  max_activations?: number | null;
-  is_reusable: boolean;
-}
+export type CreatePromocodeRequest = ApiSchema<"CreatePromocodeRequest">;
 
 export function createPromocode(payload: CreatePromocodeRequest): Promise<Promocode> {
   return apiPost<Promocode, CreatePromocodeRequest>("/promocodes", payload);
 }
 
-export interface UpdatePromocodeRequest {
-  is_active?: boolean;
-  availability?: PromocodeAvailability;
-  allowed_user_ids?: number[];
-  prior_customers_only?: boolean;
-  allowed_plan_ids?: number[];
-  expires_at?: string | null;
-  max_activations?: number | null;
-  is_reusable?: boolean;
-}
+export type UpdatePromocodeRequest = ApiSchema<"UpdatePromocodeRequest">;
 
 export function updatePromocode(promocodeId: number, payload: UpdatePromocodeRequest): Promise<Promocode> {
   return apiPatch<Promocode, UpdatePromocodeRequest>(`/promocodes/${promocodeId}`, payload);
@@ -136,37 +75,15 @@ export function generatePromocodeCode(): Promise<string> {
   );
 }
 
-export interface PromocodeSummary {
-  total_count: number;
-  active_count: number;
-  activations_count: number;
-  activated_users_count: number;
-  /** DURATION rewards plus SUBSCRIPTION durations */
-  granted_days: number;
-  granted_subscriptions_count: number;
-  report_currency: string;
-  /** paid orders' discounts from promocodes, in report_currency */
-  discount_amount: string;
-  discounted_orders_count: number;
-}
+export type PromocodeSummary = ApiSchema<"PromocodeSummaryResponse">;
 
 export function getPromocodeSummary(signal?: AbortSignal): Promise<PromocodeSummary> {
   return apiGet<PromocodeSummary>("/promocodes/summary", signal);
 }
 
-export interface PromocodeActivatedUser {
-  activation_id: number;
-  user_id: number;
-  name: string;
-  subscription_id: number | null;
-  subscription_plan_name: string | null;
-  activated_at: string;
-}
+export type PromocodeActivatedUser = ApiSchema<"PromocodeActivatedUserResponse">;
 
-export interface PromocodeActivatedUserPage {
-  items: PromocodeActivatedUser[];
-  total: number;
-}
+export type PromocodeActivatedUserPage = ApiSchema<"PromocodeActivatedUserPageResponse">;
 
 export function listPromocodeActivatedUsers(
   promocodeId: number,

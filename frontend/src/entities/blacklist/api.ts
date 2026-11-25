@@ -1,23 +1,12 @@
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "@shared/api/http";
 import type { ListResponse } from "@shared/api/http";
-import type { Role } from "@shared/types/rbac";
+import type { ApiSchema } from "@shared/api/schemas";
 
-export type BlacklistKind = "TELEGRAM_ID" | "EMAIL";
+export type BlacklistKind = ApiSchema<"BlacklistKind">;
 
-export interface Blacklist {
-  telegram_ids: number[];
-  emails: string[];
-}
+export type Blacklist = ApiSchema<"BlacklistResponse">;
 
-export interface BlacklistSource {
-  id: number;
-  url: string;
-  name: string | null;
-  enabled: boolean;
-  entries_count: number;
-  last_synced_at: string | null;
-  last_error: string | null;
-}
+export type BlacklistSource = ApiSchema<"BlacklistSourceResponse">;
 
 export function getBlacklist(signal?: AbortSignal): Promise<Blacklist> {
   return apiGet<Blacklist>("/blacklist", signal);
@@ -58,51 +47,15 @@ export function syncBlacklistSources(): Promise<void> {
   return apiPost<void, Record<string, never>>("/blacklist/sources/actions/sync", {});
 }
 
-export interface BlacklistOrigin {
-  // null = the manual list
-  source_id: number | null;
-  source_name: string | null;
-}
-
-export interface BlacklistHit {
-  kind: BlacklistKind;
-  value: string;
-  origins: BlacklistOrigin[];
-}
+// source_id: null = the manual list
+export type BlacklistOrigin = ApiSchema<"BlacklistOriginResponse">;
 
 // Same shape as the users list item, kept local so entities don't import each other.
-export interface BlacklistMatchUser {
-  id: number;
-  name: string;
-  role: Role;
-  telegram_id: number | null;
-  username: string | null;
-  email: string | null;
-  login: string | null;
-  language: string;
-  is_blocked: boolean;
-  personal_discount: number;
-  purchase_discount: number;
-  loyalty_discount: number;
-  markup_percent: number;
-  points: string;
-  bonus_days: number;
-  is_trial_available: boolean;
-  created_at: string | null;
-}
+export type BlacklistMatchUser = ApiSchema<"UserResponse">;
 
-export interface BlacklistMatch {
-  user: BlacklistMatchUser;
-  hits: BlacklistHit[];
-}
+export type BlacklistMatch = ApiSchema<"BlacklistMatchResponse">;
 
-export interface BlacklistMatchPage {
-  items: BlacklistMatch[];
-  total: number;
-  all_total: number;
-  manual_total: number;
-  lists_total: number;
-}
+export type BlacklistMatchPage = ApiSchema<"BlacklistMatchPageResponse">;
 
 export interface BlacklistMatchFilters {
   search?: string;

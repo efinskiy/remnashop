@@ -1,24 +1,9 @@
 import { apiDelete, apiGet, apiGetRaw, apiPatch, apiPost } from "@shared/api/http";
+import type { ApiSchema } from "@shared/api/schemas";
 
-export type AdLinkChannel = "BOT" | "WEBCABINET";
+export type AdLinkChannel = ApiSchema<"AdLinkChannel">;
 
-export interface AdLink {
-  id: number;
-  name: string;
-  code: string;
-  cost: string;
-  cost_currency: string;
-  /** "0"–"100": share of attributed users' payments added to the cost */
-  revenue_share_percent: string;
-  is_active: boolean;
-  allow_bot: boolean;
-  allow_webcabinet: boolean;
-  note: string | null;
-  promocode_id: number | null;
-  created_by: number | null;
-  created_at: string | null;
-  updated_at: string | null;
-}
+export type AdLink = ApiSchema<"AdLinkResponse">;
 
 export const DEFAULT_PAGE_SIZE = 50;
 
@@ -26,10 +11,7 @@ export const DEFAULT_PAGE_SIZE = 50;
 export const AD_LINK_CODE_PATTERN = /^[A-Za-z0-9_-]+$/;
 export const AD_LINK_CODE_MAX_LENGTH = 48;
 
-export interface AdLinkListPage {
-  items: AdLink[];
-  total: number;
-}
+export type AdLinkListPage = ApiSchema<"AdLinkPageResponse">;
 
 export interface AdLinkListFilters {
   isActive?: boolean;
@@ -49,35 +31,14 @@ export function listAdLinks(
   return apiGet<AdLinkListPage>(`/advertising/links?${params.toString()}`, signal);
 }
 
-export interface CreateAdLinkRequest {
-  name: string;
-  code: string;
-  cost?: string;
-  cost_currency?: string;
-  revenue_share_percent?: string;
-  allow_bot?: boolean;
-  allow_webcabinet?: boolean;
-  note?: string | null;
-  promocode_id?: number | null;
-}
+export type CreateAdLinkRequest = ApiSchema<"CreateAdLinkRequest">;
 
 export function createAdLink(payload: CreateAdLinkRequest): Promise<AdLink> {
   return apiPost<AdLink, CreateAdLinkRequest>("/advertising/links", payload);
 }
 
-export interface UpdateAdLinkRequest {
-  name?: string;
-  cost?: string;
-  cost_currency?: string;
-  revenue_share_percent?: string;
-  is_active?: boolean;
-  allow_bot?: boolean;
-  allow_webcabinet?: boolean;
-  /** "" clears it */
-  note?: string;
-  // null unlinks the promocode
-  promocode_id?: number | null;
-}
+// promocode_id: null unlinks the promocode
+export type UpdateAdLinkRequest = ApiSchema<"UpdateAdLinkRequest">;
 
 export function updateAdLink(adLinkId: number, payload: UpdateAdLinkRequest): Promise<AdLink> {
   return apiPatch<AdLink, UpdateAdLinkRequest>(`/advertising/links/${adLinkId}`, payload);
@@ -93,24 +54,7 @@ export function generateAdLinkCode(): Promise<string> {
   );
 }
 
-export interface AdLinkStats {
-  attributions_count: number;
-  attributions_by_channel: Partial<Record<AdLinkChannel, number>>;
-  paid_count: number;
-  /** bought a paid trial; one who bought a plan too is in paid_count as well */
-  trial_count: number;
-  conversion_rate: string;
-  revenue: string;
-  /** fixed_cost + revenue_share */
-  cost: string;
-  fixed_cost: string;
-  revenue_share_percent: string;
-  revenue_share: string;
-  report_currency: string;
-  cpa: string | null;
-  roi: string | null;
-  daily_registrations: { day: string; count: number; by_channel: Partial<Record<AdLinkChannel, number>> }[];
-}
+export type AdLinkStats = Omit<ApiSchema<"AdLinkStatsResponse">, "attributions_by_channel"> & { attributions_by_channel: Partial<Record<AdLinkChannel, number>> };
 
 // createdFrom: ISO timestamp; counts only attributions made since then.
 export function getAdLinkStats(
@@ -123,13 +67,7 @@ export function getAdLinkStats(
   return apiGet<AdLinkStats>(`/advertising/links/${adLinkId}/stats?${params.toString()}`, signal);
 }
 
-export interface AdLinkPayout {
-  report_currency: string;
-  payments_count: number;
-  revenue: string;
-  revenue_share_percent: string;
-  payout: string;
-}
+export type AdLinkPayout = ApiSchema<"AdLinkPayoutResponse">;
 
 // paidFrom/paidTo: "YYYY-MM-DD", both days included
 export function getAdLinkPayout(
@@ -142,27 +80,7 @@ export function getAdLinkPayout(
   return apiGet<AdLinkPayout>(`/advertising/links/${adLinkId}/payout?${params.toString()}`, signal);
 }
 
-export interface AdLinkMetrics {
-  ad_link_id: number;
-  attributions_count: number;
-  paid_count: number;
-  revenue: string;
-  cost: string;
-  roi: string | null;
-}
-
-export interface AdvertisingSummary {
-  report_currency: string;
-  attributions_count: number;
-  attributions_by_channel: Partial<Record<AdLinkChannel, number>>;
-  paid_count: number;
-  conversion_rate: string;
-  revenue: string;
-  cost: string;
-  cpa: string | null;
-  roi: string | null;
-  links: AdLinkMetrics[];
-}
+export type AdvertisingSummary = Omit<ApiSchema<"AdvertisingSummaryResponse">, "attributions_by_channel"> & { attributions_by_channel: Partial<Record<AdLinkChannel, number>> };
 
 export function getAdvertisingSummary(
   /** createdTo: the summary as it looked at that moment (later attributions and payments left out) */
@@ -176,18 +94,9 @@ export function getAdvertisingSummary(
   return apiGet<AdvertisingSummary>(`/advertising/summary?${params.toString()}`, signal);
 }
 
-export interface AttributedUser {
-  user_id: number;
-  name: string;
-  channel: AdLinkChannel;
-  created_at: string;
-  has_paid: boolean;
-}
+export type AttributedUser = ApiSchema<"AttributedUserResponse">;
 
-export interface AttributedUserPage {
-  items: AttributedUser[];
-  total: number;
-}
+export type AttributedUserPage = ApiSchema<"AttributedUserPageResponse">;
 
 export function listAdLinkAttributedUsers(
   adLinkId: number,
@@ -214,10 +123,7 @@ export function getUserAdAttribution(userId: number, signal?: AbortSignal): Prom
 }
 
 // null = channel not allowed on the link, or its base URL isn't configured
-export interface AdLinkShareUrls {
-  bot_url: string | null;
-  webcabinet_url: string | null;
-}
+export type AdLinkShareUrls = ApiSchema<"AdLinkShareUrlsResponse">;
 
 export function getAdLinkShareUrls(adLinkId: number, signal?: AbortSignal): Promise<AdLinkShareUrls> {
   return apiGet<AdLinkShareUrls>(`/advertising/links/${adLinkId}/share`, signal);

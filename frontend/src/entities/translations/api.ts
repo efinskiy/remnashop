@@ -1,19 +1,12 @@
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "@shared/api/http";
 import type { ListResponse } from "@shared/api/http";
+import type { ApiSchema } from "@shared/api/schemas";
 
-export interface ActiveLocalesResult {
-  active: string[];
-  available: string[];
-  default: string;
-}
+export type Locale = ApiSchema<"Locale">;
 
-export interface TranslationEntry {
-  locale: string;
-  message_id: string;
-  attribute_id: string;
-  value: string;
-  default_value: string;
-}
+export type ActiveLocalesResult = ApiSchema<"ActiveLocalesResponse">;
+
+export type TranslationEntry = ApiSchema<"TranslationEntryResponse">;
 
 export function listActiveLocales(signal?: AbortSignal): Promise<ActiveLocalesResult> {
   return apiGet<ActiveLocalesResult>("/settings/locales", signal);
@@ -65,10 +58,7 @@ export interface TranslationsExportPayload {
   texts: { locale: string; message_id: string; attribute_id: string; value: string }[];
 }
 
-export interface TranslationsImportResult {
-  applied: number;
-  skipped: number;
-}
+export type TranslationsImportResult = ApiSchema<"TranslationsImportResponse">;
 
 export function exportTranslations(): Promise<TranslationsExportPayload> {
   return apiGet<TranslationsExportPayload>("/translations/export");

@@ -2,15 +2,9 @@ import { apiDelete, apiGet, apiPatch, apiPost } from "@shared/api/http";
 import type { ListResponse } from "@shared/api/http";
 
 import type { AuthResult } from "./api";
+import type { ApiSchema } from "@shared/api/schemas";
 
-export interface Passkey {
-  id: number;
-  name: string;
-  device_type: string;
-  backed_up: boolean;
-  created_at: string;
-  last_used_at: string | null;
-}
+export type Passkey = ApiSchema<"PasskeyResponse">;
 
 export function getPasskeys(signal?: AbortSignal): Promise<Passkey[]> {
   return apiGet<ListResponse<Passkey>>("/auth/passkeys", signal).then((response) => response.items);

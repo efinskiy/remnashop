@@ -1,20 +1,10 @@
 import { apiDelete, apiGet, apiPost } from "@shared/api/http";
 import type { ListResponse } from "@shared/api/http";
+import type { ApiSchema } from "@shared/api/schemas";
 
-export interface ApiToken {
-  id: number;
-  name: string;
-  scopes: string[];
-  last_used_at: string | null;
-  created_at: string;
-  expires_at: string | null;
-  ip_allowlist: string[];
-}
+export type ApiToken = ApiSchema<"ApiTokenResponse">;
 
-export interface CreatedApiToken {
-  token: ApiToken;
-  secret: string;
-}
+export type CreatedApiToken = ApiSchema<"CreatedApiTokenResponse">;
 
 export function listApiTokens(signal?: AbortSignal): Promise<ApiToken[]> {
   return apiGet<ListResponse<ApiToken>>("/api-tokens", signal).then((response) => response.items);

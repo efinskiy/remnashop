@@ -66,6 +66,7 @@ import { IconButton } from "@shared/ui/IconButton";
 import { ChoiceChip } from "@shared/ui/ChoiceChip";
 import { PillTabs } from "@shared/ui/PillTabs";
 import { Pressable } from "@shared/ui/Pressable";
+import type { Locale } from "@entities/translations/api";
 
 const PLAN_BADGES: PlanBadge[] = ["POPULAR", "BEST_VALUE"];
 const PLAN_TYPES: PlanType[] = ["TRAFFIC", "DEVICES", "BOTH", "UNLIMITED"];
@@ -133,7 +134,12 @@ function durationSavings(rows: DurationRow[], row: DurationRow): DurationSavings
 function translationsPayload(drafts: Record<string, TranslationDraft>): PlanTranslation[] {
   return Object.entries(drafts)
     .filter(([, draft]) => draft.name.trim())
-    .map(([locale, draft]) => ({ locale, name: draft.name.trim(), description: draft.description.trim() || null }));
+    // drafts are keyed by locale; Object.entries types keys as string
+    .map(([locale, draft]) => ({
+      locale: locale as Locale,
+      name: draft.name.trim(),
+      description: draft.description.trim() || null,
+    }));
 }
 
 export function PlanEditDialog({ plan, anchorCurrency, onClose, onSaved }: PlanEditDialogProps) {

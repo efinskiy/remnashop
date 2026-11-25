@@ -1,7 +1,7 @@
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "@shared/api/http";
 import type { ListResponse } from "@shared/api/http";
+import type { ApiSchema } from "@shared/api/schemas";
 
-export type DialogWindowKind = "seed" | "custom";
 export type DialogFlow =
   | "menu"
   | "purchase"
@@ -31,38 +31,11 @@ export interface DialogButtonItem {
   is_required: boolean;
 }
 
-export interface DialogWindow {
-  key: string;
-  kind: DialogWindowKind;
-  flow: DialogFlow;
-  banner_name: string | null;
-  name: string | null;
-  is_enabled: boolean;
-  position: number;
-  text_keys: string[];
-  buttons: DialogButtonItem[];
-}
+export type DialogWindow = ApiSchema<"DialogWindowResponse">;
 
-export interface DialogCatalog {
-  action_keys: string[];
-  condition_keys: string[];
-  variable_keys: string[];
-  text_variable_keys: string[];
-  /** A window's own variables, on top of text_variable_keys. */
-  window_text_variable_keys: Record<string, string[]>;
-  /** variable -> its picker group: "user", "subscription", ... */
-  variable_categories: Record<string, string>;
-  seed_window_keys: string[];
-  navigable_window_keys: string[];
-  custom_window_limit: number;
-}
+export type DialogCatalog = ApiSchema<"DialogCatalogResponse">;
 
-export interface DialogTextEntry {
-  locale: string;
-  message_id: string;
-  value: string;
-  default_value: string;
-}
+export type DialogTextEntry = ApiSchema<"DialogTextResponse">;
 
 export interface DialogButtonInput {
   row: number;
