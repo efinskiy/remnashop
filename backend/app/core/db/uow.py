@@ -29,6 +29,10 @@ class UnitOfWork:
         # A clean exit commits, so a write never depends on someone remembering to;
         # explicit rollback() stays for an early abort.
         self._depth -= 1
+        if self._depth:
+            # the outermost block owns the transaction; an inner one committing
+            # would publish the outer block's half-done writes and run its callbacks
+            return
         if exc_type:
             await self.rollback()
         else:
