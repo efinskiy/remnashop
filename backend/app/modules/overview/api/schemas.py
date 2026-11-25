@@ -7,7 +7,7 @@ from pydantic import computed_field
 
 from app.core.dto import ResponseModel
 from app.core.enums import Currency, PaymentGatewayType, PurchaseType
-from app.modules.overview.dto import AttentionKind
+from app.modules.overview.dto import AttentionKind, OverviewDays
 
 
 class DailyCountResponse(ResponseModel):
@@ -108,7 +108,7 @@ class RecapResponse(ResponseModel):
 
 
 class RevenueChartResponse(ResponseModel):
-    days: int
+    days: OverviewDays
     granularity: Literal["day", "month"]
     paid_orders_count: int
     report_currency: Currency
@@ -116,7 +116,7 @@ class RevenueChartResponse(ResponseModel):
 
 
 class OnlineChartResponse(ResponseModel):
-    days: int
+    days: OverviewDays
     granularity: Literal["day", "month"]
     current: int
     daily_peak: list[DailyCountResponse]

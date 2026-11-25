@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -8,8 +8,8 @@ from app.core.dto import ResponseModel
 class EmojiPackItemResponse(ResponseModel):
     custom_emoji_id: str
     fallback_emoji: str
-    # "lottie", "video", or null when this emoji has no animation stored.
-    animation_kind: Optional[str]
+    # null when this emoji has no animation stored
+    animation_kind: Optional[Literal["lottie", "video"]]
 
 
 class EmojiPackResponse(ResponseModel):

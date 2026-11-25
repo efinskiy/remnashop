@@ -103,8 +103,9 @@ class TransactionResponse(ResponseModel):
     expires_at: datetime
     # the subscription the order provisioned, once reconciliation has seen it
     fulfilled_subscription_id: Optional[int]
-    created_at: Optional[datetime]
-    updated_at: Optional[datetime]
+    # always a stored row here
+    created_at: datetime
+    updated_at: datetime
 
     @field_validator("plan_snapshot", "previous_plan_snapshot", mode="before")
     @classmethod

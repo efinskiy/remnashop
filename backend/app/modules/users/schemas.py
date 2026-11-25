@@ -1,6 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
+from typing import Literal, Optional, TypeAlias
 
 from pydantic import field_validator
 
@@ -8,13 +8,16 @@ from app.core.dto import ResponseModel
 from app.core.security.permissions import Permission, PermissionPolicy
 from app.modules.users.dto import UserDto
 
+# Role's names, which the API speaks (its values are ranks)
+RoleName: TypeAlias = Literal["USER", "ADMIN", "OWNER", "SYSTEM"]
+
 
 # lives outside api/: users and account_merge both answer with it, and importing
 # users.api from the package would pull in the routers
 class UserResponse(ResponseModel):
     id: int
     name: str
-    role: str
+    role: RoleName
     telegram_id: Optional[int]
     username: Optional[str]
     email: Optional[str]
@@ -57,7 +60,7 @@ class CurrentUserResponse(ResponseModel):
     id: int
     login: Optional[str]
     name: str
-    role: str
+    role: RoleName
     effective_permissions: list[Permission]
     password_change_required: bool
     language: str
