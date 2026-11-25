@@ -123,3 +123,26 @@ async def test_nested_block_failure_rolls_back_with_the_outer_one(session: Async
                 raise RuntimeError("abort")
 
     assert ran == []
+
+
+async def test_a_caught_nested_failure_rolls_back_the_outer_block(session: AsyncSession) -> None:
+    uow = UnitOfWork(session)
+    ran: list[str] = []
+
+    async def callback() -> None:
+        ran.append("ran")
+
+    with pytest.raises(RuntimeError, match="inner unit of work failed"):
+        async with uow:
+            try:
+                async with uow:
+                    await uow.after_commit(callback)
+                    raise ValueError("inner")
+            except ValueError:
+                pass
+
+    assert ran == []
+    # the next transaction starts clean
+    async with uow:
+        await uow.after_commit(callback)
+    assert ran == ["ran"]

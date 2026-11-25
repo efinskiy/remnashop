@@ -12,11 +12,14 @@ class UnitOfWork:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self._depth = 0
+        # an inner block failed: the outer one may only roll back
+        self._rollback_only = False
         self._after_commit: list[AfterCommit] = []
 
     async def __aenter__(self) -> Self:
         self._depth += 1
-        logger.debug("SQL transaction started")
+        if self._depth == 1:
+            logger.debug("SQL transaction started")
         return self
 
     async def __aexit__(
@@ -32,9 +35,16 @@ class UnitOfWork:
         if self._depth:
             # the outermost block owns the transaction; an inner one committing
             # would publish the outer block's half-done writes and run its callbacks
+            if exc_type:
+                self._rollback_only = True
             return
         if exc_type:
             await self.rollback()
+        elif self._rollback_only:
+            # the caller caught an inner block's error and went on: committing
+            # would keep that block's half-done writes
+            await self.rollback()
+            raise RuntimeError("An inner unit of work failed; the transaction was rolled back")
         else:
             await self.commit()
 
@@ -60,6 +70,7 @@ class UnitOfWork:
             await callback()
 
     async def rollback(self) -> None:
+        self._rollback_only = False
         self._after_commit.clear()
         await self.session.rollback()
         logger.warning("SQL transaction rolled back")
