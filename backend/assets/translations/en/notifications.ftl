@@ -169,6 +169,12 @@ ntf-customer-subscription-grace-started = Your subscription has expired. { $grac
     }. Renew to get your plan back.
     .title = Subscription expired
     .emoji = ⏳
+ntf-customer-subscription-expiry-disable-warning = { $is_trial ->
+        [yes] Your trial has ended, and on { $disable_date } access will be switched off completely. Get a subscription to keep using the VPN.
+       *[no] Your subscription has expired, and on { $disable_date } access will be switched off completely. Renew to keep using the VPN.
+    }
+    .title = Access will be switched off soon
+    .emoji = ⚠️
 ntf-customer-subscription-traffic-limited = You've used up your traffic. { $is_trial ->
         [yes] Get a subscription to keep using the service.
        *[no] { $traffic_strategy ->

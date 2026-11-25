@@ -201,9 +201,13 @@ class NewPurchase:
                         "purchase was in flight",
                         code=ErrorCode.PURCHASE_SUPERSEDED,
                     )
-                if locked_trial.addon_entitlements != trial.addon_entitlements:
-                    # an addon grant pushed the trial's limits over this plan's
-                    # meanwhile; it holds this lock while it pushes, so redo ours
+                if (
+                    locked_trial.addon_entitlements != trial.addon_entitlements
+                    or locked_trial.disabled_by_expiry != trial.disabled_by_expiry
+                ):
+                    # an addon grant pushed the trial's limits over this plan's meanwhile, or
+                    # the expiry rule switched it off; both hold this lock while they write
+                    # the row, so redo ours
                     panel_user = await self._remnawave_sdk.users.update_user(
                         configure_for_plan(trial.remnawave_user_id, plan, expire_at, enable=True)
                     )

@@ -5,7 +5,13 @@ from uuid import UUID
 from pydantic import BaseModel, EmailStr, Field, HttpUrl, field_validator, model_validator
 from remnapy.enums import TrafficLimitStrategy
 
-from app.core.constants import INT32_MAX, INT64_MAX, PANEL_TAG_MAX_LENGTH, PANEL_TAG_PATTERN
+from app.core.constants import (
+    EXPIRY_DISABLE_MAX_DAYS,
+    INT32_MAX,
+    INT64_MAX,
+    PANEL_TAG_MAX_LENGTH,
+    PANEL_TAG_PATTERN,
+)
 from app.core.enums import AccessMode, CaptchaProvider, SmtpSecurity
 
 _COMMAND_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-z0-9_]{1,32}$")
@@ -132,6 +138,9 @@ class GraceSettingsResponse(BaseModel):
     traffic_limit_strategy: TrafficLimitStrategy
     tag: Optional[str]
     duration_days: int
+    expiry_disable_enabled: bool
+    expiry_disable_after_days: int
+    expiry_disable_warn_days: int
 
 
 class UpdateGraceSettingsRequest(BaseModel):
@@ -144,6 +153,9 @@ class UpdateGraceSettingsRequest(BaseModel):
         default=None, max_length=PANEL_TAG_MAX_LENGTH, pattern=PANEL_TAG_PATTERN
     )
     duration_days: Optional[int] = Field(default=None, le=INT32_MAX)
+    expiry_disable_enabled: Optional[bool] = None
+    expiry_disable_after_days: Optional[int] = Field(default=None, le=EXPIRY_DISABLE_MAX_DAYS)
+    expiry_disable_warn_days: Optional[int] = Field(default=None, le=EXPIRY_DISABLE_MAX_DAYS)
 
     @model_validator(mode="after")
     def non_nullable_fields(self) -> "UpdateGraceSettingsRequest":

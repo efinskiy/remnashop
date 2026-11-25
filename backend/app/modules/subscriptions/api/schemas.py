@@ -47,6 +47,8 @@ class SubscriptionResponse(BaseModel):
     external_squad: Optional[UUID] = None
     expire_at: datetime
     grace_until: Optional[datetime] = None
+    # set while DISABLED by the expiry rule rather than by an admin
+    expiry_disabled_at: Optional[datetime] = None
     is_unlimited: bool
     created_at: Optional[datetime] = None
     first_connected_at: Optional[datetime] = None
@@ -245,6 +247,8 @@ class OwnSubscriptionResponse(BaseModel):
         return cls.model_validate(
             {
                 **subscription.model_dump(),
+                # the expiry rule's switch-off is an expired subscription to renew, to the cabinet
+                "status": subscription.customer_status,
                 "is_unlimited": subscription.is_unlimited,
                 "plan_name": subscription.plan_snapshot.display_name(locale),
                 "plan_icon_emoji_id": subscription.plan_snapshot.icon_emoji_id,

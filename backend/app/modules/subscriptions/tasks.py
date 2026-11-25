@@ -24,6 +24,7 @@ from app.modules.subscriptions.usecases import (
     ProcessRemnawaveWebhookUseCase,
     PruneIdempotencyKeysUseCase,
     RestoreDuePanelConfigsUseCase,
+    SweepExpiryDisableUseCase,
     SweepGraceUseCase,
     SyncAllFromPanelUseCase,
     SyncAllToPanelUseCase,
@@ -31,6 +32,7 @@ from app.modules.subscriptions.usecases import (
 
 # a minute cron's lock, short of its next run
 _MINUTE_CRON_LOCK_TTL_S: Final[int] = 55
+_FIVE_MINUTE_CRON_LOCK_TTL_S: Final[int] = 290
 
 
 @broker.task(retry_on_error=True, max_retries=3)
@@ -147,6 +149,19 @@ async def sweep_grace_task(
     use_case: FromDishka[SweepGraceUseCase], redis: FromDishka[Redis]
 ) -> None:
     async with cron_lock(redis, "grace_sweep", ttl_seconds=_MINUTE_CRON_LOCK_TTL_S) as acquired:
+        if acquired:
+            await use_case.system()
+
+
+# a days-long rule: every five minutes is plenty, and spreads a backlog over the panel
+@broker.task(schedule=[{"cron": "*/5 * * * *"}])
+@inject(patch_module=True)
+async def sweep_expiry_disable_task(
+    use_case: FromDishka[SweepExpiryDisableUseCase], redis: FromDishka[Redis]
+) -> None:
+    async with cron_lock(
+        redis, "expiry_disable_sweep", ttl_seconds=_FIVE_MINUTE_CRON_LOCK_TTL_S
+    ) as acquired:
         if acquired:
             await use_case.system()
 

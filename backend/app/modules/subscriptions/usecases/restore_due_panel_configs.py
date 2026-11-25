@@ -3,6 +3,7 @@ from typing import Final, Optional
 
 from loguru import logger
 from remnapy import RemnawaveSDK
+from remnapy.enums import UserStatus
 
 from app.core.actor import Actor
 from app.core.db.uow import UnitOfWork
@@ -21,7 +22,8 @@ _TIME_BUDGET_S: Final[float] = 45.0
 
 class RestoreDuePanelConfigsUseCase(UseCase[None, None]):
     """Pushes again the panel configs whose push failed after a commit: leaving grace,
-    a renewal or a squad edit racing grace. Each row is pushed as it is at that moment."""
+    a renewal or a squad edit racing grace, turning back on what the expiry rule switched
+    off. Each row is pushed as it is at that moment."""
 
     # system-only: the minute cron
     required_permission = None
@@ -80,10 +82,13 @@ class RestoreDuePanelConfigsUseCase(UseCase[None, None]):
         """False when a retry may still land it."""
         if owner is None or owner.status is SubscriptionStatus.DELETED:
             return True
+        request = restore(owner, grace=settings, left_grace=settings)
+        if owner.status is SubscriptionStatus.ACTIVE and owner.grace_until is None:
+            # a paid term whose turning on failed, the expiry rule's switch-off ending:
+            # the row says it runs
+            request = request.model_copy(update={"status": UserStatus.ACTIVE})
         try:
-            await self._remnawave_sdk.users.update_user(
-                restore(owner, grace=settings, left_grace=settings)
-            )
+            await self._remnawave_sdk.users.update_user(request)
         except Exception as error:
             if panel_user_gone(error) or panel_refused(error):
                 logger.warning(f"Panel refused restoring the config of '{marked_id}', dropped")

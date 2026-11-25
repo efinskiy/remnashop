@@ -27,6 +27,7 @@ from app.modules.subscriptions import (
     SubscriptionExpiredAgoEvent,
     SubscriptionExpiredEvent,
     SubscriptionExpiringEvent,
+    SubscriptionExpiryDisableWarningEvent,
     SubscriptionGraceStartedEvent,
     SubscriptionGrantedEvent,
     SubscriptionNotConnectedEvent,
@@ -174,6 +175,17 @@ async def _on_grace_started(event: SubscriptionGraceStartedEvent, entry: StoredE
     )
 
 
+async def _on_expiry_disable_warning(
+    event: SubscriptionExpiryDisableWarningEvent, entry: StoredEvent
+) -> None:
+    await _notify(
+        entry,
+        event.user.id,
+        {"disable_date": datetime.fromisoformat(event.disable_at).strftime(DATE_FORMAT)},
+        subscription_id=event.subscription_id,
+    )
+
+
 async def _on_traffic_threshold(
     event: SubscriptionTrafficThresholdEvent, entry: StoredEvent
 ) -> None:
@@ -270,6 +282,7 @@ def register_subscribers(bus: EventBus) -> None:
     bus.subscribe(SubscriptionExpiringEvent, _on_hours)
     bus.subscribe(SubscriptionExpiredEvent, _on_subscription)
     bus.subscribe(SubscriptionGraceStartedEvent, _on_grace_started)
+    bus.subscribe(SubscriptionExpiryDisableWarningEvent, _on_expiry_disable_warning)
     bus.subscribe(SubscriptionTrafficLimitedEvent, _on_subscription)
     bus.subscribe(SubscriptionTrafficThresholdEvent, _on_traffic_threshold)
     bus.subscribe(SubscriptionNotConnectedEvent, _on_hours)

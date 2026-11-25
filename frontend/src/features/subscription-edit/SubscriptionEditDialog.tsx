@@ -19,6 +19,7 @@ import {
   PackagePlus,
   Pencil,
   Plug,
+  PowerOff,
   RefreshCw,
   Replace,
   Server,
@@ -372,6 +373,14 @@ function SubscriptionParamsView({ subscription }: { subscription: SubscriptionLi
           }
           mono={!isUnlimitedExpiry(subscription.expire_at)}
         />
+        {subscription.expiry_disabled_at && (
+          <SubscriptionField
+            icon={PowerOff}
+            label={t("subscriptions.disabledByExpiry")}
+            value={dateTime(subscription.expiry_disabled_at)}
+            mono
+          />
+        )}
         <SubscriptionField
           icon={CalendarDays}
           label={t("subscriptions.details.createdAt")}

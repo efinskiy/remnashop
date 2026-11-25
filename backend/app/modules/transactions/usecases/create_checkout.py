@@ -552,7 +552,8 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
                     f"Cannot {data.purchase_type.value.lower()} a deleted subscription",
                     code=ErrorCode.SUBSCRIPTION_DELETED,
                 )
-            if target.status is SubscriptionStatus.DISABLED:
+            # switched off by the expiry rule: paying is what turns it back on
+            if target.status is SubscriptionStatus.DISABLED and not target.disabled_by_expiry:
                 raise ValidationError(
                     f"Cannot {data.purchase_type.value.lower()} a disabled subscription",
                     code=ErrorCode.SUBSCRIPTION_DISABLED,

@@ -135,6 +135,21 @@ class SubscriptionExpiredEvent(UserEvent):
 
 
 @dataclass(frozen=True, kw_only=True)
+class SubscriptionExpiryDisableWarningEvent(UserEvent):
+    category: ClassVar[EventCategory] = EventCategory.SUBSCRIPTION
+    subscription_id: int
+    # ISO 8601, as event payloads carry dates
+    disable_at: str
+
+
+@dataclass(frozen=True, kw_only=True)
+class SubscriptionExpiryDisabledEvent(SystemEvent):
+    category: ClassVar[EventCategory] = EventCategory.SUBSCRIPTION
+    subscription_id: int
+    user_id: int
+
+
+@dataclass(frozen=True, kw_only=True)
 class SubscriptionGraceStartedEvent(UserEvent):
     category: ClassVar[EventCategory] = EventCategory.SUBSCRIPTION
     subscription_id: int

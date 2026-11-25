@@ -11,6 +11,7 @@
     "continueButton": "Continue"
   },
   "common": {
+    "daysSuffix": "days",
     "today": "Today",
     "yesterday": "Yesterday",
     "cancel": "Cancel",
@@ -865,6 +866,8 @@
       "SubscriptionExpiringEvent": "Subscription expiring",
       "SubscriptionExpiredEvent": "Subscription expired",
       "SubscriptionGraceStartedEvent": "Grace period started",
+      "SubscriptionExpiryDisableWarningEvent": "Customer warned of expired subscription switch-off",
+      "SubscriptionExpiryDisabledEvent": "Expired subscription switched off",
       "SubscriptionTrafficLimitedEvent": "Traffic limit reached",
       "SubscriptionTrafficThresholdEvent": "Traffic threshold reached",
       "SubscriptionPlanChangedByAdminEvent": "Subscription plan changed by admin",
@@ -1635,11 +1638,21 @@
         "MB": "MB",
         "GB": "GB"
       },
-      "durationLabel": "Duration, days",
+      "durationLabel": "Duration",
       "internalSquadsHint": "Leave empty to keep the subscription’s own squads.",
       "externalSquadHint": "“None” keeps the subscription’s own external squad.",
       "tagHint": "Leave empty to keep the subscription’s tag. Capital Latin letters, digits and “_”.",
       "durationUnlimited": "No end"
+    },
+    "expiryDisable": {
+      "title": "Switching off expired subscriptions",
+      "description": "Cuts access off completely when a subscription stays unrenewed",
+      "enabledLabel": "Switch off expired subscriptions",
+      "enabledHint": "The given number of days after a subscription ends (after the grace period, if there was one), the customer’s panel profile is disabled. The panel may still give an expired profile limited access; a disabled one gets nothing. The link and devices stay: a renewal or plan change turns the profile back on.\n\nTo the customer the subscription stays expired, with a renew button. A renewal doesn’t turn on a subscription an admin disabled. A subscription the rule switched off and an admin turned back on is left alone until it expires again.",
+      "afterDaysLabel": "Switch off after",
+      "afterDaysHint": "Counted from the subscription’s end, or from the grace period’s end if there was one.",
+      "warnDaysLabel": "Warn the customer before",
+      "warnDaysHint": "The customer gets a Telegram or email message with the date and a renew button. 0 means no warning. Subscriptions already past their switch-off date when the rule is turned on get no warning: they are switched off at once."
     },
     "shop": {
       "title": "Subscriptions and limits",
@@ -3848,6 +3861,7 @@
     "trial": "Trial",
     "grace": "Grace period",
     "graceUntil": "Grace period until {{date}}",
+    "disabledByExpiry": "Switched off after expiry",
     "unlimited": "Unlimited",
     "trafficUnlimited": "Traffic ∞",
     "devicesUnlimited": "Devices ∞",
@@ -4246,7 +4260,7 @@
         "dialogHeader": "Every glass dialog’s header: icon or glyph, subtitle, danger/warning tone, actions, close.",
         "modal": "Dialog shell: sm and lg.",
         "confirm": "Confirmation: regular and destructive.",
-        "fieldHint": "Hint icon by a label: up, down, at the right edge.",
+        "fieldHint": "Hint icon by a label: up, down, at the right edge; long text opens wider.",
         "tooltip": "Label for a button or badge on hover, from any side.",
         "actionMenu": "Row actions menu in a list.",
         "popover": "Menu shells: glass (1.5 and 3 padding) and solid — emoji and toasts.",
@@ -4339,6 +4353,8 @@
         "error": "Failed to load plans.",
         "copy": "Copy",
         "hintShort": "A short hint.",
+        "hintWide": "Long, wider",
+        "hintParagraph": "A hint over 150 characters — a paragraph or two — opens wider, up to 448px: at 256px it would stretch into a narrow column.\n\nShort hints keep to their text’s width, up to 256px.",
         "hintLong": "The new interval counts from the last successful backup. A shorter interval means more backups and more disk space.",
         "hintTop": "Up (default)",
         "hintBottom": "Down",
@@ -4772,6 +4788,7 @@
     "SESSION_AUDIENCE_MISMATCH": "This session can’t be used here. Sign in again.",
     "SESSION_NOT_FOUND": "Session not found.",
     "GRACE_SETTINGS_INVALID": "The grace period settings are invalid.",
+    "EXPIRY_DISABLE_SETTINGS_INVALID": "The settings for switching off expired subscriptions are invalid.",
     "SHOP_SUBSCRIPTION_LIMIT_INVALID": "The limit must be positive, or empty for unlimited.",
     "SUBSCRIPTION_DELETED": "The subscription has been deleted.",
     "SUBSCRIPTION_DISABLED": "This subscription is disabled.",

@@ -1545,6 +1545,27 @@ async def test_create_checkout_renew_refuses_a_disabled_subscription(
     assert error.value.code is ErrorCode.SUBSCRIPTION_DISABLED
 
 
+async def test_create_checkout_renews_a_subscription_the_expiry_rule_switched_off(
+    create_checkout_use_case: CreateCheckoutUseCase,
+    _active_yookassa: None,
+    actor: UserDto,
+    plan: PlanDto,
+    subscription_repository: SubscriptionRepository,
+) -> None:
+    subscription_id = await _seed_subscription(
+        subscription_repository, user_id=actor.id, remnawave_user_id=820_111, plan_id=plan.id
+    )
+    await subscription_repository.session.execute(
+        update(Subscription)
+        .where(Subscription.id == subscription_id)
+        .values(status=SubscriptionStatus.DISABLED, expiry_disabled_at=datetime_now())
+    )
+
+    result = await create_checkout_use_case(actor, _renew_dto(plan, subscription_id))
+
+    assert result.order_id > 0
+
+
 async def test_create_checkout_refuses_to_renew_an_unlimited_subscription(
     create_checkout_use_case: CreateCheckoutUseCase,
     _active_yookassa: None,

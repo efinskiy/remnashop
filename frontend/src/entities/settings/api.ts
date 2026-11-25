@@ -284,6 +284,10 @@ export interface GraceSettings {
   tag: string | null;
   // 0 = no end
   duration_days: number;
+  expiry_disable_enabled: boolean;
+  expiry_disable_after_days: number;
+  // 0 = no warning
+  expiry_disable_warn_days: number;
 }
 
 export type UpdateGraceSettingsPayload = Partial<GraceSettings>;

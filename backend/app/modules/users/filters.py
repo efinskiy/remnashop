@@ -13,24 +13,29 @@ from sqlalchemy import (
     select,
 )
 
+from app.core.db.filters import expired_subscription
 from app.core.db.models.subscription import Subscription
 from app.core.db.models.user import User
 from app.core.enums import SubscriptionStatus
 
 
-def _subscriptions_in(status: SubscriptionStatus) -> ColumnElement[int]:
+def _subscriptions_where(condition: ColumnElement[bool]) -> ColumnElement[int]:
     # per-user count, correlated to the outer User row
     return (
         select(func.count())
-        .where(Subscription.user_id == User.id, Subscription.status == status)
+        .where(Subscription.user_id == User.id, condition)
         .correlate(User)
         .scalar_subquery()
     )
 
 
-ACTIVE_SUBSCRIPTIONS: Final[ColumnElement[int]] = _subscriptions_in(SubscriptionStatus.ACTIVE)
-LIMITED_SUBSCRIPTIONS: Final[ColumnElement[int]] = _subscriptions_in(SubscriptionStatus.LIMITED)
-EXPIRED_SUBSCRIPTIONS: Final[ColumnElement[int]] = _subscriptions_in(SubscriptionStatus.EXPIRED)
+ACTIVE_SUBSCRIPTIONS: Final[ColumnElement[int]] = _subscriptions_where(
+    Subscription.status == SubscriptionStatus.ACTIVE
+)
+LIMITED_SUBSCRIPTIONS: Final[ColumnElement[int]] = _subscriptions_where(
+    Subscription.status == SubscriptionStatus.LIMITED
+)
+EXPIRED_SUBSCRIPTIONS: Final[ColumnElement[int]] = _subscriptions_where(expired_subscription())
 
 
 def identity_filter(telegram_ids: set[int], emails: set[str]) -> ColumnElement[bool]:

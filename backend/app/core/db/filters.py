@@ -1,11 +1,12 @@
 from collections.abc import Collection
 from typing import Final, Optional, Union
 
-from sqlalchemy import ARRAY, BigInteger, ColumnElement, any_, literal, or_, select
+from sqlalchemy import ARRAY, BigInteger, ColumnElement, and_, any_, literal, or_, select
 from sqlalchemy.orm import InstrumentedAttribute
 
+from app.core.db.models.subscription import Subscription
 from app.core.db.models.user import User
-from app.core.enums import Role
+from app.core.enums import Role, SubscriptionStatus
 
 _IntColumn = Union[
     InstrumentedAttribute[int], InstrumentedAttribute[Optional[int]], ColumnElement[int]
@@ -31,3 +32,12 @@ def customer_rows(column: _IntColumn) -> ColumnElement[bool]:
 def visible_rows(column: _IntColumn, viewer_id: int) -> ColumnElement[bool]:
     # same rule as visible_user: staff rows are hidden, the viewer's own are not
     return or_(customer_rows(column), column == viewer_id)
+
+
+def expired_subscription(table: type[Subscription] = Subscription) -> ColumnElement[bool]:
+    """Expired as its customer sees it: the expiry rule's switch-off is an expired subscription
+    to renew, not an admin's."""
+    return or_(
+        table.status == SubscriptionStatus.EXPIRED,
+        and_(table.status == SubscriptionStatus.DISABLED, table.expiry_disabled_at.is_not(None)),
+    )
