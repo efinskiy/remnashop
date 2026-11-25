@@ -21,13 +21,13 @@ export const DEFAULT_PAGE_SIZE = 50;
 
 export type UserListPage = ApiSchema<"UserPageResponse">;
 
-export type UserSort = "created_at" | "points" | "discount" | "name" | "channels" | "subscriptions";
+export type UserSort = ApiSchema<"UserSort">;
 
 // exclude: live accounts only (the default); include: both; only: deleted ones
-export type DeletedFilter = "exclude" | "include" | "only";
+export type DeletedFilter = ApiSchema<"DeletedFilter">;
 
 // which blacklist a blocked user is on: the manual list or external sources
-export type BlockedBy = "manual" | "lists";
+export type BlockedBy = ApiSchema<"BlacklistMatchOrigin">;
 
 export interface UserListFilters {
   search?: string;

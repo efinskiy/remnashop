@@ -61,7 +61,7 @@ export const DEFAULT_PAGE_SIZE = 50;
 
 export type SubscriptionListPage = ApiSchema<"SubscriptionPageResponse">;
 
-export type SubscriptionSort = "created_at" | "expire_at";
+export type SubscriptionSort = ApiSchema<"SubscriptionSort">;
 
 export interface SubscriptionListFilters {
   status?: SubscriptionStatus;

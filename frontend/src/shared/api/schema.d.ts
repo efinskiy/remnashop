@@ -761,6 +761,11 @@ export interface components {
          * @enum {string}
          */
         BlacklistKind: "TELEGRAM_ID" | "EMAIL";
+        /**
+         * BlacklistMatchOrigin
+         * @enum {string}
+         */
+        BlacklistMatchOrigin: "manual" | "lists";
         /** BlacklistMatchPageResponse */
         BlacklistMatchPageResponse: {
             /** All Total */
@@ -1959,6 +1964,11 @@ export interface components {
             /** Expires In */
             expires_in: number;
         };
+        /**
+         * DeletedFilter
+         * @enum {string}
+         */
+        DeletedFilter: "exclude" | "include" | "only";
         /** DeletedSubscriptionsResponse */
         DeletedSubscriptionsResponse: {
             /** Deleted */
@@ -4759,6 +4769,11 @@ export interface components {
             paid_orders_count: number;
             report_currency: components["schemas"]["Currency"];
         };
+        /**
+         * RevenueGranularity
+         * @enum {string}
+         */
+        RevenueGranularity: "day" | "week" | "month";
         /** RevenueGroupResponse */
         RevenueGroupResponse: {
             /** Key */
@@ -4778,11 +4793,7 @@ export interface components {
             by_plan: components["schemas"]["RevenueGroupResponse"][];
             /** Gateways */
             gateways: components["schemas"]["GatewayStatsResponse"][];
-            /**
-             * Granularity
-             * @enum {string}
-             */
-            granularity: "day" | "week" | "month";
+            granularity: components["schemas"]["RevenueGranularity"];
             period: components["schemas"]["AnalyticsPeriodInfoResponse"];
             report_currency: components["schemas"]["Currency"];
             /** Series */
@@ -5335,6 +5346,11 @@ export interface components {
             /** User Id */
             user_id: number;
         };
+        /**
+         * SubscriptionSort
+         * @enum {string}
+         */
+        SubscriptionSort: "created_at" | "expire_at";
         /**
          * SubscriptionStatus
          * @enum {string}
@@ -6316,6 +6332,11 @@ export interface components {
             /** Username */
             username: string | null;
         };
+        /**
+         * UserSort
+         * @enum {string}
+         */
+        UserSort: "created_at" | "points" | "discount" | "name" | "channels" | "subscriptions";
         /** VerifyEmailCodeRequest */
         VerifyEmailCodeRequest: {
             /** Code */

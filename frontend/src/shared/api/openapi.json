@@ -2374,6 +2374,14 @@
         "title": "BlacklistKind",
         "type": "string"
       },
+      "BlacklistMatchOrigin": {
+        "enum": [
+          "manual",
+          "lists"
+        ],
+        "title": "BlacklistMatchOrigin",
+        "type": "string"
+      },
       "BlacklistMatchPageResponse": {
         "properties": {
           "all_total": {
@@ -6069,6 +6077,15 @@
         ],
         "title": "DeeplinkResponse",
         "type": "object"
+      },
+      "DeletedFilter": {
+        "enum": [
+          "exclude",
+          "include",
+          "only"
+        ],
+        "title": "DeletedFilter",
+        "type": "string"
       },
       "DeletedSubscriptionsResponse": {
         "properties": {
@@ -15529,6 +15546,15 @@
         "title": "RevenueChartResponse",
         "type": "object"
       },
+      "RevenueGranularity": {
+        "enum": [
+          "day",
+          "week",
+          "month"
+        ],
+        "title": "RevenueGranularity",
+        "type": "string"
+      },
       "RevenueGroupResponse": {
         "properties": {
           "key": {
@@ -15583,13 +15609,7 @@
             "type": "array"
           },
           "granularity": {
-            "enum": [
-              "day",
-              "week",
-              "month"
-            ],
-            "title": "Granularity",
-            "type": "string"
+            "$ref": "#/components/schemas/RevenueGranularity"
           },
           "period": {
             "$ref": "#/components/schemas/AnalyticsPeriodInfoResponse"
@@ -17452,6 +17472,14 @@
         ],
         "title": "SubscriptionResponse",
         "type": "object"
+      },
+      "SubscriptionSort": {
+        "enum": [
+          "created_at",
+          "expire_at"
+        ],
+        "title": "SubscriptionSort",
+        "type": "string"
       },
       "SubscriptionStatus": {
         "enum": [
@@ -21427,6 +21455,18 @@
         ],
         "title": "UserResponse",
         "type": "object"
+      },
+      "UserSort": {
+        "enum": [
+          "created_at",
+          "points",
+          "discount",
+          "name",
+          "channels",
+          "subscriptions"
+        ],
+        "title": "UserSort",
+        "type": "string"
       },
       "VerifyEmailCodeRequest": {
         "properties": {

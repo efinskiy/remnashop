@@ -21,7 +21,7 @@ export const ANALYTICS_TAB_PERMISSIONS = {
 } as const satisfies Record<string, Permission>;
 
 export type SourceKind = ApiSchema<"SourceKind">;
-export type RevenueGranularity = ApiSchema<"RevenueResponse">["granularity"];
+export type RevenueGranularity = ApiSchema<"RevenueGranularity">;
 
 export type Analytics = ApiSchema<"AnalyticsResponse">;
 

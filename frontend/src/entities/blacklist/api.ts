@@ -58,7 +58,7 @@ export type BlacklistMatchPage = ApiSchema<"BlacklistMatchPageResponse">;
 
 export interface BlacklistMatchFilters {
   search?: string;
-  origin?: "manual" | "lists";
+  origin?: ApiSchema<"BlacklistMatchOrigin">;
   page: number;
   pageSize: number;
 }
