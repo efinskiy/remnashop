@@ -1,9 +1,9 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from app.core.dto import ResponseModel
 
 
-class CustomerFeedItemResponse(BaseModel):
+class CustomerFeedItemResponse(ResponseModel):
     id: int
     event_type: str
     title: str
@@ -13,6 +13,6 @@ class CustomerFeedItemResponse(BaseModel):
     read: bool
 
 
-class CustomerFeedResponse(BaseModel):
+class CustomerFeedResponse(ResponseModel):
     items: list[CustomerFeedItemResponse]
     unread_count: int

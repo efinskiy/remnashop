@@ -4,18 +4,19 @@ from urllib.parse import urlsplit
 from pydantic import BaseModel, Field, field_validator
 
 from app.core.constants import EMAIL_PATTERN
+from app.core.dto import ResponseModel
 from app.core.enums import CaptchaProvider, Locale, Role
 from app.core.utils.validators import known_locale
 
 _WEB_SCHEMES: Final[frozenset[str]] = frozenset({"http", "https"})
 
 
-class CaptchaWidgetResponse(BaseModel):
+class CaptchaWidgetResponse(ResponseModel):
     provider: CaptchaProvider
     site_key: str
 
 
-class CabinetMethodsResponse(BaseModel):
+class CabinetMethodsResponse(ResponseModel):
     telegram_webapp: bool
     telegram_deeplink: bool
     email: bool
@@ -31,7 +32,7 @@ class CabinetMethodsResponse(BaseModel):
         return [str(provider).lower() for provider in value]
 
 
-class CabinetAuthResponse(BaseModel):
+class CabinetAuthResponse(ResponseModel):
     access_token: str
     expires_in: int
 
@@ -94,7 +95,7 @@ class InviteCodesRequest(BaseModel):
     first_touch: Optional[FirstTouchRequest] = None
 
 
-class DeeplinkResponse(BaseModel):
+class DeeplinkResponse(ResponseModel):
     bot_url: str
     expires_in: int
 
@@ -106,11 +107,11 @@ class OAuthAuthorizeRequest(BaseModel):
     first_touch: Optional[FirstTouchRequest] = None
 
 
-class OAuthAuthorizeResponse(BaseModel):
+class OAuthAuthorizeResponse(ResponseModel):
     url: str
 
 
-class OAuthSignInResponse(BaseModel):
+class OAuthSignInResponse(ResponseModel):
     access_token: str
     expires_in: int
     id: int

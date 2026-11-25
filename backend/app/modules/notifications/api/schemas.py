@@ -5,10 +5,12 @@ from zoneinfo import available_timezones
 
 from pydantic import BaseModel, Field, HttpUrl, field_validator
 
+from app.core.dto import ResponseModel
+
 _EMAIL: Final[re.Pattern[str]] = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
-class NotificationChannelsResponse(BaseModel):
+class NotificationChannelsResponse(ResponseModel):
     channels: dict[str, list[str]]
     available_groups: list[str]
     available_channels: list[str]
@@ -20,7 +22,7 @@ class UpdateNotificationChannelsRequest(BaseModel):
     channels: dict[str, list[str]]
 
 
-class NotificationSettingsResponse(BaseModel):
+class NotificationSettingsResponse(ResponseModel):
     is_push_configured: bool
     vapid_public_key: Optional[str]
     vapid_contact: Optional[str]
@@ -52,7 +54,7 @@ class UpdateNotificationSettingsRequest(BaseModel):
         return f"mailto:{email}"
 
 
-class PushPublicKeyResponse(BaseModel):
+class PushPublicKeyResponse(ResponseModel):
     public_key: Optional[str]
 
 
@@ -73,7 +75,7 @@ class SubscribePushRequest(BaseModel):
         return value
 
 
-class PushSubscriptionResponse(BaseModel):
+class PushSubscriptionResponse(ResponseModel):
     id: int
     endpoint: str
     user_agent: Optional[str]
@@ -81,10 +83,10 @@ class PushSubscriptionResponse(BaseModel):
     last_seen_at: datetime
 
 
-class PushSubscriptionListResponse(BaseModel):
+class PushSubscriptionListResponse(ResponseModel):
     items: list[PushSubscriptionResponse]
     total: int
 
 
-class TestPushResponse(BaseModel):
+class TestPushResponse(ResponseModel):
     delivered: int

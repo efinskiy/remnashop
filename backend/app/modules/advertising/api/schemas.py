@@ -5,10 +5,11 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 from app.core.constants import ZERO_AMOUNT
+from app.core.dto import ResponseModel
 from app.core.enums import AdLinkChannel, Currency, PromocodeLinkOutcome, PromocodeRewardType
 
 
-class AdLinkResponse(BaseModel):
+class AdLinkResponse(ResponseModel):
     id: int
     name: str
     code: str
@@ -25,7 +26,7 @@ class AdLinkResponse(BaseModel):
     updated_at: Optional[datetime] = None
 
 
-class AdLinkPageResponse(BaseModel):
+class AdLinkPageResponse(ResponseModel):
     items: list[AdLinkResponse]
     total: int
 
@@ -55,22 +56,22 @@ class UpdateAdLinkRequest(BaseModel):
     promocode_id: Optional[int] = None
 
 
-class AdLinkShareUrlsResponse(BaseModel):
+class AdLinkShareUrlsResponse(ResponseModel):
     bot_url: Optional[str] = None
     webcabinet_url: Optional[str] = None
 
 
-class GeneratedAdLinkCodeResponse(BaseModel):
+class GeneratedAdLinkCodeResponse(ResponseModel):
     code: str
 
 
-class DailyAttributionCountResponse(BaseModel):
+class DailyAttributionCountResponse(ResponseModel):
     day: date
     count: int
     by_channel: dict[AdLinkChannel, int]
 
 
-class AdLinkStatsResponse(BaseModel):
+class AdLinkStatsResponse(ResponseModel):
     attributions_count: int
     attributions_by_channel: dict[AdLinkChannel, int]
     paid_count: int
@@ -87,7 +88,7 @@ class AdLinkStatsResponse(BaseModel):
     daily_registrations: list[DailyAttributionCountResponse]
 
 
-class AdLinkPayoutResponse(BaseModel):
+class AdLinkPayoutResponse(ResponseModel):
     report_currency: Currency
     payments_count: int
     revenue: Decimal
@@ -95,7 +96,7 @@ class AdLinkPayoutResponse(BaseModel):
     payout: Decimal
 
 
-class AdLinkMetricsResponse(BaseModel):
+class AdLinkMetricsResponse(ResponseModel):
     ad_link_id: int
     attributions_count: int
     paid_count: int
@@ -104,7 +105,7 @@ class AdLinkMetricsResponse(BaseModel):
     roi: Optional[Decimal] = None
 
 
-class AdvertisingSummaryResponse(BaseModel):
+class AdvertisingSummaryResponse(ResponseModel):
     report_currency: Currency
     attributions_count: int
     attributions_by_channel: dict[AdLinkChannel, int]
@@ -117,7 +118,7 @@ class AdvertisingSummaryResponse(BaseModel):
     links: list[AdLinkMetricsResponse]
 
 
-class AttributedUserResponse(BaseModel):
+class AttributedUserResponse(ResponseModel):
     user_id: int
     name: str
     channel: AdLinkChannel
@@ -125,12 +126,12 @@ class AttributedUserResponse(BaseModel):
     has_paid: bool
 
 
-class AttributedUserPageResponse(BaseModel):
+class AttributedUserPageResponse(ResponseModel):
     items: list[AttributedUserResponse]
     total: int
 
 
-class AdAttributionResponse(BaseModel):
+class AdAttributionResponse(ResponseModel):
     ad_link_id: int
     name: str
     code: str
@@ -138,7 +139,7 @@ class AdAttributionResponse(BaseModel):
     attributed_at: datetime
 
 
-class UserAdAttributionResponse(BaseModel):
+class UserAdAttributionResponse(ResponseModel):
     # an object even when there is none, like the registration snapshot
     attribution: Optional[AdAttributionResponse]
 
@@ -147,7 +148,7 @@ class ActivateAdLinkPromocodeRequest(BaseModel):
     code: str = Field(min_length=1, max_length=64)
 
 
-class AdLinkPromocodeResponse(BaseModel):
+class AdLinkPromocodeResponse(ResponseModel):
     code: str
     reward_type: PromocodeRewardType
     reward: Optional[int] = None
@@ -156,7 +157,7 @@ class AdLinkPromocodeResponse(BaseModel):
     reward_duration_days: Optional[int] = None
 
 
-class AdLinkPromocodeResultResponse(BaseModel):
+class AdLinkPromocodeResultResponse(ResponseModel):
     # both null: the link carries no promocode it may give
     outcome: Optional[PromocodeLinkOutcome] = None
     promocode: Optional[AdLinkPromocodeResponse] = None

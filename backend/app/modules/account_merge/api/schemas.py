@@ -2,22 +2,23 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel
 
+from app.core.dto import ResponseModel
 from app.modules.users import UserResponse
 
 
-class MergeConflictResponse(BaseModel):
+class MergeConflictResponse(ResponseModel):
     key: str
     source_value: Optional[str]
     target_value: Optional[str]
     forced: Optional[Literal["source", "target"]]
 
 
-class MergeReferrerCycleResponse(BaseModel):
+class MergeReferrerCycleResponse(ResponseModel):
     side: Literal["source", "target"]
     referrer_id: int
 
 
-class MergeCountsResponse(BaseModel):
+class MergeCountsResponse(ResponseModel):
     subscriptions: int
     transactions: int
     referrals: int
@@ -25,7 +26,7 @@ class MergeCountsResponse(BaseModel):
     oauth_identities: int
 
 
-class MergePreviewResponse(BaseModel):
+class MergePreviewResponse(ResponseModel):
     source: UserResponse
     target: UserResponse
     conflicts: list[MergeConflictResponse]

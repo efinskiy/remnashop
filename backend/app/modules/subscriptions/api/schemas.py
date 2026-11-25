@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, computed_field, field_validator
 from remnapy.enums import TrafficLimitStrategy
 
 from app.core.constants import PANEL_TAG_MAX_LENGTH, PANEL_TAG_PATTERN
+from app.core.dto import ResponseModel
 from app.core.enums import (
     AddOnType,
     CreditSegmentKind,
@@ -23,7 +24,7 @@ from app.modules.subscriptions.dto import GetAvailableTrialDto, PlanSnapshot, Su
 from app.modules.subscriptions.plan_snapshot_response import PlanSnapshotResponse
 
 
-class AddOnEntitlementResponse(BaseModel):
+class AddOnEntitlementResponse(ResponseModel):
     subscription_id: int
     addon_id: Optional[int] = None
     type: AddOnType
@@ -31,7 +32,7 @@ class AddOnEntitlementResponse(BaseModel):
     granted_at: datetime
 
 
-class SubscriptionResponse(BaseModel):
+class SubscriptionResponse(ResponseModel):
     id: int
     user_id: int
     remnawave_user_id: int
@@ -65,7 +66,7 @@ class SubscriptionResponse(BaseModel):
         return value.to_json() if isinstance(value, PlanSnapshot) else value
 
 
-class CreditSegmentResponse(BaseModel):
+class CreditSegmentResponse(ResponseModel):
     id: int
     kind: CreditSegmentKind
     paid: Decimal
@@ -84,7 +85,7 @@ class SubscriptionDetailResponse(SubscriptionResponse):
     sub_last_opened_at: Optional[datetime] = None
     sub_last_user_agent: Optional[str] = None
     # what the term was paid with, the plan change credit counted from it
-    credit_segments: list[CreditSegmentResponse] = []
+    credit_segments: list[CreditSegmentResponse] = Field(default_factory=list)
 
 
 class SubscriptionListItemResponse(SubscriptionResponse):
@@ -92,12 +93,12 @@ class SubscriptionListItemResponse(SubscriptionResponse):
     user_name: Optional[str] = None
 
 
-class SubscriptionPageResponse(BaseModel):
+class SubscriptionPageResponse(ResponseModel):
     items: list[SubscriptionListItemResponse]
     total: int
 
 
-class SubscriptionListStatsResponse(BaseModel):
+class SubscriptionListStatsResponse(ResponseModel):
     paid_active: int
     active_trials: int
     expiring: int
@@ -118,7 +119,7 @@ class UpdateSubscriptionRequest(BaseModel):
     expire_at: Optional[datetime] = None
 
 
-class DeletedSubscriptionsResponse(BaseModel):
+class DeletedSubscriptionsResponse(ResponseModel):
     deleted: int
 
 
@@ -140,7 +141,7 @@ class ChangeSubscriptionPlanRequest(BaseModel):
     duration_days: Optional[int] = Field(default=None, ge=0, le=36500)
 
 
-class DeviceResponse(BaseModel):
+class DeviceResponse(ResponseModel):
     hwid: str
     name: Optional[str] = None
     platform: Optional[str] = None
@@ -156,12 +157,12 @@ class RenameDeviceRequest(BaseModel):
     name: str
 
 
-class DeviceListResponse(BaseModel):
+class DeviceListResponse(ResponseModel):
     items: list[DeviceResponse]
     total: int
 
 
-class PublicPlanPriceResponse(BaseModel):
+class PublicPlanPriceResponse(ResponseModel):
     currency: Currency
     # 0 only for a free trial plan opened by its code
     price: Decimal = Field(ge=0)
@@ -169,14 +170,14 @@ class PublicPlanPriceResponse(BaseModel):
     discounted_price: Optional[Decimal] = None
 
 
-class PublicPlanDurationResponse(BaseModel):
+class PublicPlanDurationResponse(ResponseModel):
     # 0 is unlimited
     days: int = Field(ge=0)
     order_index: int = 0
     prices: list[PublicPlanPriceResponse]
 
 
-class PublicPlanResponse(BaseModel):
+class PublicPlanResponse(ResponseModel):
     id: int
     name: str
     # `[glyph](emoji:id)` kept, for a cabinet that draws the thumbnails
@@ -203,13 +204,13 @@ class PublicPlanResponse(BaseModel):
         return PREMIUM_EMOJI_RE.sub(r"\1", self.description_markup)
 
 
-class PublicPlanListResponse(BaseModel):
+class PublicPlanListResponse(ResponseModel):
     items: list[PublicPlanResponse]
     total: int
     anchor_currency: Currency
 
 
-class OwnSubscriptionResponse(BaseModel):
+class OwnSubscriptionResponse(ResponseModel):
     id: int
     status: SubscriptionStatus
     is_trial: bool
@@ -263,7 +264,7 @@ class OwnSubscriptionResponse(BaseModel):
         )
 
 
-class OwnSubscriptionListResponse(BaseModel):
+class OwnSubscriptionListResponse(ResponseModel):
     items: list[OwnSubscriptionResponse]
     total: int
 
@@ -272,7 +273,7 @@ class ActivateTrialRequest(BaseModel):
     mini_app: bool = False
 
 
-class TrialResponse(BaseModel):
+class TrialResponse(ResponseModel):
     is_available: bool
     plan_id: Optional[int] = None
     plan_name: Optional[str] = None
@@ -282,7 +283,7 @@ class TrialResponse(BaseModel):
     price: Optional[Decimal] = None
     currency: Optional[Currency] = None
     # the one duration in every currency, for the checkout's gateway choice
-    prices: list[PublicPlanPriceResponse] = []
+    prices: list[PublicPlanPriceResponse] = Field(default_factory=list)
 
     @classmethod
     def from_dto(cls, trial: GetAvailableTrialDto, *, locale: Locale) -> "TrialResponse":
@@ -303,7 +304,7 @@ class TrialResponse(BaseModel):
         )
 
 
-class PanelSyncResultResponse(BaseModel):
+class PanelSyncResultResponse(ResponseModel):
     direction: PanelSyncDirection
     checked: int
     updated: int
@@ -335,46 +336,46 @@ class PushToPanelRequest(BaseModel):
     squad_replacements: dict[UUID, Optional[UUID]] = Field(default_factory=dict)
 
 
-class MissingSquadResponse(BaseModel):
+class MissingSquadResponse(ResponseModel):
     uuid: UUID
     kind: Literal["internal", "external"]
     subscriptions: int
 
 
-class MissingSquadListResponse(BaseModel):
+class MissingSquadListResponse(ResponseModel):
     items: list[MissingSquadResponse]
     total: int
 
 
-class PanelSyncDirectionStatusResponse(BaseModel):
+class PanelSyncDirectionStatusResponse(ResponseModel):
     direction: PanelSyncDirection
     running: bool
     last: Optional[PanelSyncResultResponse] = None
 
 
-class PanelSyncStatusResponse(BaseModel):
+class PanelSyncStatusResponse(ResponseModel):
     from_panel: PanelSyncDirectionStatusResponse
     to_panel: PanelSyncDirectionStatusResponse
 
 
-class PanelFieldDiffResponse(BaseModel):
+class PanelFieldDiffResponse(ResponseModel):
     field: str
     shop: str
     panel: str
 
 
-class PanelSquadResponse(BaseModel):
+class PanelSquadResponse(ResponseModel):
     uuid: UUID
     name: str
     kind: Literal["internal", "external"]
 
 
-class PanelSquadListResponse(BaseModel):
+class PanelSquadListResponse(ResponseModel):
     items: list[PanelSquadResponse]
     total: int
 
 
-class SubscriptionPanelDiffResponse(BaseModel):
+class SubscriptionPanelDiffResponse(ResponseModel):
     subscription_id: int
     missing_in_panel: bool
     fields: list[PanelFieldDiffResponse]

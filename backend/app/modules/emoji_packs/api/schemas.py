@@ -2,15 +2,17 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from app.core.dto import ResponseModel
 
-class EmojiPackItemResponse(BaseModel):
+
+class EmojiPackItemResponse(ResponseModel):
     custom_emoji_id: str
     fallback_emoji: str
     # "lottie", "video", or null when this emoji has no animation stored.
     animation_kind: Optional[str]
 
 
-class EmojiPackResponse(BaseModel):
+class EmojiPackResponse(ResponseModel):
     set_name: str
     title: str
     items: list[EmojiPackItemResponse]
@@ -20,6 +22,6 @@ class ImportEmojiPackRequest(BaseModel):
     link: str = Field(min_length=1, max_length=256)
 
 
-class EmojiPackListResponse(BaseModel):
+class EmojiPackListResponse(ResponseModel):
     items: list[EmojiPackResponse]
     total: int

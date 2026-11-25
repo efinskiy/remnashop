@@ -21,8 +21,11 @@ from app.core.enums import (
 from app.modules.broadcasts.channels import sends_email, sends_telegram
 
 
+# also returned by the API: see core.dto.ResponseModel for the schema flag
 class BroadcastAudienceDto(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", json_schema_serialization_defaults_required=True
+    )
 
     user_ids: list[int] = []
     subscription: list[BroadcastSubscriptionFilter] = []
@@ -41,7 +44,9 @@ class BroadcastAudienceDto(BaseModel):
 
 
 class BroadcastButtonDto(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", json_schema_serialization_defaults_required=True
+    )
 
     kind: BroadcastButtonKind
     url: Optional[str] = None
@@ -49,14 +54,18 @@ class BroadcastButtonDto(BaseModel):
 
 
 class BroadcastContentDto(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", json_schema_serialization_defaults_required=True
+    )
 
     text: str
     button_labels: list[str] = []
 
 
 class BroadcastEmailContentDto(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", json_schema_serialization_defaults_required=True
+    )
 
     subject: str
     html: str

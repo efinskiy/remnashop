@@ -3,29 +3,30 @@ from decimal import Decimal
 from enum import IntEnum
 from typing import Literal, Optional
 
-from pydantic import BaseModel, computed_field
+from pydantic import computed_field
 
+from app.core.dto import ResponseModel
 from app.core.enums import Currency, PaymentGatewayType, PurchaseType
 from app.modules.overview.dto import AttentionKind
 
 
-class DailyCountResponse(BaseModel):
+class DailyCountResponse(ResponseModel):
     day: date
     count: int
 
 
-class DailyAmountResponse(BaseModel):
+class DailyAmountResponse(ResponseModel):
     day: date
     amount: Decimal
     count: int
 
 
-class OverviewUsersResponse(BaseModel):
+class OverviewUsersResponse(ResponseModel):
     total: int
     new_today: int
 
 
-class OverviewSubscriptionsResponse(BaseModel):
+class OverviewSubscriptionsResponse(ResponseModel):
     total: int
     active: int
     limited: int
@@ -36,14 +37,14 @@ class OverviewSubscriptionsResponse(BaseModel):
     trials: int
 
 
-class RevenueTodayResponse(BaseModel):
+class RevenueTodayResponse(ResponseModel):
     report_currency: Currency
     today: Decimal
     yesterday_same_time: Decimal
     change: Optional[float] = None
 
 
-class RecentPaymentResponse(BaseModel):
+class RecentPaymentResponse(ResponseModel):
     transaction_id: int
     user_id: int
     name: str
@@ -56,7 +57,7 @@ class RecentPaymentResponse(BaseModel):
     paid_at: datetime
 
 
-class RuntimeProcessResponse(BaseModel):
+class RuntimeProcessResponse(ResponseModel):
     process: str
     instance: Optional[str]
     pid: Optional[int]
@@ -66,12 +67,12 @@ class RuntimeProcessResponse(BaseModel):
     event_loop_p99_ms: Optional[float]
 
 
-class HostMemoryResponse(BaseModel):
+class HostMemoryResponse(ResponseModel):
     total_bytes: int
     used_bytes: int
 
 
-class HostStatsResponse(BaseModel):
+class HostStatsResponse(ResponseModel):
     cpu_percent: Optional[float] = None
     cpu_count: int
     load_1: Optional[float] = None
@@ -81,7 +82,7 @@ class HostStatsResponse(BaseModel):
     disk_used_bytes: Optional[int] = None
 
 
-class OverviewResponse(BaseModel):
+class OverviewResponse(ResponseModel):
     users: Optional[OverviewUsersResponse] = None
     subscriptions: Optional[OverviewSubscriptionsResponse] = None
     runtime: list[RuntimeProcessResponse]
@@ -91,7 +92,7 @@ class OverviewResponse(BaseModel):
     recent_payments: Optional[list[RecentPaymentResponse]] = None
 
 
-class RecapResponse(BaseModel):
+class RecapResponse(ResponseModel):
     report_currency: Currency
     revenue_total: Decimal
     customers: int
@@ -106,7 +107,7 @@ class RecapResponse(BaseModel):
     since: date
 
 
-class RevenueChartResponse(BaseModel):
+class RevenueChartResponse(ResponseModel):
     days: int
     granularity: Literal["day", "month"]
     paid_orders_count: int
@@ -114,24 +115,24 @@ class RevenueChartResponse(BaseModel):
     daily: list[DailyAmountResponse]
 
 
-class OnlineChartResponse(BaseModel):
+class OnlineChartResponse(ResponseModel):
     days: int
     granularity: Literal["day", "month"]
     current: int
     daily_peak: list[DailyCountResponse]
 
 
-class HourlyOnlinePointResponse(BaseModel):
+class HourlyOnlinePointResponse(ResponseModel):
     hour: datetime
     peak: Optional[int]
 
 
-class HourlyOnlineResponse(BaseModel):
+class HourlyOnlineResponse(ResponseModel):
     current: int
     points: list[HourlyOnlinePointResponse]
 
 
-class NodeCardResponse(BaseModel):
+class NodeCardResponse(ResponseModel):
     name: str
     country_code: str
     is_connected: bool
@@ -141,38 +142,38 @@ class NodeCardResponse(BaseModel):
     last_status_change: Optional[datetime]
 
 
-class CountryCardResponse(BaseModel):
+class CountryCardResponse(ResponseModel):
     country_code: str
     nodes: int
     connected: int
     users_online: int
 
 
-class NodesOverviewResponse(BaseModel):
+class NodesOverviewResponse(ResponseModel):
     available: bool
     nodes: list[NodeCardResponse]
     countries: list[CountryCardResponse]
 
 
-class AppCountResponse(BaseModel):
+class AppCountResponse(ResponseModel):
     app: str
     count: int
 
 
-class PlatformAppsResponse(BaseModel):
+class PlatformAppsResponse(ResponseModel):
     platform: str
     total: int
     apps: list[AppCountResponse]
 
 
-class ClientAppsResponse(BaseModel):
+class ClientAppsResponse(ResponseModel):
     available: bool
     total_devices: int
     average_per_user: float
     platforms: list[PlatformAppsResponse]
 
 
-class AttentionItemResponse(BaseModel):
+class AttentionItemResponse(ResponseModel):
     kind: AttentionKind
     severity: Literal["critical", "warning"]
     count: int
@@ -180,7 +181,7 @@ class AttentionItemResponse(BaseModel):
     since: Optional[datetime]
 
 
-class AttentionResponse(BaseModel):
+class AttentionResponse(ResponseModel):
     items: list[AttentionItemResponse]
 
     @computed_field  # type: ignore[prop-decorator]

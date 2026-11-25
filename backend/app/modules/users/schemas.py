@@ -2,15 +2,16 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel, field_validator
+from pydantic import field_validator
 
+from app.core.dto import ResponseModel
 from app.core.security.permissions import Permission, PermissionPolicy
 from app.modules.users.dto import UserDto
 
 
 # lives outside api/: users and account_merge both answer with it, and importing
 # users.api from the package would pull in the routers
-class UserResponse(BaseModel):
+class UserResponse(ResponseModel):
     id: int
     name: str
     role: str
@@ -52,7 +53,7 @@ def effective_permission_names(user: UserDto) -> list[str]:
     return sorted(p.value for p in PermissionPolicy.effective_permissions(user))
 
 
-class CurrentUserResponse(BaseModel):
+class CurrentUserResponse(ResponseModel):
     id: int
     login: Optional[str]
     name: str

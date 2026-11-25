@@ -12,6 +12,7 @@ from app.core.constants import (
     PANEL_TAG_MAX_LENGTH,
     PANEL_TAG_PATTERN,
 )
+from app.core.dto import ResponseModel
 from app.core.enums import AccessMode, CaptchaProvider, SmtpSecurity
 
 _COMMAND_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-z0-9_]{1,32}$")
@@ -28,7 +29,7 @@ _CHANNEL_ID_PREFIX: Final[str] = "-100"
 _TELEGRAM_LINK_HOSTS: Final[frozenset[str]] = frozenset({"t.me", "telegram.me", "telegram.dog"})
 
 
-class BotSettingsResponse(BaseModel):
+class BotSettingsResponse(ResponseModel):
     is_configured: bool
     is_proxy_configured: bool
     drop_pending_updates: bool
@@ -39,7 +40,7 @@ class SetBotProxyRequest(BaseModel):
     proxy_url: str = Field(min_length=1)
 
 
-class BotStatusResponse(BaseModel):
+class BotStatusResponse(ResponseModel):
     is_configured: bool
     is_running: bool
     webhook_url: Optional[str]
@@ -57,7 +58,7 @@ MAX_ACTIVE_SUBSCRIPTIONS_LIMIT: Final[int] = 10
 MAX_RESET_COOLDOWN_HOURS: Final[int] = 9999
 
 
-class ShopSettingsResponse(BaseModel):
+class ShopSettingsResponse(ResponseModel):
     max_active_subscriptions: Optional[int]
     device_single_reset_enabled: bool
     device_single_reset_cooldown_hours: int
@@ -130,7 +131,7 @@ class UpdateShopSettingsRequest(BaseModel):
         return self
 
 
-class GraceSettingsResponse(BaseModel):
+class GraceSettingsResponse(ResponseModel):
     enabled: bool
     internal_squads: list[UUID]
     external_squad: Optional[UUID]
@@ -171,7 +172,7 @@ class BotCommandRequest(BaseModel):
     enabled: bool
 
 
-class BotCommandResponse(BaseModel):
+class BotCommandResponse(ResponseModel):
     command: str
     enabled: bool
 
@@ -187,7 +188,7 @@ class UpdateBotCommandsRequest(BaseModel):
         return self
 
 
-class BotCommandsResponse(BaseModel):
+class BotCommandsResponse(ResponseModel):
     commands: list[BotCommandResponse]
 
 
@@ -195,11 +196,11 @@ class UpdateBotCommandsResponse(BotCommandsResponse):
     telegram_sync_failed: bool
 
 
-class BotLogsResponse(BaseModel):
+class BotLogsResponse(ResponseModel):
     lines: list[str]
 
 
-class OAuthSettingsResponse(BaseModel):
+class OAuthSettingsResponse(ResponseModel):
     is_github_configured: bool
     github_enabled: bool
     is_telegram_configured: bool
@@ -238,7 +239,7 @@ class UpdateOAuthSettingsRequest(BaseModel):
     passkey_origin: Optional[str] = Field(default=None, pattern=r"^https?://.+", max_length=512)
 
 
-class AppearanceResponse(BaseModel):
+class AppearanceResponse(ResponseModel):
     brand_name: Optional[str] = None
     primary_color: Optional[str] = None
     shader_base: Optional[str] = None
@@ -260,7 +261,7 @@ class UpdateAppearanceRequest(BaseModel):
     shader_enabled: Optional[bool] = None
 
 
-class AccessSettingsResponse(BaseModel):
+class AccessSettingsResponse(ResponseModel):
     mode: AccessMode
     registration_enabled: bool
     payments_enabled: bool
@@ -272,7 +273,7 @@ class UpdateAccessSettingsRequest(BaseModel):
     payments_enabled: Optional[bool] = None
 
 
-class EmailSettingsResponse(BaseModel):
+class EmailSettingsResponse(ResponseModel):
     host: Optional[str]
     port: int
     security: SmtpSecurity
@@ -332,7 +333,7 @@ class UpdateEmailSettingsRequest(BaseModel):
         return value.strip() if isinstance(value, str) else value
 
 
-class CabinetAuthSettingsResponse(BaseModel):
+class CabinetAuthSettingsResponse(ResponseModel):
     telegram_enabled: bool
     telegram_deeplink_enabled: bool
     telegram_oauth_enabled: bool
@@ -373,7 +374,7 @@ class UpdateCabinetAuthSettingsRequest(BaseModel):
         )
 
 
-class BotRequirementsResponse(BaseModel):
+class BotRequirementsResponse(ResponseModel):
     channel_required: bool
     channel_id: Optional[int]
     channel_url: Optional[str]
@@ -413,7 +414,7 @@ class UpdateBotRequirementsRequest(BaseModel):
         return value
 
 
-class CabinetSettingsResponse(BaseModel):
+class CabinetSettingsResponse(ResponseModel):
     max_active_subscriptions: Optional[int]
     device_single_reset_enabled: bool
     device_all_reset_enabled: bool

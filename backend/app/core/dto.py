@@ -19,3 +19,9 @@ class TimestampMixin(BaseModel):
 
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+
+
+class ResponseModel(BaseModel):
+    # every response sends every field, so a default doesn't make one optional
+    # in the schema the dashboard's types are generated from
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)

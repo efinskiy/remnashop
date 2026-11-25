@@ -4,6 +4,7 @@ from typing import Annotated, Optional, TypeAlias
 
 from pydantic import AliasPath, BaseModel, Field
 
+from app.core.dto import ResponseModel
 from app.core.enums import (
     Currency,
     ReferralAccrualStrategy,
@@ -17,7 +18,7 @@ _WholeDecimal: TypeAlias = Annotated[Decimal, Field(max_digits=12, decimal_place
 _RewardLevel: TypeAlias = Annotated[int, Field(ge=1, le=MAX_REFERRAL_LEVEL)]
 
 
-class ReferralSettingsResponse(BaseModel):
+class ReferralSettingsResponse(ResponseModel):
     enabled: bool
     max_level: int
     accrual_strategy: ReferralAccrualStrategy
@@ -44,7 +45,7 @@ class UpdateReferralSettingsRequest(BaseModel):
     invitee_reward_amount: Optional[int] = Field(default=None, ge=0, le=MAX_BONUS_DAYS)
 
 
-class ReferralUserResponse(BaseModel):
+class ReferralUserResponse(ResponseModel):
     id: int
     name: str
     username: Optional[str]
@@ -52,7 +53,7 @@ class ReferralUserResponse(BaseModel):
     email: Optional[str]
 
 
-class ReferralRewardResponse(BaseModel):
+class ReferralRewardResponse(ResponseModel):
     type: ReferralRewardType
     amount: Decimal
     created_at: datetime
@@ -61,13 +62,13 @@ class ReferralRewardResponse(BaseModel):
     level: Optional[int] = None
 
 
-class ReferralRevenueResponse(BaseModel):
+class ReferralRevenueResponse(ResponseModel):
     amount: Decimal
     currency: Currency
     paying_count: int
 
 
-class ReferralStatsResponse(BaseModel):
+class ReferralStatsResponse(ResponseModel):
     referral_code: Optional[str]
     referrer_id: Optional[int]
     points: Decimal
@@ -80,12 +81,12 @@ class ReferralStatsResponse(BaseModel):
     referrer: Optional[ReferralUserResponse] = None
 
 
-class ReferralRewardPageResponse(BaseModel):
+class ReferralRewardPageResponse(ResponseModel):
     items: list[ReferralRewardResponse]
     total: int
 
 
-class ReferralProgramResponse(BaseModel):
+class ReferralProgramResponse(ResponseModel):
     enabled: bool
     reward_type: ReferralRewardType
     reward_strategy: ReferralRewardStrategy
@@ -96,7 +97,7 @@ class ReferralProgramResponse(BaseModel):
     max_level: int
 
 
-class OwnReferralStatsResponse(BaseModel):
+class OwnReferralStatsResponse(ResponseModel):
     referral_code: Optional[str]
     referrer_id: Optional[int]
     points: Decimal
@@ -108,7 +109,7 @@ class OwnReferralStatsResponse(BaseModel):
     program: ReferralProgramResponse
 
 
-class ReferralListItemResponse(BaseModel):
+class ReferralListItemResponse(ResponseModel):
     id: int = Field(validation_alias=AliasPath("referral", "id"))
     level: int = Field(validation_alias=AliasPath("referral", "level"))
     created_at: datetime = Field(validation_alias=AliasPath("referral", "created_at"))
@@ -120,12 +121,12 @@ class ReferralListItemResponse(BaseModel):
     )
 
 
-class ReferralPageResponse(BaseModel):
+class ReferralPageResponse(ResponseModel):
     items: list[ReferralListItemResponse]
     total: int
 
 
-class ReferralSummaryResponse(BaseModel):
+class ReferralSummaryResponse(ResponseModel):
     total_count: int
     referrers_count: int
     rewarded_count: int
@@ -133,15 +134,15 @@ class ReferralSummaryResponse(BaseModel):
     reward_amounts: dict[ReferralRewardType, Decimal]
 
 
-class PointsBalanceResponse(BaseModel):
+class PointsBalanceResponse(ResponseModel):
     points: Decimal
 
 
-class BonusDaysBalanceResponse(BaseModel):
+class BonusDaysBalanceResponse(ResponseModel):
     bonus_days: int
 
 
-class ReferralCodeResponse(BaseModel):
+class ReferralCodeResponse(ResponseModel):
     referral_code: Optional[str]
 
 
@@ -158,18 +159,18 @@ class RedeemBonusDaysRequest(BaseModel):
     days: int = Field(ge=1, le=MAX_BONUS_DAYS)
 
 
-class BonusDaysTargetsResponse(BaseModel):
+class BonusDaysTargetsResponse(ResponseModel):
     subscription_ids: list[int]
 
 
-class RedeemBonusDaysResponse(BaseModel):
+class RedeemBonusDaysResponse(ResponseModel):
     subscription_id: int
     expire_at: datetime
     bonus_days: int
     pending: bool
 
 
-class InvitedUserResponse(BaseModel):
+class InvitedUserResponse(ResponseModel):
     user: Optional[ReferralUserResponse]
     via: Optional[ReferralUserResponse]
     level: int = Field(validation_alias="depth")
@@ -177,18 +178,18 @@ class InvitedUserResponse(BaseModel):
     reward_amounts: dict[ReferralRewardType, Decimal]
 
 
-class OwnInvitedUserResponse(BaseModel):
+class OwnInvitedUserResponse(ResponseModel):
     name: Optional[str]
     level: int
     created_at: datetime
     reward_amounts: dict[ReferralRewardType, Decimal]
 
 
-class OwnInvitedUserPageResponse(BaseModel):
+class OwnInvitedUserPageResponse(ResponseModel):
     items: list[OwnInvitedUserResponse]
     total: int
 
 
-class InvitedUserPageResponse(BaseModel):
+class InvitedUserPageResponse(ResponseModel):
     items: list[InvitedUserResponse]
     total: int

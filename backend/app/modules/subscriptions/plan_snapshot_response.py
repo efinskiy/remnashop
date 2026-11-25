@@ -2,14 +2,14 @@ from decimal import Decimal
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel
 from remnapy.enums import TrafficLimitStrategy
 
+from app.core.dto import ResponseModel
 from app.core.enums import Currency
 
 
 # outside api/: transactions returns it too, and subscriptions.api would pull in the routers
-class PlanSnapshotResponse(BaseModel):
+class PlanSnapshotResponse(ResponseModel):
     plan_id: int
     public_code: str
     name: str
