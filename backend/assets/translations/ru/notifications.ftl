@@ -279,6 +279,7 @@ ntf-system-health-degraded = { $kind ->
         [host_disk_full] Диск сервера заполнен на { $value }%.
         [host_memory_high] Память сервера занята на { $value }%.
         [outbox_stuck] Очередь событий не обрабатывается: дольше 5 минут ждут { $value }.
+        [outbox_poisoned] События не обработаны после 5 попыток: { $value }. Повторите их в «Требует внимания».
         [gateway_failures] Платежи через { $subject } не проходят: ошибок за час — { $value }.
         [smtp_failed] Почта не отправляется: { $subject ->
             [bulk] SMTP для рассылок
@@ -292,6 +293,7 @@ ntf-system-health-restored = { $kind ->
         [host_disk_full] Заполненность диска сервера вернулась к норме.
         [host_memory_high] Использование памяти сервера вернулось к норме.
         [outbox_stuck] Очередь событий снова обрабатывается.
+        [outbox_poisoned] Необработанных событий не осталось.
         [gateway_failures] Платежи через { $subject } снова проходят.
         [smtp_failed] Почта снова отправляется: { $subject ->
             [bulk] SMTP для рассылок

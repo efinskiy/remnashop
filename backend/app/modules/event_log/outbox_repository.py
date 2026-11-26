@@ -69,16 +69,25 @@ class EventOutboxRepository:
         )
         await anonymize_snapshots(self.session, EventOutboxEntry, user_id)
 
-    async def count_poisoned(self) -> int:
+    async def get_poisoned_stats(self) -> OutboxLagStats:
+        stmt = select(func.count(), func.min(EventOutboxEntry.occurred_at)).where(
+            EventOutboxEntry.processed_at.is_(None),
+            EventOutboxEntry.attempts >= _MAX_ATTEMPTS,
+        )
+        count, oldest = (await self.session.execute(stmt)).one()
+        return OutboxLagStats(unprocessed_count=count, oldest_occurred_at=oldest)
+
+    async def reset_poisoned(self) -> list[int]:
         stmt = (
-            select(func.count())
-            .select_from(EventOutboxEntry)
+            update(EventOutboxEntry)
             .where(
                 EventOutboxEntry.processed_at.is_(None),
                 EventOutboxEntry.attempts >= _MAX_ATTEMPTS,
             )
+            .values(attempts=0)
+            .returning(EventOutboxEntry.id)
         )
-        return await self.session.scalar(stmt) or 0
+        return list((await self.session.scalars(stmt)).all())
 
     async def get_stuck_stats(self, before: datetime) -> OutboxLagStats:
         # poisoned rows are left out: the sweep no longer retries them
@@ -99,7 +108,7 @@ class EventOutboxRepository:
 
     async def get_lag_stats(self) -> OutboxLagStats:
         # poisoned rows (past _MAX_ATTEMPTS) included: the operator wants the
-        # whole backlog; count_poisoned() gives the breakdown
+        # whole backlog; get_poisoned_stats() gives the breakdown
         stmt = select(func.count(), func.min(EventOutboxEntry.occurred_at)).where(
             EventOutboxEntry.processed_at.is_(None)
         )

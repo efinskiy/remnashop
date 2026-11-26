@@ -15,6 +15,7 @@ from app.modules.event_log.usecases import (
     ProcessOutboxEntryUseCase,
     PruneEventLogUseCase,
     PruneOutboxUseCase,
+    RetryPoisonedOutboxUseCase,
     SweepOutboxUseCase,
 )
 
@@ -36,6 +37,7 @@ class EventLogProvider(Provider):
         SweepOutboxUseCase,
         PruneEventLogUseCase,
         PruneOutboxUseCase,
+        RetryPoisonedOutboxUseCase,
     )
 
     @provide(scope=Scope.APP)

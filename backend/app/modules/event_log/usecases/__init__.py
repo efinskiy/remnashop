@@ -6,6 +6,7 @@ from app.modules.event_log.usecases.mark_notifications_read import MarkNotificat
 from app.modules.event_log.usecases.process_outbox_entry import ProcessOutboxEntryUseCase
 from app.modules.event_log.usecases.prune_event_log import PruneEventLogUseCase
 from app.modules.event_log.usecases.prune_outbox import PruneOutboxUseCase
+from app.modules.event_log.usecases.retry_poisoned_outbox import RetryPoisonedOutboxUseCase
 from app.modules.event_log.usecases.sweep_outbox import SweepOutboxUseCase
 
 __all__ = [
@@ -17,5 +18,6 @@ __all__ = [
     "ProcessOutboxEntryUseCase",
     "PruneEventLogUseCase",
     "PruneOutboxUseCase",
+    "RetryPoisonedOutboxUseCase",
     "SweepOutboxUseCase",
 ]

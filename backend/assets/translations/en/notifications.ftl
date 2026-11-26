@@ -270,6 +270,7 @@ ntf-system-health-degraded = { $kind ->
         [host_disk_full] The server disk is { $value }% full.
         [host_memory_high] Server memory is { $value }% used.
         [outbox_stuck] The event queue is not being processed: { $value } waiting over 5 minutes.
+        [outbox_poisoned] Events failed after 5 attempts: { $value }. Retry them under “Needs attention”.
         [gateway_failures] Payments through { $subject } are failing: { $value } failures in the last hour.
         [smtp_failed] Email is not being sent: the { $subject ->
             [bulk] broadcast SMTP
@@ -283,6 +284,7 @@ ntf-system-health-restored = { $kind ->
         [host_disk_full] Server disk usage is back to normal.
         [host_memory_high] Server memory usage is back to normal.
         [outbox_stuck] The event queue is being processed again.
+        [outbox_poisoned] No failed events are left.
         [gateway_failures] Payments through { $subject } go through again.
         [smtp_failed] Email is being sent again: the { $subject ->
             [bulk] broadcast SMTP

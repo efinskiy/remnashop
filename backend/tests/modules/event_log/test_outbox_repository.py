@@ -160,21 +160,47 @@ async def test_delete_processed_before_nulls_the_audit_link_but_keeps_the_audit_
     assert await session.get(EventLogEntry, audit.id) is not None
 
 
-async def test_count_poisoned_counts_only_unprocessed_rows_at_the_attempt_cap(
+async def test_poisoned_stats_count_only_unprocessed_rows_at_the_attempt_cap(
     session: AsyncSession,
 ) -> None:
     repo = EventOutboxRepository(session)
     now = datetime.now(timezone.utc)
+    oldest = now - timedelta(days=2)
     session.add_all(
         [
-            _make_entry(attempts=5),
-            _make_entry(attempts=5, processed_at=now),
-            _make_entry(attempts=2),
+            _make_entry(attempts=5, occurred_at=oldest),
+            _make_entry(attempts=6, occurred_at=now - timedelta(days=1)),
+            _make_entry(attempts=5, processed_at=now, occurred_at=now - timedelta(days=9)),
+            _make_entry(attempts=2, occurred_at=now - timedelta(days=9)),
         ]
     )
     await session.flush()
 
-    assert await repo.count_poisoned() == 1
+    stats = await repo.get_poisoned_stats()
+
+    assert stats.unprocessed_count == 2
+    assert stats.oldest_occurred_at == oldest
+
+
+async def test_reset_poisoned_gives_only_poisoned_rows_back_to_the_sweep(
+    session: AsyncSession,
+) -> None:
+    repo = EventOutboxRepository(session)
+    poisoned = _make_entry(attempts=5)
+    processed = _make_entry(attempts=5, processed_at=datetime.now(timezone.utc))
+    failing = _make_entry(attempts=2)
+    session.add_all([poisoned, processed, failing])
+    await session.flush()
+
+    assert await repo.reset_poisoned() == [poisoned.id]
+
+    assert await repo.list_unprocessed_ids(limit=10) == sorted([poisoned.id, failing.id])
+    rows = await session.scalars(
+        select(EventOutboxEntry.attempts)
+        .where(EventOutboxEntry.id.in_([processed.id, failing.id]))
+        .order_by(EventOutboxEntry.id)
+    )
+    assert list(rows) == [5, 2]
 
 
 async def test_get_lag_stats_returns_zero_and_none_when_empty(session) -> None:

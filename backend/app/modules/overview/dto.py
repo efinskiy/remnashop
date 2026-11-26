@@ -209,6 +209,7 @@ class AttentionKind(StrEnum):
     HOST_MEMORY_HIGH = "host_memory_high"
     EVENT_LOOP_LAG = "event_loop_lag"
     OUTBOX_STUCK = "outbox_stuck"
+    OUTBOX_POISONED = "outbox_poisoned"
     PANEL_UNAVAILABLE = "panel_unavailable"
     NODE_OFFLINE = "node_offline"
     GATEWAY_FAILURES = "gateway_failures"

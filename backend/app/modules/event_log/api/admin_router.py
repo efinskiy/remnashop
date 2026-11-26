@@ -3,26 +3,29 @@ from typing import Optional
 
 from dishka import FromDishka
 from dishka.integrations.fastapi import inject
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 
 from app.api.dependencies.admin import require_admin, require_admin_user
 from app.api.errors import error_responses
 from app.core.actor import Actor
 from app.core.constants import DEFAULT_PAGE_SIZE, INT32_MAX, MAX_PAGE_SIZE, SEARCH_MAX_LENGTH
 from app.core.events import EventCategory
+from app.core.utils.http import resolve_client_ip
 from app.core.utils.time import range_end_utc, range_start_utc
 from app.modules.event_log.api.schemas import (
     EventLogEntryResponse,
     EventLogPageResponse,
     NotificationsResponse,
+    OutboxRetryResponse,
 )
-from app.modules.event_log.dto import ListEventLogDto
+from app.modules.event_log.dto import ListEventLogDto, RetryPoisonedOutboxDto
 from app.modules.event_log.usecases import (
     ClearNotificationsUseCase,
     GetEventLogEntryUseCase,
     GetNotificationsUseCase,
     ListEventLogUseCase,
     MarkNotificationsReadUseCase,
+    RetryPoisonedOutboxUseCase,
 )
 from app.modules.users import UserDto
 
@@ -97,6 +100,17 @@ async def clear_notifications(
     actor: UserDto = Depends(require_admin_user),
 ) -> None:
     await use_case(actor)
+
+
+@router.post("/outbox/actions/retry", response_model=OutboxRetryResponse)
+@inject
+async def retry_poisoned_outbox(
+    request: Request,
+    use_case: FromDishka[RetryPoisonedOutboxUseCase],
+    actor: Actor = Depends(require_admin),
+) -> OutboxRetryResponse:
+    retried = await use_case(actor, RetryPoisonedOutboxDto(client_ip=resolve_client_ip(request)))
+    return OutboxRetryResponse(retried=retried)
 
 
 @router.get("/{entry_id:int}", response_model=EventLogEntryResponse, responses=error_responses(404))

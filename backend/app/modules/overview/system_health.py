@@ -26,7 +26,8 @@ class HealthProblem:
     kind: AttentionKind
     # process name for process_down and event_loop_lag, gateway type, SMTP profile (main/bulk)
     subject: Optional[str] = None
-    # percent for the host, p99 in ms for the event loop, waiting outbox rows, failed payments
+    # percent for the host, p99 in ms for the event loop, waiting or abandoned outbox rows,
+    # failed payments
     value: Optional[int] = None
 
     @property
@@ -84,6 +85,11 @@ async def read_service_problems(
         problems.append(
             HealthProblem(kind=AttentionKind.OUTBOX_STUCK, value=outbox.unprocessed_count)
         )
+    poisoned = await outbox_repository.get_poisoned_stats()
+    if poisoned.unprocessed_count:
+        problems.append(
+            HealthProblem(kind=AttentionKind.OUTBOX_POISONED, value=poisoned.unprocessed_count)
+        )
     failed = await transaction_stats.count_failed_by_gateway(now - GATEWAY_FAILED_WINDOW)
     problems += [
         HealthProblem(kind=AttentionKind.GATEWAY_FAILURES, subject=gateway.value, value=count)
@@ -102,6 +108,8 @@ ALERT_AFTER_CHECKS: Final[dict[AttentionKind, int]] = {
     AttentionKind.EVENT_LOOP_LAG: 5,
     # already past their own thresholds (5 minutes waiting, 5 failures within an hour)
     AttentionKind.OUTBOX_STUCK: 1,
+    # the sweep has given up on these: nothing changes until an admin retries them
+    AttentionKind.OUTBOX_POISONED: 1,
     AttentionKind.GATEWAY_FAILURES: 1,
     # a send that fails and is retried fine a minute later isn't worth a message
     AttentionKind.SMTP_FAILED: 2,

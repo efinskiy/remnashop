@@ -167,6 +167,17 @@
         "why": "Until the queue is processed, the event log is not updated, admin and customer notifications are not sent, referral rewards are not granted and loyalty discounts are not recalculated.",
         "fix": "The most likely cause is a stopped worker. If it is running, check its logs for event processing errors. Events are not lost and will be processed once the queue recovers."
       },
+      "outboxPoisoned": {
+        "title": "Events failed to process",
+        "sub_one": "{{formatted}} event left unprocessed after 5 attempts",
+        "sub_other": "{{formatted}} events left unprocessed after 5 attempts",
+        "what": "Processing these events failed 5 times in a row, and the queue stopped retrying them.",
+        "why": "The event log has them, but what was meant to follow did not run: admin and customer notifications, referral rewards, loyalty discount recalculation.",
+        "fix": "Find the error in the worker logs (“Event handler … failed”) and update the shop once it is fixed. Then press “Retry”: the events are processed again, and notifications already sent are not sent twice.",
+        "retry": "Retry",
+        "retried_one": "{{formatted}} event sent for retry.",
+        "retried_other": "{{formatted}} events sent for retry."
+      },
       "panelUnavailable": {
         "title": "Connection to Remnawave lost",
         "sub": "The panel does not respond or the reply is not recognized",
@@ -915,6 +926,7 @@
       "RemnawaveVersionMismatchEvent": "Unsupported Remnawave version",
       "SystemHealthDegradedEvent": "Critical system state",
       "SystemHealthRestoredEvent": "System state restored",
+      "OutboxRetriedEvent": "Failed events retried",
       "BotStartedEvent": "Bot started",
       "BotStoppedEvent": "Bot stopped",
       "TelegramWebhookFailedEvent": "Telegram webhook error",
@@ -2355,6 +2367,7 @@
     "API_TOKENS_MANAGE": "Manage API tokens",
     "EVENT_LOG_VIEW": "View event log",
     "EVENT_LOG_DETAIL_VIEW": "View event log entry",
+    "OUTBOX_RETRY": "Retry failed events",
     "USERS_VIEW": "View users",
     "USERS_DETAIL_VIEW": "View user details",
     "USERS_REGISTRATION_VIEW": "View how a user signed up",

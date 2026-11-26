@@ -83,13 +83,14 @@ async def test_service_problems_cover_smtp_the_outbox_and_a_gateway_spike(
 ) -> None:
     now = datetime_now()
     await record_smtp_failure(redis, bulk=False, at=now)
-    for age in (10, 2):
+    for age, attempts in ((10, 0), (2, 0), (30, 5), (40, 5)):
         session.add(
             EventOutboxEntry(
                 category=EventCategory.AUTH,
                 event_type="LoginSucceededEvent",
                 occurred_at=now - timedelta(minutes=age),
                 payload={},
+                attempts=attempts,
             )
         )
     user = await user_repository.create(CreateUserDto(name="Payer", telegram_id=840_201))
@@ -107,6 +108,7 @@ async def test_service_problems_cover_smtp_the_outbox_and_a_gateway_spike(
     assert {p.key: p.value for p in problems} == {
         "smtp_failed:main": None,
         "outbox_stuck:": 1,
+        "outbox_poisoned:": 2,
         "gateway_failures:YOOKASSA": GATEWAY_FAILED_SPIKE,
     }
 

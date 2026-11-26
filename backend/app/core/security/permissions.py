@@ -94,6 +94,7 @@ class Permission(UpperStrEnum):
     API_TOKENS_MANAGE = auto()
     EVENT_LOG_VIEW = auto()
     EVENT_LOG_DETAIL_VIEW = auto()
+    OUTBOX_RETRY = auto()
     NOTIFICATIONS_VIEW = auto()
     NOTIFICATION_SETTINGS_VIEW = auto()
     NOTIFICATION_SETTINGS_MANAGE = auto()
@@ -348,6 +349,7 @@ PERMISSION_METADATA: Final[dict[Permission, PermissionMeta]] = {
     Permission.DIALOGS_IMPORT: PermissionMeta(resource="dialogs", kind="write"),
     Permission.EVENT_LOG_VIEW: PermissionMeta(resource="event_log", kind="read"),
     Permission.EVENT_LOG_DETAIL_VIEW: PermissionMeta(resource="event_log", kind="read"),
+    Permission.OUTBOX_RETRY: PermissionMeta(resource="event_log", kind="write"),
     Permission.NOTIFICATIONS_VIEW: PermissionMeta(resource="event_log", kind="read"),
     Permission.NOTIFICATION_SETTINGS_VIEW: PermissionMeta(
         resource="notification_settings", kind="read"
@@ -667,6 +669,7 @@ ROLE_PERMISSIONS: Final[dict[Role, frozenset[Permission]]] = {
             Permission.BOT_REQUIREMENTS_VIEW,
             Permission.BOT_REQUIREMENTS_MANAGE,
             Permission.BOT_RESTART,
+            Permission.OUTBOX_RETRY,
             Permission.BOT_PROXY_SET,
             Permission.BOT_PROXY_REMOVE,
             Permission.SHOP_SETTINGS_VIEW,

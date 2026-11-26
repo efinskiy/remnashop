@@ -49,3 +49,8 @@ class ListEventLogDto:
     before_id: Optional[int] = None
     page: int = 1
     page_size: int = DEFAULT_PAGE_SIZE
+
+
+@dataclass(frozen=True, kw_only=True)
+class RetryPoisonedOutboxDto:
+    client_ip: str
