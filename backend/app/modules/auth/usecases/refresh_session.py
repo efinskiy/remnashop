@@ -1,4 +1,5 @@
-from typing import Optional
+from datetime import timedelta
+from typing import Final, Optional
 
 from app.core.db.uow import UnitOfWork
 from app.core.enums import SessionAudience
@@ -6,9 +7,13 @@ from app.core.error_codes import ErrorCode
 from app.core.exceptions import AuthenticationError
 from app.core.ports import EventPublisher
 from app.core.security import hash_refresh_token
+from app.core.utils.time import datetime_now
 from app.modules.auth.events import SessionTheftDetectedEvent
 from app.modules.auth.repository import SessionRepository
 from app.modules.auth.session_issuer import IssuedSession, SessionIssuer
+
+# how long a just-replaced refresh token still rotates (two tabs refreshing at once)
+_ROTATION_GRACE: Final[timedelta] = timedelta(seconds=30)
 
 
 class RefreshSessionUseCase:
@@ -43,7 +48,8 @@ class RefreshSessionUseCase:
                 await self._session_repository.rotate(
                     current_session.id,
                     hash_refresh_token(new_refresh_token),
-                    extend_grace=True,
+                    # a second tab still holding the old token rotates it once more
+                    previous_grace_until=datetime_now() + _ROTATION_GRACE,
                 )
             return await self._session_issuer.reissue_access_only(
                 current_session.user_id, current_session.id, new_refresh_token
@@ -61,7 +67,8 @@ class RefreshSessionUseCase:
                 await self._session_repository.rotate(
                     graced_session.id,
                     hash_refresh_token(new_refresh_token),
-                    extend_grace=False,
+                    # re-arming the window would let a stolen token keep rotating
+                    previous_grace_until=None,
                 )
             return await self._session_issuer.reissue_access_only(
                 graced_session.user_id, graced_session.id, new_refresh_token

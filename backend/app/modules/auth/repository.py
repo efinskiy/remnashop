@@ -1,5 +1,5 @@
-from datetime import datetime, timedelta
-from typing import Final, Optional, cast
+from datetime import datetime
+from typing import Optional, cast
 
 from sqlalchemy import ColumnElement, CursorResult, delete, or_, select, true, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,8 +8,6 @@ from app.core.db.models.user_session import UserSession
 from app.core.enums import SessionAudience
 from app.core.utils.time import datetime_now
 from app.modules.auth.dto import CreateSessionDto, SessionDto
-
-_ROTATION_GRACE_SECONDS: Final[int] = 30
 
 
 class SessionRepository:
@@ -91,17 +89,22 @@ class SessionRepository:
         return [self._to_dto(row) for row in rows]
 
     async def rotate(
-        self, session_id: int, new_refresh_token_hash: str, *, extend_grace: bool = True
+        self,
+        session_id: int,
+        new_refresh_token_hash: str,
+        *,
+        previous_grace_until: Optional[datetime],
     ) -> SessionDto:
+        """`previous_grace_until`: how long the replaced hash still rotates; None keeps
+        the previous hash and its window as they are."""
         stmt = select(UserSession).where(UserSession.id == session_id).with_for_update()
         row = await self.session.scalar(stmt)
         assert row is not None
-        now = datetime_now()
-        if extend_grace:
+        if previous_grace_until is not None:
             row.previous_refresh_token_hash = row.refresh_token_hash
-            row.previous_hash_grace_until = now + timedelta(seconds=_ROTATION_GRACE_SECONDS)
+            row.previous_hash_grace_until = previous_grace_until
         row.refresh_token_hash = new_refresh_token_hash
-        row.last_used_at = now
+        row.last_used_at = datetime_now()
         await self.session.flush()
         await self.session.refresh(row)
         return self._to_dto(row)

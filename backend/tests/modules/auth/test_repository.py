@@ -99,7 +99,9 @@ async def test_get_rotatable_by_hash_matches_previous_within_grace(
     user = await _create_user(user_repository, uow, "owner")
     created = await _create_session(session_repository, user.id, "old-token")
 
-    await session_repository.rotate(created.id, hash_refresh_token("new-token"))
+    await session_repository.rotate(
+        created.id, hash_refresh_token("new-token"), previous_grace_until=_future(30)
+    )
 
     found = await session_repository.find_rotatable_by_hash(hash_refresh_token("old-token"))
     assert found is not None
@@ -123,14 +125,16 @@ async def test_get_by_current_hash_ignores_previous_hash(
 ) -> None:
     user = await _create_user(user_repository, uow, "owner")
     created = await _create_session(session_repository, user.id, "old-token")
-    await session_repository.rotate(created.id, hash_refresh_token("new-token"))
+    await session_repository.rotate(
+        created.id, hash_refresh_token("new-token"), previous_grace_until=_future(30)
+    )
 
     found = await session_repository.find_by_current_hash(hash_refresh_token("old-token"))
 
     assert found is None
 
 
-async def test_rotate_does_not_extend_grace_when_extend_grace_is_false(
+async def test_rotate_without_a_grace_keeps_the_previous_hash_and_window(
     session_repository: SessionRepository, user_repository: UserRepository, uow: UnitOfWork
 ) -> None:
     user = await _create_user(user_repository, uow, "owner")
@@ -138,7 +142,9 @@ async def test_rotate_does_not_extend_grace_when_extend_grace_is_false(
 
     # first rotation matches the current hash and arms the grace window for a
     # second tab still holding "t0"
-    await session_repository.rotate(created.id, hash_refresh_token("t1"), extend_grace=True)
+    await session_repository.rotate(
+        created.id, hash_refresh_token("t1"), previous_grace_until=_future(30)
+    )
     row_after_first = await session_repository.session.get(UserSession, created.id)
     assert row_after_first is not None
     first_grace_until = row_after_first.previous_hash_grace_until
@@ -146,7 +152,7 @@ async def test_rotate_does_not_extend_grace_when_extend_grace_is_false(
 
     # second rotation reuses "t0" via the grace branch and must not re-arm the
     # window or move the stale hash, or reuse detection never fires
-    await session_repository.rotate(created.id, hash_refresh_token("t2"), extend_grace=False)
+    await session_repository.rotate(created.id, hash_refresh_token("t2"), previous_grace_until=None)
     row_after_second = await session_repository.session.get(UserSession, created.id)
     assert row_after_second is not None
     assert row_after_second.previous_refresh_token_hash == hash_refresh_token("t0")
@@ -159,7 +165,9 @@ async def test_get_rotatable_by_hash_rejects_previous_after_grace_expires(
 ) -> None:
     user = await _create_user(user_repository, uow, "owner")
     created = await _create_session(session_repository, user.id, "old-token")
-    await session_repository.rotate(created.id, hash_refresh_token("new-token"))
+    await session_repository.rotate(
+        created.id, hash_refresh_token("new-token"), previous_grace_until=_future(30)
+    )
 
     # Manually push the grace window into the past to simulate elapsed time
     # without sleeping in the test.
@@ -179,7 +187,9 @@ async def test_get_by_expired_previous_hash_matches_only_after_grace_elapses(
 ) -> None:
     user = await _create_user(user_repository, uow, "owner")
     created = await _create_session(session_repository, user.id, "old-token")
-    await session_repository.rotate(created.id, hash_refresh_token("new-token"))
+    await session_repository.rotate(
+        created.id, hash_refresh_token("new-token"), previous_grace_until=_future(30)
+    )
 
     # still within grace
     assert (
@@ -205,7 +215,9 @@ async def test_rotate_updates_hash_and_last_used_at(
     user = await _create_user(user_repository, uow, "owner")
     created = await _create_session(session_repository, user.id, "old-token")
 
-    rotated = await session_repository.rotate(created.id, hash_refresh_token("new-token"))
+    rotated = await session_repository.rotate(
+        created.id, hash_refresh_token("new-token"), previous_grace_until=_future(30)
+    )
 
     assert rotated.last_used_at >= created.last_used_at
     found_by_new = await session_repository.find_rotatable_by_hash(hash_refresh_token("new-token"))
@@ -229,7 +241,9 @@ async def test_rotate_keeps_the_mini_app_mark(
         )
     )
 
-    await session_repository.rotate(created.id, hash_refresh_token("rotated-token"))
+    await session_repository.rotate(
+        created.id, hash_refresh_token("rotated-token"), previous_grace_until=_future(30)
+    )
 
     found = await session_repository.find_active_by_id(created.id)
     assert found is not None and found.telegram_mini_app
