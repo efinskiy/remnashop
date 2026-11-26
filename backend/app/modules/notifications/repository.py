@@ -1,6 +1,6 @@
 from typing import Optional
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -125,12 +125,15 @@ class NotificationRepository:
 
     async def record_push_failure(self, subscription_id: int) -> int:
         """Failures in a row so far, 0 when the subscription is gone."""
-        row = await self.session.get(PushSubscription, subscription_id)
-        if row is None:
-            return 0
-        row.failure_count += 1
-        await self.session.flush()
-        return row.failure_count
+        # in SQL: two sends to one device failing at once both count
+        failures = await self.session.scalar(
+            update(PushSubscription)
+            .where(PushSubscription.id == subscription_id)
+            .values(failure_count=PushSubscription.failure_count + 1)
+            .returning(PushSubscription.failure_count)
+            .execution_options(synchronize_session="fetch")
+        )
+        return failures or 0
 
     async def drop_push_subscription(self, subscription_id: int) -> None:
         row = await self.session.get(PushSubscription, subscription_id)
