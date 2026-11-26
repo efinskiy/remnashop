@@ -186,26 +186,32 @@ class PromocodeRepository:
         await self.session.refresh(row)
         return self._to_dto(row)
 
-    async def forget_plan(self, plan_id: int) -> list[int]:
-        # a list left empty would open the promocode to every plan, so it is switched off instead
-        disabled = await self.session.scalars(
-            update(Promocode)
+    async def lock_limited_to_plan(self, plan_id: int) -> list[int]:
+        """Active promocodes valid for this plan and no other one."""
+        ids = await self.session.scalars(
+            select(Promocode.id)
             .where(
                 Promocode.allowed_plan_ids.contained_by([plan_id]),
                 Promocode.allowed_plan_ids != [],
                 Promocode.is_active.is_(True),
             )
-            .values(is_active=False)
-            .returning(Promocode.id)
+            .order_by(Promocode.id)
+            .with_for_update()
         )
-        disabled_ids = sorted(disabled.all())
+        return list(ids)
+
+    async def deactivate(self, promocode_ids: list[int]) -> None:
+        await self.session.execute(
+            update(Promocode).where(in_ids(Promocode.id, promocode_ids)).values(is_active=False)
+        )
+
+    async def remove_plan_from_allowlists(self, plan_id: int) -> None:
         await self.session.execute(
             update(Promocode)
             .where(Promocode.allowed_plan_ids.contains([plan_id]))
             .values(allowed_plan_ids=func.array_remove(Promocode.allowed_plan_ids, plan_id))
         )
         await self.session.flush()
-        return disabled_ids
 
     async def list_expiring(self, now: datetime, until: datetime) -> list[PromocodeDto]:
         rows = await self.session.scalars(

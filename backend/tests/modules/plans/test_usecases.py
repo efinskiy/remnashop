@@ -40,6 +40,7 @@ from app.modules.plans.usecases import (
 )
 from app.modules.pricing import PricingRepository
 from app.modules.promocodes.dto import CreatePromocodeDto
+from app.modules.promocodes.plan_references import PromocodePlanReferences
 from app.modules.promocodes.repository import PromocodeRepository
 from app.modules.users.dto import UserDto
 
@@ -180,7 +181,7 @@ async def test_owner_can_delete_plan(
     )
     use_case = DeletePlanUseCase(
         plan_repository,
-        PromocodeRepository(plan_repository.session),
+        PromocodePlanReferences(PromocodeRepository(plan_repository.session)),
         uow,
         event_publisher,
     )
@@ -200,7 +201,7 @@ async def test_regular_user_cannot_delete_plan(
     )
     use_case = DeletePlanUseCase(
         plan_repository,
-        PromocodeRepository(plan_repository.session),
+        PromocodePlanReferences(PromocodeRepository(plan_repository.session)),
         uow,
         event_publisher,
     )
@@ -522,7 +523,9 @@ async def test_deleting_a_plan_drops_it_from_promocode_plan_lists_and_disables_e
         )
     )
 
-    await DeletePlanUseCase(plan_repository, promocodes, uow, event_publisher)(OWNER, gone.id)
+    await DeletePlanUseCase(
+        plan_repository, PromocodePlanReferences(promocodes), uow, event_publisher
+    )(OWNER, gone.id)
 
     both_after = await promocodes.get_by_id(both.id)
     only_after = await promocodes.get_by_id(only.id)
