@@ -456,6 +456,27 @@ async def test_owner_can_reorder_plans(
     assert [plan.id for plan in reordered] == [second.id, first.id]
 
 
+@pytest.mark.parametrize("shape", ["missing", "duplicate"])
+async def test_reorder_refuses_a_list_that_is_not_every_plan_once(
+    shape: str, plan_repository: PlanRepository, uow: UnitOfWork, event_publisher: EventPublisher
+) -> None:
+    first, second = [
+        await plan_repository.create(
+            CreatePlanDto(
+                public_code=code, name=code, type=PlanType.BOTH, traffic_limit=100, device_limit=3
+            )
+        )
+        for code in ("a", "b")
+    ]
+    plan_ids = [first.id] if shape == "missing" else [first.id, first.id, second.id]
+    use_case = ReorderPlansUseCase(plan_repository, uow, event_publisher)
+
+    with pytest.raises(ValidationError) as error:
+        await use_case(OWNER, ReorderPlansDto(plan_ids=plan_ids))
+
+    assert error.value.code is ErrorCode.PLAN_REORDER_INCOMPLETE
+
+
 async def test_regular_user_cannot_reorder_plans(
     plan_repository: PlanRepository, uow: UnitOfWork, event_publisher: EventPublisher
 ) -> None:

@@ -7,7 +7,7 @@ from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.enums import Currency, Locale, PlanAvailability, PlanType
-from app.core.exceptions import ConflictError, NotFoundError, ValidationError
+from app.core.exceptions import ConflictError, NotFoundError
 from app.modules.plans.api.schemas import CreatePlanRequest, PlanIconRequest
 from app.modules.plans.dto import (
     CreatePlanDto,
@@ -239,22 +239,6 @@ async def test_reorder_applies_new_order(plan_repository: PlanRepository) -> Non
     reordered = await plan_repository.reorder(ReorderPlansDto(plan_ids=[second.id, first.id]))
 
     assert [plan.id for plan in reordered] == [second.id, first.id]
-
-
-async def test_reorder_rejects_incomplete_id_set(plan_repository: PlanRepository) -> None:
-    first = await plan_repository.create(_create_dto("a", "A"))
-    await plan_repository.create(_create_dto("b", "B"))
-
-    with pytest.raises(ValidationError):
-        await plan_repository.reorder(ReorderPlansDto(plan_ids=[first.id]))
-
-
-async def test_reorder_rejects_duplicate_id(plan_repository: PlanRepository) -> None:
-    first = await plan_repository.create(_create_dto("a", "A"))
-    second = await plan_repository.create(_create_dto("b", "B"))
-
-    with pytest.raises(ValidationError):
-        await plan_repository.reorder(ReorderPlansDto(plan_ids=[first.id, first.id, second.id]))
 
 
 async def test_get_by_id_returns_plan(plan_repository: PlanRepository) -> None:
