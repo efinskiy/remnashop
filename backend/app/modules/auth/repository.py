@@ -93,6 +93,7 @@ class SessionRepository:
         session_id: int,
         new_refresh_token_hash: str,
         *,
+        now: datetime,
         previous_grace_until: Optional[datetime],
     ) -> SessionDto:
         """`previous_grace_until`: how long the replaced hash still rotates; None keeps
@@ -104,7 +105,7 @@ class SessionRepository:
             row.previous_refresh_token_hash = row.refresh_token_hash
             row.previous_hash_grace_until = previous_grace_until
         row.refresh_token_hash = new_refresh_token_hash
-        row.last_used_at = datetime_now()
+        row.last_used_at = now
         await self.session.flush()
         await self.session.refresh(row)
         return self._to_dto(row)

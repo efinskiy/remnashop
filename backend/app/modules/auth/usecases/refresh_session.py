@@ -44,12 +44,14 @@ class RefreshSessionUseCase:
             current_session = None
         if current_session is not None:
             new_refresh_token = self._session_issuer.generate_new_refresh_token()
+            now = datetime_now()
             async with self._uow:
                 await self._session_repository.rotate(
                     current_session.id,
                     hash_refresh_token(new_refresh_token),
+                    now=now,
                     # a second tab still holding the old token rotates it once more
-                    previous_grace_until=datetime_now() + _ROTATION_GRACE,
+                    previous_grace_until=now + _ROTATION_GRACE,
                 )
             return await self._session_issuer.reissue_access_only(
                 current_session.user_id, current_session.id, new_refresh_token
@@ -67,6 +69,7 @@ class RefreshSessionUseCase:
                 await self._session_repository.rotate(
                     graced_session.id,
                     hash_refresh_token(new_refresh_token),
+                    now=datetime_now(),
                     # re-arming the window would let a stolen token keep rotating
                     previous_grace_until=None,
                 )
