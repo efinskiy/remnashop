@@ -11,7 +11,8 @@ import aiosmtplib
 from redis.asyncio import Redis
 
 from app.core.constants import REDIS_KEY_PREFIX, TIME_1D, TIME_1M
-from app.core.enums import EmailOutcome, SmtpSecurity
+from app.core.enums import SmtpSecurity
+from app.modules.email.dto import EmailOutcome
 from app.modules.email.sender import SMTP_TIMEOUT_S, EmailSendError, mailbox_refused
 from app.modules.settings import SmtpProfileDto
 

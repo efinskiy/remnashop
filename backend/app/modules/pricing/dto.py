@@ -1,11 +1,34 @@
 from dataclasses import dataclass, field
 from decimal import Decimal
+from enum import auto
 from typing import Final, Optional
 
 from app.core.dto import BaseDto, TimestampMixin
-from app.core.enums import Currency, RoundingMode
+from app.core.enums import Currency, RoundingMode, UpperStrEnum
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ValidationError
+
+
+class PriceAdjustScope(UpperStrEnum):
+    ALL_PLANS = auto()
+    ALL_ADDONS = auto()
+    SELECTED = auto()
+
+
+class PriceAdjustMode(UpperStrEnum):
+    MULTIPLY = auto()
+    SET = auto()
+    # plan durations only: the base duration's price per day times the days, less a
+    # per-duration discount
+    LADDER = auto()
+
+
+class PinnedPriceAction(UpperStrEnum):
+    KEEP = auto()
+    # by the same ratio as the base price
+    SCALE = auto()
+    RESET = auto()
+
 
 RATE_PRECISION: Final[Decimal] = Decimal("0.0000000001")
 BASE_PRICE_PRECISION: Final[Decimal] = Decimal("0.01")

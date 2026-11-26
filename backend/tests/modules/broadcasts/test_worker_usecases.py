@@ -20,7 +20,6 @@ from app.core.db.models.promocode import Promocode
 from app.core.db.models.user import User
 from app.core.db.uow import UnitOfWork
 from app.core.enums import (
-    BroadcastButtonKind,
     BroadcastChannel,
     BroadcastDelivery,
     BroadcastMediaType,
@@ -36,6 +35,7 @@ from app.core.utils.time import datetime_now
 from app.modules.broadcasts.dto import (
     BroadcastAudienceDto,
     BroadcastButtonDto,
+    BroadcastButtonKind,
     BroadcastContentDto,
     BroadcastDto,
     BroadcastEmailContentDto,

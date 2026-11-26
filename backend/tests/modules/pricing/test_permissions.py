@@ -1,10 +1,11 @@
-from app.core.enums import PriceAdjustScope, Role, RoundingMode
+from app.core.enums import Role, RoundingMode
 from app.core.security.permissions import (
     GRANTABLE_PERMISSIONS,
     PERMISSION_METADATA,
     ROLE_PERMISSIONS,
     Permission,
 )
+from app.modules.pricing.dto import PriceAdjustScope
 
 
 def test_rounding_mode_values() -> None:

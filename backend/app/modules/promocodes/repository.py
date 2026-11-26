@@ -9,7 +9,7 @@ from app.core.db.errors import constraint_name
 from app.core.db.filters import in_ids, visible_rows
 from app.core.db.models.promocode import Promocode, PromocodeActivation
 from app.core.db.partial_update import apply_partial_update
-from app.core.enums import PromocodeRewardType, PromocodeStatus
+from app.core.enums import PromocodeRewardType
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ConflictError, NotFoundError
 from app.core.utils.time import datetime_now
@@ -19,6 +19,7 @@ from app.modules.promocodes.dto import (
     PromocodeActivationDto,
     PromocodeDto,
     PromocodeRewardTotalsDto,
+    PromocodeStatus,
     UpdatePromocodeDto,
     UserPromocodeActivationDto,
 )

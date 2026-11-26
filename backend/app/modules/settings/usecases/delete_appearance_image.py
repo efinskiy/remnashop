@@ -3,12 +3,11 @@ from typing import ClassVar
 from app.core.actor import Actor
 from app.core.config import AppConfig
 from app.core.db.uow import UnitOfWork
-from app.core.enums import AppearanceImageKind, AppearanceTarget
 from app.core.ports import EventPublisher
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.modules.settings.appearance_images import remove_appearance_image
-from app.modules.settings.dto import AppearanceSettingsDto
+from app.modules.settings.dto import AppearanceImageKind, AppearanceSettingsDto, AppearanceTarget
 from app.modules.settings.repository import SettingsRepository
 
 

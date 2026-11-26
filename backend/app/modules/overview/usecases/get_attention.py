@@ -11,7 +11,7 @@ from remnapy.exceptions import ApiError
 
 from app.core.actor import Actor
 from app.core.db.uow import UnitOfWork
-from app.core.enums import BackupKind, BackupRunStatus, PanelSyncDirection
+from app.core.enums import BackupKind, BackupRunStatus
 from app.core.exceptions import RemnawavePanelUnavailableError
 from app.core.security.permissions import Permission, PermissionPolicy
 from app.core.usecase import UseCase
@@ -36,6 +36,7 @@ from app.modules.settings import (
 )
 from app.modules.subscriptions import (
     PanelSquadCatalog,
+    PanelSyncDirection,
     SubscriptionStatsRepository,
     missing_squads,
     read_panel_sync_status,

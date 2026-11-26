@@ -22,7 +22,6 @@ from app.core.enums import (
     BroadcastStatus,
     FulfillmentHold,
     Locale,
-    PanelSyncDirection,
     PlanType,
     Role,
     SubscriptionStatus,
@@ -53,6 +52,7 @@ from app.modules.plans.repository import PlanRepository
 from app.modules.settings import SettingsRepository
 from app.modules.settings.dto import BotStatusDto, UpdateBotSettingsDto
 from app.modules.subscriptions.dto import PanelSyncResultDto
+from app.modules.subscriptions.events import PanelSyncDirection
 from app.modules.subscriptions.panel_sync import finish_panel_sync
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.stats_repository import SubscriptionStatsRepository

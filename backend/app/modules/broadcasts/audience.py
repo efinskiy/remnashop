@@ -15,13 +15,12 @@ from app.core.enums import (
     BroadcastChannel,
     BroadcastDelivery,
     BroadcastRecipientStatus,
-    BroadcastSubscriptionFilter,
     SubscriptionStatus,
     TransactionStatus,
 )
 from app.core.utils.time import range_end_utc, range_start_utc
 from app.modules.broadcasts.channels import sends_telegram
-from app.modules.broadcasts.dto import BroadcastAudienceDto
+from app.modules.broadcasts.dto import BroadcastAudienceDto, BroadcastSubscriptionFilter
 
 _LIVE: Final[tuple[SubscriptionStatus, ...]] = (
     SubscriptionStatus.ACTIVE,

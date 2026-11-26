@@ -1,7 +1,6 @@
-from app.core.enums import AppearanceTarget
 from app.modules.email import EmailBrandDto, load_email_brand, render_email, render_email_html
 from app.modules.settings import SettingsRepository
-from app.modules.settings.dto import UpdateAppearanceSettingsDto
+from app.modules.settings.dto import AppearanceTarget, UpdateAppearanceSettingsDto
 
 
 def test_layout_escapes_and_links_only_to_the_cabinet() -> None:

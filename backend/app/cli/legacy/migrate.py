@@ -61,8 +61,9 @@ from app.core.db.models import (
     User,
 )
 from app.core.db.singleton import SINGLETON_ID
-from app.core.enums import Currency, Locale, ReferralLevel, Role, SubscriptionStatus
+from app.core.enums import Currency, Locale, Role, SubscriptionStatus
 from app.modules.pricing import NON_ANCHOR_CURRENCIES
+from app.modules.referrals import ReferralLevel
 
 _NEW_MIGRATIONS_DIR: Final[Path] = Path(__file__).parents[2] / "core" / "db" / "migrations"
 _DEFAULT_LOCALE: Final[Locale] = Locale.EN

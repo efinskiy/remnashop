@@ -6,7 +6,7 @@ from dishka import AsyncContainer
 from fluentogram import TranslatorHub
 
 from app.core.constants import CONTAINER_KEY, USER_KEY
-from app.core.enums import AdLinkChannel, Locale, MiddlewareEventType, RegistrationSource
+from app.core.enums import AdLinkChannel, Locale, RegistrationSource
 from app.modules.access import CheckRegistrationAccessDto, CheckRegistrationAccessUseCase
 from app.modules.cabinet_auth import DeeplinkStore
 from app.modules.users import (
@@ -22,7 +22,7 @@ from app.telegram.middlewares._codes import (
     parse_start_payload,
     parse_webauth_token,
 )
-from app.telegram.middlewares.base import EventTypedMiddleware
+from app.telegram.middlewares.base import EventTypedMiddleware, MiddlewareEventType
 from app.telegram.notice import answer_notice
 
 

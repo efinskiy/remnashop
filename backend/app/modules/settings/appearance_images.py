@@ -5,13 +5,18 @@ from typing import Final
 from app.core.actor import Actor
 from app.core.config import AppConfig
 from app.core.db.uow import UnitOfWork
-from app.core.enums import AppearanceImageFormat, AppearanceImageKind, AppearanceTarget
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import NotFoundError, ValidationError
 from app.core.ports import EventPublisher
 from app.core.utils.image import matches_image_magic_bytes, read_image_size, read_svg_size
 from app.modules.settings.appearance_storage import delete_appearance_image, save_appearance_image
-from app.modules.settings.dto import AppearanceSettingsDto, UploadAppearanceImageDto
+from app.modules.settings.dto import (
+    AppearanceImageFormat,
+    AppearanceImageKind,
+    AppearanceSettingsDto,
+    AppearanceTarget,
+    UploadAppearanceImageDto,
+)
 from app.modules.settings.events import AppearanceAction, AppearanceSettingsChangedEvent
 from app.modules.settings.repository import SettingsRepository
 

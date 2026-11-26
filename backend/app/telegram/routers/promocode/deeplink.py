@@ -12,7 +12,7 @@ from loguru import logger
 from redis.asyncio import Redis
 
 from app.core.constants import AD_LINK_START_PREFIX, PROMOCODE_START_PREFIX, REDIS_KEY_PREFIX
-from app.core.enums import AdLinkChannel, PromocodeLinkOutcome
+from app.core.enums import AdLinkChannel
 from app.core.exceptions import NotFoundError, ValidationError
 from app.core.utils.rate_counter import hit_counter
 from app.modules.advertising import ActivateAdLinkPromocodeDto, ActivateAdLinkPromocodeUseCase
@@ -20,6 +20,7 @@ from app.modules.promocodes import (
     ActivatePromocodeByLinkDto,
     ActivatePromocodeByLinkUseCase,
     ListPromocodeTargetsUseCase,
+    PromocodeLinkOutcome,
     PromocodeLinkResultDto,
     ValidatePromocodeUseCase,
 )

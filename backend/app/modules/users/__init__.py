@@ -2,6 +2,7 @@ from app.modules.users.bot_blocked import mark_bot_blocked
 from app.modules.users.di import get_users_providers
 from app.modules.users.display_name import clean_display_name
 from app.modules.users.dto import (
+    CabinetSignInMethod,
     CreateUserDto,
     FirstTouchDto,
     RegisterCabinetUserDto,
@@ -51,6 +52,7 @@ from app.modules.users.visibility import (
 )
 
 __all__ = [
+    "CabinetSignInMethod",
     "CabinetUserRegisteredEvent",
     "CreateUserDto",
     "CurrentUserResponse",

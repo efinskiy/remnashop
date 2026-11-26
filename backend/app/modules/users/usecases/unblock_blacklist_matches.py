@@ -1,10 +1,9 @@
 from app.core.actor import Actor
 from app.core.db.uow import UnitOfWork
-from app.core.enums import BlacklistKind
 from app.core.ports import EventPublisher
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
-from app.modules.blacklist import BlacklistRepository
+from app.modules.blacklist import BlacklistKind, BlacklistRepository
 from app.modules.users.blacklist_repository import UserBlacklistRepository
 from app.modules.users.dto import BlacklistMatchOrigin, UnblockBlacklistMatchesDto
 from app.modules.users.events import UsersBulkUnblockedEvent

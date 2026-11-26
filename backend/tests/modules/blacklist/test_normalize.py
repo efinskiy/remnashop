@@ -1,6 +1,6 @@
 import pytest
 
-from app.core.enums import BlacklistKind
+from app.modules.blacklist.dto import BlacklistKind
 from app.modules.blacklist.normalize import derive_source_name, normalize_identity, removal_key
 
 TG = BlacklistKind.TELEGRAM_ID

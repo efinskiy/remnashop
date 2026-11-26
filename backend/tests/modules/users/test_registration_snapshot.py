@@ -1,7 +1,8 @@
 from app.core.db.uow import UnitOfWork
-from app.core.enums import CabinetSignInMethod, Locale, RegistrationSource, Role
+from app.core.enums import Locale, RegistrationSource, Role
 from app.modules.blacklist import BlacklistRepository
 from app.modules.users.dto import (
+    CabinetSignInMethod,
     CreateUserDto,
     RegisterCabinetUserDto,
     RegisterTelegramUserDto,

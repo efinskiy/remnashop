@@ -1,12 +1,12 @@
 from loguru import logger
 
-from app.core.enums import PromocodeLinkOutcome
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.modules.promocodes.dto import (
     ActivatePromocodeByLinkDto,
     ActivatePromocodeDto,
     ListPromocodeTargetsDto,
+    PromocodeLinkOutcome,
     PromocodeLinkResultDto,
     ValidatePromocodeDto,
 )

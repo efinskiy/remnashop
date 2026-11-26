@@ -5,13 +5,9 @@ from typing import Optional
 from pydantic import BaseModel, Field, field_validator
 
 from app.core.dto import ResponseModel
-from app.core.enums import (
-    Currency,
-    PromocodeAvailability,
-    PromocodeLinkOutcome,
-    PromocodeRewardType,
-)
+from app.core.enums import Currency, PromocodeAvailability, PromocodeRewardType
 from app.core.utils.time import range_start_utc
+from app.modules.promocodes.dto import PromocodeLinkOutcome
 
 
 class PromocodeResponse(ResponseModel):

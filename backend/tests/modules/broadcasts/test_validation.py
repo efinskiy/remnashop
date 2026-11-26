@@ -3,13 +3,14 @@ from datetime import datetime, timezone
 
 import pytest
 
-from app.core.enums import BroadcastButtonKind, BroadcastCategory, BroadcastDelivery, Locale
+from app.core.enums import BroadcastCategory, BroadcastDelivery, Locale
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ValidationError
 from app.core.utils.telegram_text import TELEGRAM_TEXT_LIMIT
 from app.modules.broadcasts.dto import (
     BroadcastAudienceDto,
     BroadcastButtonDto,
+    BroadcastButtonKind,
     BroadcastContentDto,
     BroadcastEmailContentDto,
     SaveBroadcastDto,

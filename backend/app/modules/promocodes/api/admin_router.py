@@ -8,7 +8,7 @@ from app.api.dependencies.admin import require_admin
 from app.api.errors import error_responses
 from app.core.actor import Actor
 from app.core.constants import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, SEARCH_MAX_LENGTH
-from app.core.enums import PromocodeRewardType, PromocodeStatus
+from app.core.enums import PromocodeRewardType
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import NotFoundError, ValidationError
 from app.core.utils.http import resolve_client_ip
@@ -30,6 +30,7 @@ from app.modules.promocodes.dto import (
     ListPromocodeActivatedUsersDto,
     ListPromocodesDto,
     ListUserPromocodeActivationsDto,
+    PromocodeStatus,
     UpdatePromocodeDto,
 )
 from app.modules.promocodes.usecases import (

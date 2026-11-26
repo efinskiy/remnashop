@@ -7,10 +7,11 @@ from fluent_compiler.bundle import FluentBundle
 from loguru import logger
 
 from app.core.constants import CUSTOMER_NOTIFICATION_CLOSE_CALLBACK, T_ME
-from app.core.enums import BroadcastButtonKind, Locale
+from app.core.enums import Locale
 from app.modules.broadcasts.content import render_text
 from app.modules.broadcasts.dto import (
     BroadcastButtonDto,
+    BroadcastButtonKind,
     BroadcastContentDto,
     BroadcastDto,
     RecipientContextDto,

@@ -1,8 +1,8 @@
 from dataclasses import dataclass, field
 from typing import ClassVar, Literal, Optional, TypeAlias
 
-from app.core.enums import AppearanceTarget
 from app.core.events import ActorEvent, EventCategory, SystemEvent
+from app.modules.settings.dto import AppearanceTarget
 
 AppearanceAction: TypeAlias = Literal[
     "app_icon_delete",

@@ -1,8 +1,9 @@
 from dataclasses import dataclass, field
+from enum import auto
 from typing import Any, ClassVar, Literal, Optional, TypeAlias
 
 from app.core.actor import Actor
-from app.core.enums import AddOnType, PanelSyncDirection, PurchaseType, SubscriptionStatus
+from app.core.enums import AddOnType, PurchaseType, SubscriptionStatus, UpperStrEnum
 from app.core.events import (
     ActorEvent,
     ActorTargetEvent,
@@ -26,6 +27,12 @@ SubscriptionEditAction: TypeAlias = Literal[
     "squads",
     "update",
 ]
+
+
+class PanelSyncDirection(UpperStrEnum):
+    FROM_PANEL = auto()
+    TO_PANEL = auto()
+
 
 StatusSyncSource: TypeAlias = Literal["admin_pull", "panel_sync", "webhook", "grace_sweep"]
 

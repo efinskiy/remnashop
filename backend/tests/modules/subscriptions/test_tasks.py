@@ -12,7 +12,6 @@ from app.core.enums import (
     AddOnType,
     Currency,
     DiscountSource,
-    PanelSyncDirection,
     PaymentGatewayType,
     PlanType,
     PurchaseChannel,
@@ -43,6 +42,7 @@ from app.modules.subscriptions.dto import (
     SyncFromPanelOptionsDto,
     SyncSubscriptionStatusDto,
 )
+from app.modules.subscriptions.events import PanelSyncDirection
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
 from app.modules.subscriptions.panel_sync import claim_panel_sync
 from app.modules.subscriptions.repository import SubscriptionRepository

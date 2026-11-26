@@ -3,8 +3,8 @@ from typing import Optional
 import pytest
 
 from app.core.db.uow import UnitOfWork
-from app.core.enums import AccessDenial, AccessMode, AdLinkChannel
-from app.modules.access.dto import CheckRegistrationAccessDto
+from app.core.enums import AccessMode, AdLinkChannel
+from app.modules.access.dto import AccessDenial, CheckRegistrationAccessDto
 from app.modules.access.usecases import CheckRegistrationAccessUseCase
 from app.modules.advertising.dto import CreateAdLinkDto, UpdateAdLinkDto
 from app.modules.advertising.repository import AdLinkRepository

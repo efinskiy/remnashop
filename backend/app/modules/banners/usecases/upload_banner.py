@@ -3,14 +3,13 @@ from typing import Final
 from app.core.actor import Actor
 from app.core.config import AppConfig
 from app.core.db.uow import UnitOfWork
-from app.core.enums import BannerFormat
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ValidationError
 from app.core.ports import EventPublisher
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.core.utils.image import matches_image_magic_bytes
-from app.modules.banners.dto import BannerDto, UploadBannerDto, UploadBannerFileDto
+from app.modules.banners.dto import BannerDto, BannerFormat, UploadBannerDto, UploadBannerFileDto
 from app.modules.banners.events import BannerChangedEvent
 from app.modules.banners.repository import BannerRepository
 from app.modules.banners.storage import (

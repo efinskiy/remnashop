@@ -4,7 +4,6 @@ from loguru import logger
 
 from app.core.config import AppConfig
 from app.core.db.uow import UnitOfWork
-from app.core.enums import EmailOutcome
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ValidationError
 from app.core.security.permissions import Permission
@@ -19,7 +18,13 @@ from app.modules.broadcasts.referral import cabinet_links_allowed, referral_link
 from app.modules.broadcasts.render import load_unsubscribe_labels
 from app.modules.broadcasts.repository import BroadcastRepository
 from app.modules.broadcasts.validation import promocode_is_usable
-from app.modules.email import EmailSendError, OutgoingEmailDto, SmtpBatchSender, load_email_brand
+from app.modules.email import (
+    EmailOutcome,
+    EmailSendError,
+    OutgoingEmailDto,
+    SmtpBatchSender,
+    load_email_brand,
+)
 from app.modules.promocodes import PromocodeRepository
 from app.modules.referrals import ReferralRepository
 from app.modules.settings import GetPublicAppearanceImageUseCase, SettingsRepository

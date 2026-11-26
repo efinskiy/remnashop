@@ -15,7 +15,7 @@ from remnapy.models import UserResponseDto
 from app.core.actor import Actor
 from app.core.constants import GB_TO_BYTES, REDIS_KEY_PREFIX, TTL_1H, TTL_5M, TTL_7D, ZERO_AMOUNT
 from app.core.db.uow import UnitOfWork
-from app.core.enums import Currency, PanelSyncDirection, SubscriptionStatus
+from app.core.enums import Currency, SubscriptionStatus
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ConflictError, ValidationError
 from app.core.ports import EventPublisher
@@ -35,7 +35,11 @@ from app.modules.subscriptions.dto import (
     SyncToPanelOptionsDto,
 )
 from app.modules.subscriptions.eligibility import subscription_owner
-from app.modules.subscriptions.events import PanelSyncStartedEvent, StatusSyncSource
+from app.modules.subscriptions.events import (
+    PanelSyncDirection,
+    PanelSyncStartedEvent,
+    StatusSyncSource,
+)
 from app.modules.subscriptions.grace import grace_end_echo
 from app.modules.subscriptions.panel import (
     panel_user_from_row,

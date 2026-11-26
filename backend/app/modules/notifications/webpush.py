@@ -8,11 +8,11 @@ from pywebpush import WebPushException, webpush
 
 from app.core.constants import TTL_1D
 from app.core.db.uow import UnitOfWork
-from app.core.enums import AppearanceTarget, SessionAudience
+from app.core.enums import SessionAudience
 from app.core.utils.telegram_text import premium_emoji_glyphs
 from app.modules.notifications.dto import PushMessage, PushSubscriptionDto
 from app.modules.notifications.repository import NotificationRepository
-from app.modules.settings import SettingsRepository, push_icon_path
+from app.modules.settings import AppearanceTarget, SettingsRepository, push_icon_path
 
 _TTL_SECONDS: Final[int] = TTL_1D
 _TIMEOUT_SECONDS: Final[float] = 10.0

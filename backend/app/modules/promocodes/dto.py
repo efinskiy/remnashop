@@ -1,19 +1,32 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
+from enum import auto
 from typing import Optional
 
 from pydantic import Field
 
 from app.core.constants import DEFAULT_PAGE_SIZE
 from app.core.dto import BaseDto, TimestampMixin
-from app.core.enums import (
-    Currency,
-    PromocodeAvailability,
-    PromocodeLinkOutcome,
-    PromocodeRewardType,
-    PromocodeStatus,
-)
+from app.core.enums import Currency, PromocodeAvailability, PromocodeRewardType, UpperStrEnum
+
+
+# derived from is_active + expires_at; never stored
+class PromocodeStatus(UpperStrEnum):
+    ACTIVE = auto()
+    EXPIRED = auto()
+    INACTIVE = auto()
+    # live, but its activation limit is used up
+    EXHAUSTED = auto()
+
+
+# what opening a promocode by link did: applied it, or needs the customer to act
+class PromocodeLinkOutcome(UpperStrEnum):
+    ACTIVATED = auto()
+    CHOOSE_TARGET = auto()
+    NO_TARGET = auto()
+    # a reusable code: applied by the customer's own press, never by opening a link again
+    CONFIRM = auto()
 
 
 class PromocodeDto(BaseDto, TimestampMixin):

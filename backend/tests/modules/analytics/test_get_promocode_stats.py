@@ -15,7 +15,6 @@ from app.core.enums import (
     Locale,
     PaymentGatewayType,
     PromocodeRewardType,
-    PromocodeStatus,
     PurchaseChannel,
     PurchaseType,
     Role,
@@ -26,7 +25,7 @@ from app.core.utils.time import datetime_now
 from app.modules.analytics.dto import AnalyticsPeriodQueryDto
 from app.modules.analytics.usecases import GetPromocodeStatsUseCase
 from app.modules.pricing.repository import PricingRepository
-from app.modules.promocodes.dto import CreatePromocodeDto
+from app.modules.promocodes.dto import CreatePromocodeDto, PromocodeStatus
 from app.modules.promocodes.repository import PromocodeRepository
 from app.modules.transactions.dto import CreateTransactionDto
 from app.modules.transactions.repository import TransactionRepository

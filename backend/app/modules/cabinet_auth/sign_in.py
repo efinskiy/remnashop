@@ -3,9 +3,7 @@ from typing import Final, Optional
 from app.core.constants import TTL_30D
 from app.core.db.uow import UnitOfWork
 from app.core.enums import (
-    AccessDenial,
     AdLinkChannel,
-    CabinetSignInMethod,
     LegalAcceptanceTrigger,
     LegalDocumentKind,
     Locale,
@@ -19,7 +17,11 @@ from app.core.exceptions import ConflictError, PermissionDeniedError, Validation
 from app.core.ports import EventPublisher
 from app.core.utils.email import normalize_email
 from app.core.utils.http import describe_user_agent
-from app.modules.access import CheckRegistrationAccessDto, CheckRegistrationAccessUseCase
+from app.modules.access import (
+    AccessDenial,
+    CheckRegistrationAccessDto,
+    CheckRegistrationAccessUseCase,
+)
 from app.modules.auth import IssuedSession, SessionIssuer
 from app.modules.blacklist import BlacklistRepository
 from app.modules.cabinet_auth.devices import KnownDevices
@@ -30,6 +32,7 @@ from app.modules.legal import LegalAcceptanceRecorder
 from app.modules.oauth import CreateOAuthIdentityDto, OAuthIdentityRepository, OAuthProfile
 from app.modules.settings import SettingsRepository
 from app.modules.users import (
+    CabinetSignInMethod,
     RegisterCabinetUserDto,
     RegisterCabinetUserUseCase,
     RegisterTelegramUserDto,

@@ -11,7 +11,7 @@ from app.modules.email.batch import (
 )
 from app.modules.email.di import get_email_providers
 from app.modules.email.dispatch import SendEmailDispatch
-from app.modules.email.dto import EmailBrandDto
+from app.modules.email.dto import EmailBrandDto, EmailOutcome
 from app.modules.email.layout import (
     brand_accent,
     load_email_brand,
@@ -26,6 +26,7 @@ __all__ = [
     "SMTP_PAUSE_SECONDS",
     "EmailBrandDto",
     "EmailDeliveryDto",
+    "EmailOutcome",
     "EmailSendError",
     "InlineImageDto",
     "OutgoingEmailDto",

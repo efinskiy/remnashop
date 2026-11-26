@@ -1,12 +1,11 @@
 from app.core.actor import Actor
 from app.core.db.uow import UnitOfWork
-from app.core.enums import BlacklistKind
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import NotFoundError
 from app.core.ports import EventPublisher
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
-from app.modules.blacklist import BlacklistRepository
+from app.modules.blacklist import BlacklistKind, BlacklistRepository
 from app.modules.users.dto import UnblockUserDto, UserListItemDto
 from app.modules.users.events import UserUnblockedEvent
 from app.modules.users.listing import detail_roles

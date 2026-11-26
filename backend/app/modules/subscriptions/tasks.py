@@ -7,7 +7,7 @@ from loguru import logger
 from redis.asyncio import Redis
 
 from app.core.broker import broker
-from app.core.enums import Currency, PanelSyncDirection, PurchaseType
+from app.core.enums import Currency, PurchaseType
 from app.core.utils.lock import cron_lock
 from app.modules.subscriptions.dto import (
     GrantAddOnDto,
@@ -17,6 +17,7 @@ from app.modules.subscriptions.dto import (
     SyncFromPanelOptionsDto,
     SyncToPanelOptionsDto,
 )
+from app.modules.subscriptions.events import PanelSyncDirection
 from app.modules.subscriptions.panel_sync import read_panel_sync_status
 from app.modules.subscriptions.usecases import (
     FulfillPurchaseUseCase,
