@@ -19,6 +19,7 @@ from app.modules.promocodes.availability import (
     assert_available_to,
     assert_discount_improves,
     assert_subscription_reward_grantable,
+    claim_activation,
     get_usable_promocode,
 )
 from app.modules.promocodes.dto import ActivatePromocodeDto, PromocodeDto
@@ -116,10 +117,11 @@ class ActivatePromocodeUseCase(UseCase[ActivatePromocodeDto, PromocodeDto, UserD
             )
 
         async with self._uow:
-            activation = await self._promocode_repository.claim_activation(
-                promocode_id=promo.id,
-                user_id=actor.id,
-                subscription_id=target.id if target is not None else None,
+            activation = await claim_activation(
+                self._promocode_repository,
+                promo.id,
+                actor.id,
+                target.id if target is not None else None,
             )
             # the claim is the activation, recorded even if the reward then fails
             await self._event_publisher.publish(

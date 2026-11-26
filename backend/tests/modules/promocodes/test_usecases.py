@@ -1349,7 +1349,7 @@ async def test_promocode_summary_counts_statuses_and_activations(
     user = await user_repository.create(
         CreateUserDto(name="buyer", telegram_id=uuid4().int % 10**9)
     )
-    await promocode_repository.claim_activation(capped.id, user.id, None)
+    await promocode_repository.add_activation(capped.id, user.id, None)
 
     summary = await _summary_use_case(promocode_repository, uow)(OWNER)
 
@@ -1394,8 +1394,8 @@ async def test_list_promocode_activated_users_returns_newest_first(
             plan_snapshot=make_plan_snapshot(name="Pro"),
         )
     )
-    await promocode_repository.claim_activation(promo.id, first.id, None)
-    await promocode_repository.claim_activation(promo.id, second.id, subscription.id)
+    await promocode_repository.add_activation(promo.id, first.id, None)
+    await promocode_repository.add_activation(promo.id, second.id, subscription.id)
     use_case = ListPromocodeActivatedUsersUseCase(
         promocode_repository, user_repository, subscription_repository, uow
     )
@@ -1450,7 +1450,7 @@ async def test_promocode_summary_totals_granted_rewards(
         CreateUserDto(name="buyer", telegram_id=uuid4().int % 10**9)
     )
     for promo_id in (days.id, days.id):
-        await promocode_repository.claim_activation(promo_id, user.id, None)
+        await promocode_repository.add_activation(promo_id, user.id, None)
 
     summary = await _summary_use_case(promocode_repository, uow)(OWNER)
 
@@ -1970,8 +1970,8 @@ async def test_list_promocode_activated_users_hides_staff_without_admins_manage(
     staff = await user_repository.create(
         CreateUserDto(name="staff", telegram_id=uuid4().int % 10**9, role=Role.ADMIN)
     )
-    await promocode_repository.claim_activation(promo.id, customer.id, None)
-    await promocode_repository.claim_activation(promo.id, staff.id, None)
+    await promocode_repository.add_activation(promo.id, customer.id, None)
+    await promocode_repository.add_activation(promo.id, staff.id, None)
     use_case = ListPromocodeActivatedUsersUseCase(
         promocode_repository, user_repository, subscription_repository, uow
     )

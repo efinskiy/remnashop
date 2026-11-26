@@ -1,8 +1,8 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import ColumnElement, and_, case, exists, func, not_, or_, select, update
-from sqlalchemy.exc import IntegrityError, NoResultFound
+from sqlalchemy import ColumnElement, and_, case, func, not_, or_, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db.errors import constraint_name
@@ -11,7 +11,7 @@ from app.core.db.models.promocode import Promocode, PromocodeActivation
 from app.core.db.partial_update import apply_partial_update
 from app.core.enums import PromocodeRewardType, PromocodeStatus
 from app.core.error_codes import ErrorCode
-from app.core.exceptions import ConflictError, NotFoundError, ValidationError
+from app.core.exceptions import ConflictError, NotFoundError
 from app.core.utils.time import datetime_now
 from app.modules.promocodes.dto import (
     CreatePromocodeDto,
@@ -22,7 +22,6 @@ from app.modules.promocodes.dto import (
     UpdatePromocodeDto,
     UserPromocodeActivationDto,
 )
-from app.modules.promocodes.rules import assert_usable
 
 
 def _exhausted() -> ColumnElement[bool]:
@@ -75,6 +74,10 @@ class PromocodeRepository:
 
     async def get_by_id(self, promocode_id: int) -> PromocodeDto:
         return self._to_dto(await self._get_or_raise(promocode_id))
+
+    async def find_by_id(self, promocode_id: int) -> Optional[PromocodeDto]:
+        row = await self.session.get(Promocode, promocode_id)
+        return self._to_dto(row) if row is not None else None
 
     async def find_by_code(self, code: str) -> Optional[PromocodeDto]:
         row = await self.session.scalar(select(Promocode).where(Promocode.code == code))
@@ -204,14 +207,6 @@ class PromocodeRepository:
         await self.session.flush()
         return disabled_ids
 
-    async def is_live(self, promocode_id: int) -> bool:
-        # a discount it granted lives exactly as long as the promocode does
-        row = await self.session.get(Promocode, promocode_id)
-        if row is None or not row.is_active:
-            return False
-        # same edge as activation: usable through the expiry instant itself
-        return row.expires_at is None or row.expires_at >= datetime_now()
-
     async def list_expiring(self, now: datetime, until: datetime) -> list[PromocodeDto]:
         rows = await self.session.scalars(
             select(Promocode).where(
@@ -227,54 +222,24 @@ class PromocodeRepository:
         await self.session.delete(row)
         await self.session.flush()
 
-    async def claim_activation(
-        self, promocode_id: int, user_id: int, subscription_id: Optional[int]
-    ) -> PromocodeActivationDto:
-        # concurrent claims serialize here; max_activations and the
-        # already-activated check below read this locked row, not the caller's copy
-        locked = await self.session.execute(
-            select(Promocode).where(Promocode.id == promocode_id).with_for_update()
+    async def get_by_id_for_update(self, promocode_id: int) -> PromocodeDto:
+        # concurrent activations of one code serialize on this lock
+        result = await self.session.execute(
+            select(Promocode)
+            .where(Promocode.id == promocode_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
         )
-        try:
-            promocode_row = locked.scalar_one()
-        except NoResultFound as error:
+        row = result.scalar_one_or_none()
+        if row is None:
             raise NotFoundError(
                 f"Promocode '{promocode_id}' not found", code=ErrorCode.PROMOCODE_NOT_FOUND
-            ) from error
-
-        # deactivated or expired since the caller read it
-        assert_usable(self._to_dto(promocode_row), datetime_now())
-
-        if promocode_row.max_activations is not None:
-            count_result = await self.session.execute(
-                select(func.count())
-                .select_from(PromocodeActivation)
-                .where(PromocodeActivation.promocode_id == promocode_id)
             )
-            if count_result.scalar_one() >= promocode_row.max_activations:
-                raise ValidationError(
-                    f"Promocode '{promocode_row.code}' activation limit reached",
-                    code=ErrorCode.PROMOCODE_LIMIT_REACHED,
-                )
+        return self._to_dto(row)
 
-        if not promocode_row.is_reusable:
-            # exists(), not scalar_one_or_none(): a code toggled from reusable
-            # to single-use leaves users with several activations, and asking
-            # for exactly one there raises instead of refusing the claim.
-            already_activated = await self.session.scalar(
-                select(
-                    exists().where(
-                        PromocodeActivation.promocode_id == promocode_id,
-                        PromocodeActivation.user_id == user_id,
-                    )
-                )
-            )
-            if already_activated:
-                raise ValidationError(
-                    f"Promocode '{promocode_row.code}' already activated by this user",
-                    code=ErrorCode.PROMOCODE_ALREADY_ACTIVATED,
-                )
-
+    async def add_activation(
+        self, promocode_id: int, user_id: int, subscription_id: Optional[int]
+    ) -> PromocodeActivationDto:
         row = PromocodeActivation(
             promocode_id=promocode_id, user_id=user_id, subscription_id=subscription_id
         )

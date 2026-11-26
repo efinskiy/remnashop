@@ -1,12 +1,14 @@
+from typing import Optional
+
 from app.core.actor import Actor
 from app.core.enums import PromocodeAvailability, PromocodeRewardType
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import NotFoundError, ValidationError
 from app.core.utils.time import datetime_now
 from app.modules.plans import PlanDto, PlanRepository
-from app.modules.promocodes.dto import PromocodeDto
+from app.modules.promocodes.dto import PromocodeActivationDto, PromocodeDto
 from app.modules.promocodes.repository import PromocodeRepository
-from app.modules.promocodes.rules import assert_usable
+from app.modules.promocodes.rules import assert_usable, is_promocode_live
 from app.modules.subscriptions import PurchaseEligibility, ReferrerLookup, SubscriptionRepository
 from app.modules.users import UserDto
 
@@ -21,6 +23,44 @@ async def get_usable_promocode(
         raise NotFoundError(f"Promocode '{code}' not found", code=ErrorCode.PROMOCODE_NOT_FOUND)
     assert_usable(promo, datetime_now())
     return promo
+
+
+async def claim_activation(
+    promocode_repository: PromocodeRepository,
+    promocode_id: int,
+    user_id: int,
+    subscription_id: Optional[int],
+) -> PromocodeActivationDto:
+    """Records an activation, re-checked on the locked row; concurrent claims of
+    one code serialize on that lock."""
+    promo = await promocode_repository.get_by_id_for_update(promocode_id)
+    # deactivated or expired since the caller read it
+    assert_usable(promo, datetime_now())
+    if promo.max_activations is not None:
+        if await promocode_repository.get_activations_count(promo.id) >= promo.max_activations:
+            raise ValidationError(
+                f"Promocode '{promo.code}' activation limit reached",
+                code=ErrorCode.PROMOCODE_LIMIT_REACHED,
+            )
+    if not promo.is_reusable:
+        # a code toggled from reusable to single-use may already have several
+        if await promocode_repository.find_activation_by_user(promo.id, user_id) is not None:
+            raise ValidationError(
+                f"Promocode '{promo.code}' already activated by this user",
+                code=ErrorCode.PROMOCODE_ALREADY_ACTIVATED,
+            )
+    return await promocode_repository.add_activation(promo.id, user_id, subscription_id)
+
+
+class PromocodeLivenessCheck:
+    """Whether a discount a promocode granted still holds."""
+
+    def __init__(self, promocode_repository: PromocodeRepository) -> None:
+        self._promocode_repository = promocode_repository
+
+    async def is_live(self, promocode_id: int) -> bool:
+        promo = await self._promocode_repository.find_by_id(promocode_id)
+        return promo is not None and is_promocode_live(promo, datetime_now())
 
 
 async def assert_subscription_reward_grantable(

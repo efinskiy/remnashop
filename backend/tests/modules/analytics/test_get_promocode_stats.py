@@ -103,7 +103,7 @@ async def _activate(
     user_id: int,
     at: datetime,
 ) -> None:
-    activation = await promocodes.claim_activation(promocode_id, user_id, None)
+    activation = await promocodes.add_activation(promocode_id, user_id, None)
     await session.execute(
         update(PromocodeActivation)
         .where(PromocodeActivation.id == activation.id)

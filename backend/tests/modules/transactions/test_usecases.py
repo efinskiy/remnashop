@@ -66,6 +66,7 @@ from app.modules.plans.dto import (
 )
 from app.modules.plans.repository import PlanRepository
 from app.modules.pricing import PricingRepository
+from app.modules.promocodes.availability import PromocodeLivenessCheck
 from app.modules.promocodes.dto import CreatePromocodeDto, UpdatePromocodeDto
 from app.modules.promocodes.repository import PromocodeRepository
 from app.modules.referrals import ReferralRepository
@@ -190,7 +191,7 @@ def create_checkout_use_case(
             make_eligibility(plan_repository.session),
             pricing_repository,
             uow,
-            promocode_repository,
+            PromocodeLivenessCheck(promocode_repository),
             subscription_repository,
             SettingsRepository(plan_repository.session),
             make_change_credit_calculator(plan_repository.session, remnawave_sdk),
@@ -474,7 +475,7 @@ async def test_concurrent_free_checkouts_stop_at_the_cap(
                 make_eligibility(session),
                 PricingRepository(session),
                 uow,
-                PromocodeRepository(session),
+                PromocodeLivenessCheck(PromocodeRepository(session)),
                 SubscriptionRepository(session),
                 SettingsRepository(session),
                 # a fixed-term checkout never reads the panel for its credit
