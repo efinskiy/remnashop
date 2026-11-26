@@ -53,7 +53,6 @@ from app.modules.subscriptions.ports import (
     OrderFailer,
     PaidOrderHold,
     ReferrerLookup,
-    SpentPurchaseDiscount,
 )
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.rollback import PurchaseRollbackService
@@ -121,7 +120,6 @@ __all__ = [
     "RenameDeviceDto",
     "RenameDeviceUseCase",
     "RollbackPreviewDto",
-    "SpentPurchaseDiscount",
     "SubscriptionAddOnGrantedEvent",
     "SubscriptionChangedEvent",
     "SubscriptionDto",

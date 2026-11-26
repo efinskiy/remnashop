@@ -14,6 +14,7 @@ from app.core.enums import (
     BroadcastCategory,
     BroadcastChannel,
     BroadcastDelivery,
+    BroadcastRecipientStatus,
     BroadcastSubscriptionFilter,
     SubscriptionStatus,
     TransactionStatus,
@@ -26,6 +27,13 @@ _LIVE: Final[tuple[SubscriptionStatus, ...]] = (
     SubscriptionStatus.ACTIVE,
     SubscriptionStatus.LIMITED,
 )
+
+NO_TELEGRAM_ERROR: Final[str] = "no telegram"
+NO_EMAIL_ERROR: Final[str] = "no email"
+UNDELIVERABLE_ERROR: Final[str] = "undeliverable"
+OPTED_OUT_ERROR: Final[str] = "opted out"
+BLOCKED_ERROR: Final[str] = "blocked"
+BOT_BLOCKED_ERROR: Final[str] = "bot blocked"
 
 
 def _has_subscription(*conditions: ColumnElement[bool]) -> ColumnElement[bool]:
@@ -194,3 +202,26 @@ def audience_predicate(
     conditions += _subscription_conditions(audience, now)
     conditions += _profile_conditions(audience)
     return and_(*conditions)
+
+
+_Drop = tuple[BroadcastRecipientStatus, ColumnElement[bool], str]
+
+
+def send_time_drops(channel: BroadcastChannel, marketing: bool) -> list[_Drop]:
+    """Why a pending recipient no longer gets the message, first match first: the
+    audience was built at materialization, a block or opt-out since then still wins."""
+    canceled = BroadcastRecipientStatus.CANCELED
+    failed = BroadcastRecipientStatus.FAILED
+    drops: list[_Drop] = [(canceled, User.is_blocked.is_(True), BLOCKED_ERROR)]
+    if marketing:
+        drops.append((canceled, User.marketing_opt_out.is_(True), OPTED_OUT_ERROR))
+    if channel is BroadcastChannel.TELEGRAM:
+        # a user who lost their telegram_id since materialization can never be reached
+        drops.append((failed, User.telegram_id.is_(None), NO_TELEGRAM_ERROR))
+        drops.append(
+            (BroadcastRecipientStatus.BLOCKED, User.is_bot_blocked.is_(True), BOT_BLOCKED_ERROR)
+        )
+    else:
+        drops.append((failed, User.email.is_(None), NO_EMAIL_ERROR))
+        drops.append((failed, User.email_undeliverable_at.is_not(None), UNDELIVERABLE_ERROR))
+    return drops

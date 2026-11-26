@@ -371,13 +371,9 @@ class UserRepository:
         await self.session.flush()
 
     async def restore_purchase_discount(
-        self, user_id: int, percent: int, promocode_id: Optional[int], *, from_promocode: bool
+        self, user_id: int, percent: int, promocode_id: Optional[int]
     ) -> bool:
         """Whether the discount went back."""
-        # a promocode order whose promocode was deleted has no id left: handing
-        # its one-shot discount back would pass it off as admin-granted
-        if from_promocode and promocode_id is None:
-            return False
         # only into an empty slot, never over a discount granted since
         result = await self.session.execute(
             update(User)
@@ -548,9 +544,7 @@ class UserRepository:
 
         db_user.role = Role.ADMIN
         db_user.login = data.login
-        # staff go by their login until they set a name
-        if not db_user.name:
-            db_user.name = data.login
+        db_user.name = data.name
         db_user.password_hash = data.password_hash
         db_user.password_change_required = data.password_change_required
         db_user.permission_grants = None
@@ -560,21 +554,23 @@ class UserRepository:
         await self.session.refresh(db_user)
         return self._to_dto(db_user)
 
-    async def claim_owner(self, login: str, password_hash: str) -> Optional[UserDto]:
+    async def find_owner_for_update(self) -> Optional[UserDto]:
         db_user = await self.session.scalar(
             select(User)
             .where(User.role == Role.OWNER)
             .with_for_update()
             .execution_options(populate_existing=True)
         )
-        if db_user is None:
-            return None
+        return self._to_dto(db_user) if db_user is not None else None
 
+    async def claim_owner(
+        self, owner_id: int, *, login: str, name: str, password_hash: str
+    ) -> UserDto:
+        db_user = await self.session.get_one(User, owner_id)
         db_user.login = login
+        db_user.name = name
         db_user.password_hash = password_hash
         db_user.password_change_required = False
-        if not db_user.name:
-            db_user.name = login
 
         await self._flush_unique()
         await self.session.refresh(db_user)

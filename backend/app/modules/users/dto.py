@@ -156,6 +156,7 @@ class UpdateUserDto:
 @dataclass(frozen=True, kw_only=True)
 class PromoteAdminDto:
     login: str
+    name: str
     password_hash: str
     password_change_required: bool
 

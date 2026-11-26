@@ -33,6 +33,7 @@ from app.modules.plans.dto import (
 )
 from app.modules.plans.repository import PlanRepository
 from app.modules.pricing import PricingRepository
+from app.modules.promocodes.availability import PromocodeLivenessCheck
 from app.modules.promocodes.repository import PromocodeRepository
 from app.modules.settings import GetAccessSettingsUseCase
 from app.modules.settings.dto import UpdateShopSettingsDto
@@ -76,7 +77,7 @@ def pricer(
         make_eligibility(plan_repository.session),
         pricing_repository,
         uow,
-        promocode_repository,
+        PromocodeLivenessCheck(promocode_repository),
         SubscriptionRepository(plan_repository.session),
         SettingsRepository(plan_repository.session),
         make_change_credit_calculator(plan_repository.session, remnawave_sdk),

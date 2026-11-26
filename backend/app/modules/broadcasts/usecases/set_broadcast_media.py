@@ -53,6 +53,8 @@ class SetBroadcastMediaUseCase(UseCase[SetBroadcastMediaDto, BroadcastDto]):
                 )
             validate_text_lengths(current.contents, has_media=True)
             version = current.media_version + 1
+            # an edited broadcast goes out only once it is scheduled again
+            await self._broadcast_repository.return_to_draft(current.id)
             await self._broadcast_repository.set_media(
                 current.id,
                 BroadcastMediaDto(

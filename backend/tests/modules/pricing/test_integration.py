@@ -36,6 +36,7 @@ from app.modules.plans.usecases import SwitchAnchorCurrencyUseCase
 from app.modules.pricing.dto import UpdateCurrencyRateDto
 from app.modules.pricing.repository import PricingRepository
 from app.modules.pricing.usecases import UpdateCurrencyRateUseCase
+from app.modules.promocodes.availability import PromocodeLivenessCheck
 from app.modules.promocodes.repository import PromocodeRepository
 from app.modules.referrals.repository import ReferralRepository
 from app.modules.settings import GetAccessSettingsUseCase
@@ -165,7 +166,7 @@ async def test_rate_change_moves_catalog_but_not_existing_order(
             make_eligibility(plan_repository.session),
             pricing_repository,
             uow,
-            PromocodeRepository(plan_repository.session),
+            PromocodeLivenessCheck(PromocodeRepository(plan_repository.session)),
             SubscriptionRepository(plan_repository.session),
             SettingsRepository(plan_repository.session),
             make_change_credit_calculator(plan_repository.session, remnawave_sdk),

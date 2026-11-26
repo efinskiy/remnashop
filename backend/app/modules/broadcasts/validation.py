@@ -9,6 +9,7 @@ from app.core.utils.telegram_text import (
     telegram_length,
     validate_telegram_html,
 )
+from app.core.utils.time import datetime_now
 from app.modules.broadcasts.channels import sends_email, sends_telegram
 from app.modules.broadcasts.content import (
     BROADCAST_VARIABLES,
@@ -26,7 +27,7 @@ from app.modules.broadcasts.dto import (
 from app.modules.broadcasts.email_html import email_image_ids, validate_email_html
 from app.modules.broadcasts.repository import BroadcastRepository
 from app.modules.broadcasts.storage import MAX_EMAIL_IMAGES_PER_LETTER_BYTES
-from app.modules.promocodes import PromocodeRepository
+from app.modules.promocodes import PromocodeRepository, is_promocode_live
 
 MAX_TITLE_LENGTH: Final[int] = 120
 MAX_BUTTONS: Final[int] = 10
@@ -226,9 +227,9 @@ def validate_audience(audience: BroadcastAudienceDto) -> None:
 async def promocode_is_usable(
     promocode_repository: PromocodeRepository, promocode_id: int
 ) -> Optional[str]:
-    if not await promocode_repository.is_live(promocode_id):
+    promo = await promocode_repository.find_by_id(promocode_id)
+    if promo is None or not is_promocode_live(promo, datetime_now()):
         return None
-    promo = await promocode_repository.get_by_id(promocode_id)
     if promo.max_activations is not None:
         if await promocode_repository.get_activations_count(promo.id) >= promo.max_activations:
             return None

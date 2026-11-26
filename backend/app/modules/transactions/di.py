@@ -13,7 +13,7 @@ from app.modules.transactions.gateways.factory import PaymentGatewayFactory
 from app.modules.transactions.repository import TransactionRepository
 from app.modules.transactions.stats_repository import TransactionStatsRepository
 from app.modules.transactions.tasks import confirm_stars_payment_task
-from app.modules.transactions.unpaid_orders import PaidOrderHolder
+from app.modules.transactions.unpaid_orders import FreeOrderFailer, PaidOrderHolder
 from app.modules.transactions.usecases import (
     CheckTransactionPaymentUseCase,
     ConfirmStarsPaymentUseCase,
@@ -54,7 +54,8 @@ class TransactionsProvider(Provider):
     waitlist_claims = provide(WaitlistClaims, scope=Scope.APP)
     checkout_pricer = provide(CheckoutPricer)
     anchor_amount_rescaler = alias(source=TransactionRepository, provides=AnchorAmountRescaler)
-    order_failer = alias(source=TransactionRepository, provides=OrderFailer)
+    free_order_failer = provide(FreeOrderFailer)
+    order_failer = alias(source=FreeOrderFailer, provides=OrderFailer)
     paid_order_holder = provide(PaidOrderHolder)
     paid_order_hold = alias(source=PaidOrderHolder, provides=PaidOrderHold)
     open_order_counter = alias(source=TransactionRepository, provides=OpenOrderCounter)

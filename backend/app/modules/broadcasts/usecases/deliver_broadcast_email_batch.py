@@ -24,6 +24,7 @@ from app.core.exceptions import NotFoundError
 from app.core.ports import EventPublisher
 from app.core.usecase import UseCase
 from app.core.utils.time import datetime_now
+from app.modules.broadcasts.audience import UNDELIVERABLE_ERROR
 from app.modules.broadcasts.completion import complete_broadcast, fail_broadcast
 from app.modules.broadcasts.dispatch import DeliverBroadcastEmailDispatch
 from app.modules.broadcasts.dto import (
@@ -40,10 +41,7 @@ from app.modules.broadcasts.pacing import (
     GROUP_SIZE,
     MAX_ATTEMPTS,
 )
-from app.modules.broadcasts.recipient_repository import (
-    UNDELIVERABLE_ERROR,
-    BroadcastRecipientRepository,
-)
+from app.modules.broadcasts.recipient_repository import BroadcastRecipientRepository
 from app.modules.broadcasts.referral import cabinet_links_allowed, referral_link_bases
 from app.modules.broadcasts.render import load_unsubscribe_labels
 from app.modules.broadcasts.repository import BroadcastRepository

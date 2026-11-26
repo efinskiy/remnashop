@@ -21,16 +21,15 @@ class UserBlacklistRepository:
     def _to_dto(self, row: User) -> UserDto:
         return UserDto.model_validate(row, from_attributes=True)
 
-    async def block_matching(self, telegram_ids: set[int], emails: set[str]) -> list[int]:
+    async def block_matching(
+        self, telegram_ids: set[int], emails: set[str], *, roles: Sequence[Role]
+    ) -> list[int]:
         if not telegram_ids and not emails:
             return []
-        # Role.USER only: reconcile runs with no actor and no role guard, and an
-        # auto-blocked OWNER has no recovery path (unblock_user needs a strictly
-        # higher-role actor). Blocking staff stays an explicit BlockUserUseCase call.
         # emails come from normalize_identity (lowercased); User.email is stored as written.
         stmt = (
             select(User)
-            .where(User.role == Role.USER)
+            .where(User.role.in_(roles))
             .where(User.is_blocked.is_(False))
             .where(identity_filter(telegram_ids, emails))
         )

@@ -404,7 +404,7 @@ async def test_fulfilling_an_order_held_for_a_spent_discount_spends_one_back_sin
             held.id, FulfillmentHold.PURCHASE_DISCOUNT_SPENT
         )
         # back with the customer since: another order of theirs expired
-        await user_repository.restore_purchase_discount(user_id, 20, None, from_promocode=False)
+        await user_repository.restore_purchase_discount(user_id, 20, None)
 
     await FulfillTransactionUseCase(
         transaction_repository,

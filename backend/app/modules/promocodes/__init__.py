@@ -9,6 +9,7 @@ from app.modules.promocodes.dto import (
 )
 from app.modules.promocodes.events import PromocodeDiscountExpiringEvent
 from app.modules.promocodes.repository import PromocodeRepository
+from app.modules.promocodes.rules import is_promocode_live
 from app.modules.promocodes.usecases import (
     ActivatePromocodeByLinkUseCase,
     ActivatePromocodeUseCase,
@@ -32,4 +33,5 @@ __all__ = [
     "ValidatePromocodeDto",
     "ValidatePromocodeUseCase",
     "get_promocodes_providers",
+    "is_promocode_live",
 ]

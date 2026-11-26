@@ -209,8 +209,6 @@ class BroadcastRepository:
         row = await self._get_row(broadcast_id)
         for key, value in self._values(data).items():
             setattr(row, key, value)
-        row.status = BroadcastStatus.DRAFT
-        row.scheduled_at = None
         row.updated_at = datetime_now()
         await self.session.flush()
         return await self._with_creator(row)
@@ -269,6 +267,9 @@ class BroadcastRepository:
         # the stall watchdog reads updated_at
         await self._write(broadcast_id, {})
 
+    async def return_to_draft(self, broadcast_id: int) -> None:
+        await self._write(broadcast_id, {"status": BroadcastStatus.DRAFT, "scheduled_at": None})
+
     async def schedule(self, broadcast_id: int, scheduled_at: datetime) -> None:
         await self._write(
             broadcast_id,
@@ -305,15 +306,13 @@ class BroadcastRepository:
         )
 
     async def set_media(self, broadcast_id: int, media: Optional[BroadcastMediaDto]) -> None:
-        # any media change sends the broadcast back to draft; None removes the media
+        # None removes the media
         values: dict[str, Any] = {
             "media_type": media.media_type if media else None,
             "media_content_type": media.content_type if media else None,
             "media_extension": media.extension if media else None,
             "media_size_bytes": media.size_bytes if media else None,
             "media_file_id": None,
-            "status": BroadcastStatus.DRAFT,
-            "scheduled_at": None,
         }
         if media is not None:
             values["media_version"] = media.version
