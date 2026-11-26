@@ -278,6 +278,8 @@ class PlanRepository:
         return await self._hydrate(row)
 
     async def delete(self, plan_id: int) -> None:
+        # a reorder checks its list against the plan ids, then writes
+        await self._lock_plan_set()
         await self._get_or_raise(plan_id)
         try:
             await self.session.execute(delete(Plan).where(Plan.id == plan_id))
@@ -443,9 +445,13 @@ class PlanRepository:
         await self.session.refresh(row)
         return await self._hydrate(row)
 
-    async def lock_order(self) -> set[int]:
-        """Every plan id, with the plan order locked until the transaction ends."""
+    async def _lock_plan_set(self) -> None:
+        # held until the transaction ends by everything that adds, removes or orders plans
         await self.session.execute(select(func.pg_advisory_xact_lock(_PLAN_ORDER_LOCK_KEY)))
+
+    async def lock_order(self) -> set[int]:
+        """Every plan id, with the plan set locked until the transaction ends."""
+        await self._lock_plan_set()
         return set(await self.session.scalars(select(Plan.id)))
 
     async def reorder(self, data: ReorderPlansDto) -> list[PlanDto]:

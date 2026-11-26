@@ -1,5 +1,6 @@
 import asyncio
 from datetime import timedelta
+from typing import Final
 
 import pytest
 from sqlalchemy import select, text
@@ -17,7 +18,7 @@ from app.modules.users.dto import CreateUserDto
 from app.modules.users.repository import UserRepository
 
 # far longer than a round trip, so both sides of the race test overlap there
-_RACE_WINDOW_DELAY_SECONDS: float = 0.05
+_RACE_WINDOW_DELAY_SECONDS: Final[float] = 0.05
 
 
 def _create_dto(code: str = "WELCOME10", **overrides: object) -> CreatePromocodeDto:
