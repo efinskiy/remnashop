@@ -16,7 +16,7 @@ _EXTENSION: Final[str] = "png"
 async def ensure_default_banner_seeded(
     banner_repository: BannerRepository, config: AppConfig, default_locale: Locale
 ) -> None:
-    # Only the default locale: find_for_display already falls back to it, so one
+    # Only the default locale: find_banner_for_display already falls back to it, so one
     # row covers every language until an admin uploads a localized replacement.
     if await banner_repository.get(DEFAULT_BANNER_NAME, default_locale) is not None:
         return

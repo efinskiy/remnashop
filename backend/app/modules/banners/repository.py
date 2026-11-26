@@ -3,7 +3,6 @@ from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.constants import DEFAULT_BANNER_NAME
 from app.core.db.models.banner import Banner
 from app.core.enums import Locale
 from app.modules.banners.dto import BannerDto, UploadBannerDto
@@ -58,16 +57,3 @@ class BannerRepository:
             await self.session.delete(row)
         await self.session.flush()
         return deleted
-
-    async def find_for_display(
-        self, name: str, locale: Locale, default_locale: Locale
-    ) -> Optional[BannerDto]:
-        candidates = [(name, locale), (DEFAULT_BANNER_NAME, locale)]
-        if locale != default_locale:
-            candidates += [(name, default_locale), (DEFAULT_BANNER_NAME, default_locale)]
-
-        for candidate_name, candidate_locale in candidates:
-            banner = await self.get(candidate_name, candidate_locale)
-            if banner is not None:
-                return banner
-        return None

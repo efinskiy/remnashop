@@ -5,6 +5,7 @@ from app.core.error_codes import ErrorCode
 from app.core.exceptions import NotFoundError
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
+from app.modules.banners.display import find_banner_for_display
 from app.modules.banners.dto import BannerImageDto, BannerImageQueryDto
 from app.modules.banners.repository import BannerRepository
 from app.modules.banners.storage import read_banner_file
@@ -30,8 +31,8 @@ class GetBannerImageUseCase(UseCase[BannerImageQueryDto, BannerImageDto]):
         async with self._uow:
             if data.fallback:
                 default_locale = await self._translation_repository.get_default_locale()
-                banner = await self._banner_repository.find_for_display(
-                    data.name, data.locale, default_locale
+                banner = await find_banner_for_display(
+                    self._banner_repository, data.name, data.locale, default_locale
                 )
             else:
                 banner = await self._banner_repository.get(data.name, data.locale)
