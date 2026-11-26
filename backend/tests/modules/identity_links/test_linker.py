@@ -5,9 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db.models import EventOutboxEntry
 from app.core.db.uow import UnitOfWork
-from app.core.enums import BlacklistKind, OAuthProvider, Role
+from app.core.enums import OAuthProvider, Role
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ConflictError, PermissionDeniedError, ValidationError
+from app.modules.blacklist.dto import BlacklistKind
 from app.modules.blacklist.repository import BlacklistRepository
 from app.modules.cabinet_auth import TelegramProfileDto
 from app.modules.identity_links.api.schemas import LinkResultResponse

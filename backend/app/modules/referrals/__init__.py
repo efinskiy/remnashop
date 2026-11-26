@@ -1,5 +1,10 @@
 from app.modules.referrals.di import get_referrals_providers
-from app.modules.referrals.dto import MAX_BONUS_DAYS, RedeemBonusDaysDto, ReferralSettingsDto
+from app.modules.referrals.dto import (
+    MAX_BONUS_DAYS,
+    RedeemBonusDaysDto,
+    ReferralLevel,
+    ReferralSettingsDto,
+)
 from app.modules.referrals.events import (
     InviteeRewardIssuedEvent,
     ReferralAttachedEvent,
@@ -23,6 +28,7 @@ __all__ = [
     "RedeemBonusDaysDto",
     "RedeemBonusDaysUseCase",
     "ReferralAttachedEvent",
+    "ReferralLevel",
     "ReferralRepository",
     "ReferralRewardIssuedEvent",
     "ReferralSettingsDto",

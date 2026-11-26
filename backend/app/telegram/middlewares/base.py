@@ -1,5 +1,6 @@
 import time
 from abc import ABC, abstractmethod
+from enum import StrEnum, auto
 from typing import Any, Awaitable, Callable, ClassVar, Final, Optional
 
 from aiogram import BaseMiddleware, Router
@@ -7,7 +8,36 @@ from aiogram.types import Message, TelegramObject
 from aiogram.types import User as AiogramUser
 from loguru import logger
 
-from app.core.enums import MiddlewareEventType
+
+# https://docs.aiogram.dev/en/latest/api/types/update.html
+class MiddlewareEventType(StrEnum):
+    AIOGD_UPDATE = auto()  # aiogram-dialog
+    UPDATE = auto()
+    MESSAGE = auto()
+    EDITED_MESSAGE = auto()
+    CHANNEL_POST = auto()
+    EDITED_CHANNEL_POST = auto()
+    BUSINESS_CONNECTION = auto()
+    BUSINESS_MESSAGE = auto()
+    EDITED_BUSINESS_MESSAGE = auto()
+    DELETED_BUSINESS_MESSAGES = auto()
+    MESSAGE_REACTION = auto()
+    MESSAGE_REACTION_COUNT = auto()
+    INLINE_QUERY = auto()
+    CHOSEN_INLINE_RESULT = auto()
+    CALLBACK_QUERY = auto()
+    SHIPPING_QUERY = auto()
+    PRE_CHECKOUT_QUERY = auto()
+    PURCHASED_PAID_MEDIA = auto()
+    POLL = auto()
+    POLL_ANSWER = auto()
+    MY_CHAT_MEMBER = auto()
+    CHAT_MEMBER = auto()
+    CHAT_JOIN_REQUEST = auto()
+    CHAT_BOOST = auto()
+    REMOVED_CHAT_BOOST = auto()
+    ERROR = auto()
+
 
 DEFAULT_UPDATE_TYPES: Final[list[MiddlewareEventType]] = [
     MiddlewareEventType.MESSAGE,

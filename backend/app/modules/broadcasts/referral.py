@@ -4,9 +4,8 @@ from urllib.parse import quote
 from loguru import logger
 
 from app.core.constants import REFERRAL_START_PREFIX, T_ME
-from app.core.enums import BroadcastButtonKind
 from app.modules.broadcasts.content import used_variables
-from app.modules.broadcasts.dto import BroadcastDto, ReferralLinkBasesDto
+from app.modules.broadcasts.dto import BroadcastButtonKind, BroadcastDto, ReferralLinkBasesDto
 from app.modules.referrals import ReferralRepository
 from app.modules.settings import BotSettingsDto, SettingsRepository, bot_username
 

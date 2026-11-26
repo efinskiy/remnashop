@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from enum import auto
+from enum import StrEnum, auto
 from typing import Optional
 from uuid import UUID
 
@@ -21,6 +21,12 @@ from app.core.enums import (
     SmtpSecurity,
     UpperStrEnum,
 )
+
+
+class AppearanceImageKind(StrEnum):
+    LOGO = auto()
+    FAVICON = auto()
+    APP_ICON = auto()
 
 
 class BotSettingsDto(BaseDto, TimestampMixin):

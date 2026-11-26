@@ -4,8 +4,7 @@ from aiogram.types import ErrorEvent as AiogramErrorEvent
 from aiogram.types import TelegramObject
 from loguru import logger
 
-from app.core.enums import MiddlewareEventType
-from app.telegram.middlewares.base import EventTypedMiddleware
+from app.telegram.middlewares.base import EventTypedMiddleware, MiddlewareEventType
 
 
 class ErrorMiddleware(EventTypedMiddleware):

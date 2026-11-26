@@ -1,8 +1,9 @@
 from dataclasses import dataclass
 from typing import ClassVar
 
-from app.core.enums import Currency, PinnedPriceAction, PriceAdjustMode, PriceAdjustScope
+from app.core.enums import Currency
 from app.core.events import ActorEvent, EventCategory
+from app.modules.pricing.dto import PinnedPriceAction, PriceAdjustMode, PriceAdjustScope
 
 
 @dataclass(frozen=True, kw_only=True)

@@ -4,14 +4,7 @@ from typing import Any, ClassVar
 
 import pytest
 
-from app.core.enums import (
-    AddOnType,
-    CabinetSignInMethod,
-    Locale,
-    OAuthProvider,
-    ReferralRewardType,
-    Role,
-)
+from app.core.enums import AddOnType, Locale, OAuthProvider, ReferralRewardType, Role
 from app.core.event_bus import EventBus
 from app.core.events import BaseEvent, EventCategory, StoredEvent
 from app.core.outbox_event_publisher import _build_payload
@@ -75,7 +68,7 @@ from app.modules.transactions.events import (
     TransactionRefundedEvent,
 )
 from app.modules.transactions.tasks import notify_payment_waitlist_task
-from app.modules.users.dto import UserDto
+from app.modules.users.dto import CabinetSignInMethod, UserDto
 from app.modules.users.events import CabinetUserRegisteredEvent, TelegramUserRegisteredEvent
 from app.worker.subscribers import register_all_subscribers
 

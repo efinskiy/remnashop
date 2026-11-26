@@ -4,8 +4,7 @@ from typing import Any, Awaitable, Callable, ClassVar, cast
 from aiogram.exceptions import TelegramAPIError
 from aiogram.types import Message, TelegramObject
 
-from app.core.enums import MiddlewareEventType
-from app.telegram.middlewares.base import EventTypedMiddleware
+from app.telegram.middlewares.base import EventTypedMiddleware, MiddlewareEventType
 
 
 class GarbageMiddleware(EventTypedMiddleware):

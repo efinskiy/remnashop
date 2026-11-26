@@ -1,7 +1,7 @@
 from decimal import Decimal
 from typing import Final, Optional, Sequence, Union
 
-from app.core.enums import Currency, PinnedPriceAction, PriceAdjustMode, PriceAdjustScope
+from app.core.enums import Currency
 from app.modules.plans.dto import (
     AddOnDto,
     AddOnPriceOverrideDto,
@@ -16,6 +16,9 @@ from app.modules.pricing import (
     MIN_BASE_PRICE,
     RATE_PRECISION,
     CurrencyRateTable,
+    PinnedPriceAction,
+    PriceAdjustMode,
+    PriceAdjustScope,
     round_amount,
     scale_base_price,
 )

@@ -6,7 +6,7 @@ from pywebpush import WebPushException
 from requests import Response
 
 from app.core.db.uow import UnitOfWork
-from app.core.enums import AppearanceImageKind, AppearanceTarget, Locale, Role, SessionAudience
+from app.core.enums import AppearanceTarget, Locale, Role, SessionAudience
 from app.modules.auth.repository import SessionRepository
 from app.modules.notifications import webpush as webpush_module
 from app.modules.notifications.dto import PushMessage, UpdateNotificationSettingsDto
@@ -14,6 +14,7 @@ from app.modules.notifications.repository import NotificationRepository
 from app.modules.notifications.vapid import generate_vapid_keypair
 from app.modules.notifications.webpush import WebPushSender
 from app.modules.settings import SettingsRepository
+from app.modules.settings.dto import AppearanceImageKind
 from app.modules.users.dto import CreateUserDto, UserDto
 from app.modules.users.repository import UserRepository
 from tests.modules.notifications.conftest import NewSession

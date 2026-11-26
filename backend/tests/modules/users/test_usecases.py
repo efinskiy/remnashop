@@ -9,7 +9,7 @@ from app.core.actor import SyntheticActor
 from app.core.config import AppConfig
 from app.core.db.models import EventOutboxEntry, User
 from app.core.db.uow import UnitOfWork
-from app.core.enums import BlacklistKind, Locale, OAuthProvider, Role, SessionAudience
+from app.core.enums import Locale, OAuthProvider, Role, SessionAudience
 from app.core.exceptions import ConflictError, NotFoundError, PermissionDeniedError, ValidationError
 from app.core.ports import EventPublisher
 from app.core.security import hash_password
@@ -21,7 +21,7 @@ from app.modules.auth.dto import CreateSessionDto
 from app.modules.auth.repository import SessionRepository
 from app.modules.auth.session_issuer import SessionIssuer
 from app.modules.blacklist import BlacklistRepository
-from app.modules.blacklist.dto import AddBlacklistSourceDto, ParsedSourceList
+from app.modules.blacklist.dto import AddBlacklistSourceDto, BlacklistKind, ParsedSourceList
 from app.modules.oauth.dto import CreateOAuthIdentityDto
 from app.modules.oauth.repository import OAuthIdentityRepository
 from app.modules.passkeys.dto import CreatePasskeyCredentialDto

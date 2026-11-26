@@ -13,7 +13,6 @@ from app.core.enums import (
     CreditSegmentKind,
     Currency,
     Locale,
-    PanelSyncDirection,
     PlanBadge,
     PlanType,
     SubscriptionStatus,
@@ -21,6 +20,7 @@ from app.core.enums import (
 from app.core.security.connect_signature import sign_subscription_url
 from app.core.utils.telegram_text import PREMIUM_EMOJI_RE
 from app.modules.subscriptions.dto import GetAvailableTrialDto, PlanSnapshot, SubscriptionDto
+from app.modules.subscriptions.events import PanelSyncDirection
 from app.modules.subscriptions.plan_snapshot_response import PlanSnapshotResponse
 
 

@@ -1,12 +1,13 @@
 from pathlib import Path
 
-from app.core.enums import AppearanceImageKind, AppearanceTarget
+from app.core.enums import AppearanceTarget
 from app.modules.settings.appearance_storage import (
     appearance_image_path,
     delete_appearance_image,
     read_appearance_image,
     save_appearance_image,
 )
+from app.modules.settings.dto import AppearanceImageKind
 
 
 def test_appearance_image_path_is_deterministic(tmp_path: Path) -> None:

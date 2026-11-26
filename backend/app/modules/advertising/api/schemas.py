@@ -6,7 +6,8 @@ from pydantic import BaseModel, Field
 
 from app.core.constants import ZERO_AMOUNT
 from app.core.dto import ResponseModel
-from app.core.enums import AdLinkChannel, Currency, PromocodeLinkOutcome, PromocodeRewardType
+from app.core.enums import AdLinkChannel, Currency, PromocodeRewardType
+from app.modules.promocodes import PromocodeLinkOutcome
 
 
 class AdLinkResponse(ResponseModel):

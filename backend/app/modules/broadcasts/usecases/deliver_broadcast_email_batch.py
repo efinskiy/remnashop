@@ -14,12 +14,7 @@ from app.core.actor import Actor
 from app.core.config import AppConfig
 from app.core.constants import REDIS_KEY_PREFIX
 from app.core.db.uow import UnitOfWork
-from app.core.enums import (
-    BroadcastCategory,
-    BroadcastRecipientStatus,
-    BroadcastStatus,
-    EmailOutcome,
-)
+from app.core.enums import BroadcastCategory, BroadcastRecipientStatus, BroadcastStatus
 from app.core.exceptions import NotFoundError
 from app.core.ports import EventPublisher
 from app.core.usecase import UseCase
@@ -49,6 +44,7 @@ from app.modules.broadcasts.validation import promocode_is_usable
 from app.modules.email import (
     SMTP_PAUSE_SECONDS,
     EmailDeliveryDto,
+    EmailOutcome,
     EmailSendError,
     InlineImageDto,
     OutgoingEmailDto,

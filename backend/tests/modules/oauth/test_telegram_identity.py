@@ -4,13 +4,14 @@ import pytest
 
 from app.core.config import AppConfig
 from app.core.db.uow import UnitOfWork
-from app.core.enums import BlacklistKind, Locale, OAuthProvider, Role
+from app.core.enums import Locale, OAuthProvider, Role
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import AuthenticationError, ConflictError, ValidationError
 from app.core.ports import EventPublisher
 from app.modules.auth import SessionIssuer, SessionRepository
 from app.modules.auth.sign_in_methods import SignInMethodGuard
 from app.modules.blacklist import BlacklistRepository
+from app.modules.blacklist.dto import BlacklistKind
 from app.modules.oauth.dto import CreateOAuthIdentityDto, OAuthCallbackDto, OAuthDisconnectDto
 from app.modules.oauth.providers.base import OAuthProfile
 from app.modules.oauth.providers.state_store import (

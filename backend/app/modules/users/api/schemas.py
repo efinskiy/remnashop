@@ -5,10 +5,11 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.core.constants import LOGIN_PATTERN, MAX_MARKUP_PERCENT
 from app.core.dto import ResponseModel
-from app.core.enums import BlacklistKind, Locale, RegistrationSource
+from app.core.enums import Locale, RegistrationSource
 from app.core.security import PASSWORD_MIN_LENGTH, PASSWORD_PATTERN
 from app.core.security.permissions import Permission
 from app.core.utils.http import validate_ip_allowlist
+from app.modules.blacklist import BlacklistKind
 from app.modules.users.schemas import UserListItemResponse, UserResponse
 
 

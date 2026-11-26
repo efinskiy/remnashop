@@ -3,8 +3,13 @@ from unittest.mock import AsyncMock, patch
 
 from pydantic import SecretStr
 
-from app.core.enums import BroadcastButtonKind, Locale
-from app.modules.broadcasts.dto import BroadcastButtonDto, BroadcastContentDto, BroadcastDto
+from app.core.enums import Locale
+from app.modules.broadcasts.dto import (
+    BroadcastButtonDto,
+    BroadcastButtonKind,
+    BroadcastContentDto,
+    BroadcastDto,
+)
 from app.modules.broadcasts.referral import (
     NO_REFERRAL_LINKS,
     cabinet_links_allowed,

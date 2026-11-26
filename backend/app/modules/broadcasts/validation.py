@@ -1,6 +1,6 @@
 from typing import Final, Optional, Union
 
-from app.core.enums import BroadcastButtonKind, BroadcastDelivery, Locale
+from app.core.enums import BroadcastDelivery, Locale
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ValidationError
 from app.core.utils.telegram_text import (
@@ -20,6 +20,7 @@ from app.modules.broadcasts.content import (
 from app.modules.broadcasts.dto import (
     BroadcastAudienceDto,
     BroadcastButtonDto,
+    BroadcastButtonKind,
     BroadcastContentDto,
     BroadcastDto,
     SaveBroadcastDto,

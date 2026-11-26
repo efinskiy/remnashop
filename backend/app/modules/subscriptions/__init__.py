@@ -21,6 +21,7 @@ from app.modules.subscriptions.dto import (
 )
 from app.modules.subscriptions.eligibility import PurchaseEligibility, get_owned_target
 from app.modules.subscriptions.events import (
+    PanelSyncDirection,
     SubscriptionAddOnGrantedEvent,
     SubscriptionChangedEvent,
     SubscriptionExpiredAgoEvent,
@@ -104,6 +105,7 @@ __all__ = [
     "OrderFailer",
     "PaidOrderHold",
     "PanelSquadCatalog",
+    "PanelSyncDirection",
     "PanelTrafficUsage",
     "PlanCatalogDto",
     "PlanSnapshot",

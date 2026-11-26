@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from typing import ClassVar, Literal, Optional
 
-from app.core.enums import BlacklistKind
 from app.core.events import ActorEvent, BaseEvent, EventCategory
+from app.modules.blacklist.dto import BlacklistKind
 
 
 @dataclass(frozen=True, kw_only=True)

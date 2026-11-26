@@ -5,6 +5,7 @@ from app.modules.settings.di import get_settings_providers
 from app.modules.settings.dto import (
     AccessSettingsDto,
     AppearanceImageDto,
+    AppearanceImageKind,
     AppearanceSettingsDto,
     BotCommandDto,
     BotRequirementsDto,
@@ -41,6 +42,7 @@ __all__ = [
     "AccessSettingsChangedEvent",
     "AccessSettingsDto",
     "AppearanceImageDto",
+    "AppearanceImageKind",
     "AppearanceSettingsDto",
     "AudienceSessionRevoker",
     "BotCommandDto",

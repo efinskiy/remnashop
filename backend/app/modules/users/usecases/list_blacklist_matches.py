@@ -1,9 +1,8 @@
 from app.core.actor import Actor
 from app.core.db.uow import UnitOfWork
-from app.core.enums import BlacklistKind
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
-from app.modules.blacklist import BlacklistOriginsDto, BlacklistRepository
+from app.modules.blacklist import BlacklistKind, BlacklistOriginsDto, BlacklistRepository
 from app.modules.users.blacklist_repository import UserBlacklistRepository
 from app.modules.users.dto import (
     BlacklistHitDto,

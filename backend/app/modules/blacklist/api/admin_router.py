@@ -5,7 +5,6 @@ from fastapi import APIRouter, Depends, Response, status
 from app.api.dependencies.admin import require_admin
 from app.api.errors import error_responses
 from app.core.actor import Actor
-from app.core.enums import BlacklistKind
 from app.modules.blacklist.api.schemas import (
     AddSourceRequest,
     BlacklistResponse,
@@ -16,6 +15,7 @@ from app.modules.blacklist.api.schemas import (
 from app.modules.blacklist.dto import (
     AddBlacklistSourceDto,
     BlacklistEntryInputDto,
+    BlacklistKind,
     UpdateBlacklistSourceDto,
 )
 from app.modules.blacklist.usecases import (

@@ -10,8 +10,6 @@ from app.core.db.models.user_registration import UserRegistration
 from app.core.db.uow import UnitOfWork
 from app.core.enums import (
     AccessMode,
-    BlacklistKind,
-    CabinetSignInMethod,
     LegalAcceptanceTrigger,
     LegalDocumentKind,
     Locale,
@@ -24,6 +22,7 @@ from app.core.exceptions import PermissionDeniedError
 from app.core.utils.time import datetime_now
 from app.modules.auth.repository import SessionRepository
 from app.modules.blacklist import BlacklistRepository
+from app.modules.blacklist.dto import BlacklistKind
 from app.modules.cabinet_auth.api.schemas import BotSignInRequest
 from app.modules.cabinet_auth.dto import InviteCodesDto, TelegramProfileDto
 from app.modules.cabinet_auth.sign_in import CabinetSignIn
@@ -33,7 +32,7 @@ from app.modules.settings.dto import UpdateAccessSettingsDto
 from app.modules.settings.repository import SettingsRepository
 from app.modules.translations import TranslationRepository
 from app.modules.users import UserDto
-from app.modules.users.dto import CreateUserDto, RegisterCabinetUserDto
+from app.modules.users.dto import CabinetSignInMethod, CreateUserDto, RegisterCabinetUserDto
 from app.modules.users.repository import UserRepository
 from app.modules.users.usecases import RegisterCabinetUserUseCase
 

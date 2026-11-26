@@ -10,7 +10,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from app.api.dependencies.public import get_current_user
 from app.api.errors import error_responses
 from app.core.config import AppConfig
-from app.core.enums import AppearanceImageKind, AppearanceTarget
+from app.core.enums import AppearanceTarget
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import NotFoundError
 from app.modules.settings.api.schemas import AppearanceResponse, CabinetSettingsResponse
@@ -19,6 +19,7 @@ from app.modules.settings.branding import (
     link_preview_html,
     link_preview_image,
 )
+from app.modules.settings.dto import AppearanceImageKind
 from app.modules.settings.usecases import (
     GetCabinetSettingsUseCase,
     GetPublicAppearanceImageUseCase,

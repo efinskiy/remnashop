@@ -16,14 +16,13 @@ from app.core.enums import (
     CreditSegmentKind,
     Currency,
     Locale,
-    PanelSyncDirection,
     PlanBadge,
     PlanType,
     PurchaseType,
     SubscriptionStatus,
 )
 from app.modules.plans import PlanDto
-from app.modules.subscriptions.events import StatusSyncSource
+from app.modules.subscriptions.events import PanelSyncDirection, StatusSyncSource
 from app.modules.subscriptions.unlimited import is_unlimited_expiry
 
 

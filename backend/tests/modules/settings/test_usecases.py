@@ -11,7 +11,7 @@ from app.core.config import AppConfig
 from app.core.db.models import EventOutboxEntry
 from app.core.db.models.user import User
 from app.core.db.uow import UnitOfWork
-from app.core.enums import AppearanceImageKind, AppearanceTarget, Locale, OAuthProvider, Role
+from app.core.enums import AppearanceTarget, Locale, OAuthProvider, Role
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import (
     NotFoundError,
@@ -25,6 +25,7 @@ from app.modules.oauth.repository import OAuthIdentityRepository
 from app.modules.settings import command_translations
 from app.modules.settings.bot_commands import BOT_COMMANDS, BotCommand
 from app.modules.settings.dto import (
+    AppearanceImageKind,
     BotStatusDto,
     GetBotCommandsDto,
     SetBotProxyDto,

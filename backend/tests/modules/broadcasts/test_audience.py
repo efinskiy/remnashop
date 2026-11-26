@@ -14,12 +14,10 @@ from app.core.enums import (
     Role,
     SubscriptionStatus,
 )
-from app.core.enums import (
-    BroadcastSubscriptionFilter as F,
-)
 from app.core.utils.time import datetime_now
 from app.modules.broadcasts.audience import audience_predicate
 from app.modules.broadcasts.dto import BroadcastAudienceDto
+from app.modules.broadcasts.dto import BroadcastSubscriptionFilter as F
 from app.modules.users.repository import UserRepository
 from tests.modules.broadcasts.factories import add_paid_transaction, add_subscription, make_customer
 

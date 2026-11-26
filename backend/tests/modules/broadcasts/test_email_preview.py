@@ -6,7 +6,7 @@ import pytest
 
 from app.core.config import AppConfig
 from app.core.db.uow import UnitOfWork
-from app.core.enums import BroadcastCategory, BroadcastDelivery, EmailOutcome, Locale, Role
+from app.core.enums import BroadcastCategory, BroadcastDelivery, Locale, Role
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ValidationError
 from app.modules.broadcasts.dto import (
@@ -23,6 +23,7 @@ from app.modules.broadcasts.usecases import (
     SendTestBroadcastEmailUseCase,
 )
 from app.modules.email import EmailDeliveryDto
+from app.modules.email.dto import EmailOutcome
 from app.modules.promocodes.repository import PromocodeRepository
 from app.modules.referrals.repository import ReferralRepository
 from app.modules.settings import GetPublicAppearanceImageUseCase

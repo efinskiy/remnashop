@@ -2,12 +2,12 @@ from redis.asyncio import Redis
 
 from app.core.actor import Actor
 from app.core.db.uow import UnitOfWork
-from app.core.enums import PanelSyncDirection
 from app.core.ports import EventPublisher
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.modules.subscriptions.dispatch import PanelSyncDispatch
 from app.modules.subscriptions.dto import PanelSyncStatusDto, SyncToPanelOptionsDto
+from app.modules.subscriptions.events import PanelSyncDirection
 from app.modules.subscriptions.panel_sync import start_panel_sync
 
 

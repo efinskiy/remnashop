@@ -1,10 +1,11 @@
 from unittest.mock import AsyncMock, patch
 
-from app.core.enums import AdLinkChannel, CabinetSignInMethod, Locale, Role
+from app.core.enums import AdLinkChannel, Locale, Role
 from app.core.event_bus import EventBus
 from app.core.events import BaseEvent
 from app.modules.advertising.subscribers import register_subscribers
 from app.modules.users import CabinetUserRegisteredEvent, TelegramUserRegisteredEvent, UserDto
+from app.modules.users.dto import CabinetSignInMethod
 from tests.fakes.events import stored_event
 
 _KIQ = "app.modules.advertising.subscribers.record_ad_link_attribution_task.kiq"

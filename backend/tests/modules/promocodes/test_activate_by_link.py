@@ -3,13 +3,14 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.core.enums import PromocodeLinkOutcome, PromocodeRewardType
+from app.core.enums import PromocodeRewardType
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ValidationError
 from app.modules.promocodes.dto import (
     ActivatePromocodeByLinkDto,
     ActivatePromocodeDto,
     PromocodeDto,
+    PromocodeLinkOutcome,
 )
 from app.modules.promocodes.usecases import ActivatePromocodeByLinkUseCase
 

@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import auto
 from pathlib import Path
 from typing import Optional
 
@@ -8,17 +9,32 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.core.constants import DEFAULT_PAGE_SIZE
 from app.core.dto import BaseDto, TimestampMixin
 from app.core.enums import (
-    BroadcastButtonKind,
     BroadcastCategory,
     BroadcastChannel,
     BroadcastDelivery,
     BroadcastMediaType,
     BroadcastRecipientStatus,
     BroadcastStatus,
-    BroadcastSubscriptionFilter,
     Locale,
+    UpperStrEnum,
 )
 from app.modules.broadcasts.channels import sends_email, sends_telegram
+
+
+class BroadcastButtonKind(UpperStrEnum):
+    URL = auto()
+    PROMOCODE = auto()
+    MENU = auto()
+    CLOSE = auto()
+    SHARE_REFERRAL = auto()
+
+
+class BroadcastSubscriptionFilter(UpperStrEnum):
+    ACTIVE = auto()
+    TRIAL = auto()
+    EXPIRED = auto()
+    LIMITED = auto()
+    NONE = auto()
 
 
 # also returned by the API: see core.dto.ResponseModel for the schema flag

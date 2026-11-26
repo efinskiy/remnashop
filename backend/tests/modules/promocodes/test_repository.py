@@ -3,10 +3,15 @@ from datetime import timedelta
 import pytest
 
 import app.modules.promocodes.repository as promocode_repository_module
-from app.core.enums import PromocodeAvailability, PromocodeRewardType, PromocodeStatus
+from app.core.enums import PromocodeAvailability, PromocodeRewardType
 from app.core.exceptions import ConflictError, NotFoundError
 from app.core.utils.time import datetime_now
-from app.modules.promocodes.dto import CreatePromocodeDto, ListPromocodesDto, UpdatePromocodeDto
+from app.modules.promocodes.dto import (
+    CreatePromocodeDto,
+    ListPromocodesDto,
+    PromocodeStatus,
+    UpdatePromocodeDto,
+)
 from app.modules.promocodes.repository import PromocodeRepository
 from app.modules.promocodes.rules import is_promocode_live
 from app.modules.users.dto import CreateUserDto

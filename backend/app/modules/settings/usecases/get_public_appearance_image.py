@@ -1,10 +1,10 @@
 from app.core.config import AppConfig
 from app.core.db.uow import UnitOfWork
-from app.core.enums import AppearanceImageKind, AppearanceTarget
+from app.core.enums import AppearanceTarget
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import NotFoundError
 from app.modules.settings.appearance_storage import read_appearance_image
-from app.modules.settings.dto import AppearanceImageDto
+from app.modules.settings.dto import AppearanceImageDto, AppearanceImageKind
 from app.modules.settings.repository import SettingsRepository
 
 

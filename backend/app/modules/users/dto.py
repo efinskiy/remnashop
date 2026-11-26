@@ -1,22 +1,22 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
-from enum import StrEnum
+from enum import StrEnum, auto
 from typing import Optional
 
 from app.core.constants import DEFAULT_PAGE_SIZE, REMNASHOP_PREFIX, WEB_PREFIX, ZERO_AMOUNT
 from app.core.dto import BaseDto, TimestampMixin
-from app.core.enums import (
-    AdLinkChannel,
-    BlacklistKind,
-    CabinetSignInMethod,
-    Locale,
-    RegistrationSource,
-    Role,
-)
+from app.core.enums import AdLinkChannel, Locale, RegistrationSource, Role, UpperStrEnum
 from app.core.security.permissions import Permission
 from app.core.utils.http import describe_user_agent
-from app.modules.blacklist import BlacklistOriginDto
+from app.modules.blacklist import BlacklistKind, BlacklistOriginDto
+
+
+class CabinetSignInMethod(UpperStrEnum):
+    TELEGRAM = auto()
+    EMAIL = auto()
+    GOOGLE = auto()
+    YANDEX = auto()
 
 
 class UserSort(StrEnum):

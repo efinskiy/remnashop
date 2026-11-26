@@ -7,7 +7,7 @@ from typing import Final, Optional
 from app.core.actor import Actor
 from app.core.constants import ZERO_AMOUNT
 from app.core.db.uow import UnitOfWork
-from app.core.enums import PromocodeRewardType, PromocodeStatus, Role
+from app.core.enums import PromocodeRewardType, Role
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.core.utils.money import round_cents
@@ -22,7 +22,7 @@ from app.modules.analytics.dto import (
 )
 from app.modules.analytics.period import resolve_period
 from app.modules.pricing import PricingRepository
-from app.modules.promocodes import PromocodeDto, PromocodeRepository
+from app.modules.promocodes import PromocodeDto, PromocodeRepository, PromocodeStatus
 from app.modules.transactions import TransactionStatsRepository
 from app.modules.users import UserStatsRepository
 

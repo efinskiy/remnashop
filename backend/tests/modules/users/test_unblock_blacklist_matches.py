@@ -1,6 +1,6 @@
-from app.core.enums import BlacklistKind, Role
+from app.core.enums import Role
 from app.modules.blacklist import BlacklistRepository
-from app.modules.blacklist.dto import AddBlacklistSourceDto, ParsedSourceList
+from app.modules.blacklist.dto import AddBlacklistSourceDto, BlacklistKind, ParsedSourceList
 from app.modules.users.blacklist_repository import UserBlacklistRepository
 from app.modules.users.dto import CreateUserDto, UnblockBlacklistMatchesDto
 from app.modules.users.events import UsersBulkUnblockedEvent

@@ -3,9 +3,10 @@ from decimal import Decimal
 from typing import Optional
 
 from app.core.dto import ResponseModel
-from app.core.enums import Currency, PaymentGatewayType, PromocodeRewardType, PromocodeStatus
+from app.core.enums import Currency, PaymentGatewayType, PromocodeRewardType
 from app.modules.analytics.aggregates import RevenueGranularity
 from app.modules.analytics.sources import SourceKind
+from app.modules.promocodes import PromocodeStatus
 
 
 class AnalyticsPeriodInfoResponse(ResponseModel):

@@ -9,7 +9,6 @@ from app.core.db.errors import constraint_name
 from app.core.db.models.blacklist import Blacklist
 from app.core.db.models.blacklist_source import BlacklistSource
 from app.core.db.singleton import SINGLETON_ID, get_or_create_singleton
-from app.core.enums import BlacklistKind
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ConflictError
 from app.core.utils.email import alias_domains, canonical_email
@@ -17,6 +16,7 @@ from app.core.utils.time import datetime_now
 from app.modules.blacklist.dto import (
     AddBlacklistSourceDto,
     BlacklistDto,
+    BlacklistKind,
     BlacklistOriginDto,
     BlacklistOriginsDto,
     BlacklistSourceDto,
