@@ -356,26 +356,6 @@ class LogLevel(UpperStrEnum):
     NOTSET = auto()
 
 
-class BannerFormat(StrEnum):
-    JPG = auto()
-    JPEG = auto()
-    PNG = auto()
-    GIF = auto()
-    WEBP = auto()
-
-
-class AppearanceTarget(StrEnum):
-    DASHBOARD = auto()
-    CABINET = auto()
-
-
-class AppearanceImageFormat(StrEnum):
-    JPG = auto()
-    PNG = auto()
-    WEBP = auto()
-    SVG = auto()
-
-
 class DialogWindowKind(StrEnum):
     SEED = auto()
     CUSTOM = auto()

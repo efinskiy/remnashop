@@ -17,7 +17,6 @@ from app.core.db.models.broadcast import Broadcast
 from app.core.db.models.user import User
 from app.core.db.uow import UnitOfWork
 from app.core.enums import (
-    AppearanceTarget,
     BroadcastCategory,
     BroadcastDelivery,
     BroadcastRecipientStatus,
@@ -46,7 +45,12 @@ from app.modules.promocodes.repository import PromocodeRepository
 from app.modules.referrals.repository import ReferralRepository
 from app.modules.settings import GetPublicAppearanceImageUseCase
 from app.modules.settings.appearance_storage import appearance_image_path
-from app.modules.settings.dto import AppearanceImageKind, SmtpProfileDto, UpdateEmailSettingsDto
+from app.modules.settings.dto import (
+    AppearanceImageKind,
+    AppearanceTarget,
+    SmtpProfileDto,
+    UpdateEmailSettingsDto,
+)
 from app.modules.settings.repository import SettingsRepository
 from app.modules.translations.repository import TranslationRepository
 from app.modules.users.repository import UserRepository

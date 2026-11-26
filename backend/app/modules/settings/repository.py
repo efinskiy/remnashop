@@ -15,12 +15,13 @@ from app.core.db.models.oauth_settings import OAuthSettings
 from app.core.db.models.shop_settings import ShopSettings
 from app.core.db.partial_update import apply_partial_update
 from app.core.db.singleton import SINGLETON_ID, get_or_create_singleton
-from app.core.enums import AppearanceTarget, SmtpSecurity
+from app.core.enums import SmtpSecurity
 from app.core.utils.time import datetime_now
 from app.modules.settings.dto import (
     AccessSettingsDto,
     AppearanceImageKind,
     AppearanceSettingsDto,
+    AppearanceTarget,
     BotCommandDto,
     BotRequirementsDto,
     BotSettingsDto,

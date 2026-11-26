@@ -1,6 +1,5 @@
 from app.core.db.uow import UnitOfWork
-from app.core.enums import AppearanceTarget
-from app.modules.settings.dto import AppearanceSettingsDto
+from app.modules.settings.dto import AppearanceSettingsDto, AppearanceTarget
 from app.modules.settings.repository import SettingsRepository
 
 

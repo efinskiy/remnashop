@@ -13,14 +13,19 @@ from app.core.constants import (
     GRACE_DEFAULT_DURATION_DAYS,
 )
 from app.core.dto import BaseDto, TimestampMixin
-from app.core.enums import (
-    AccessMode,
-    AppearanceTarget,
-    CaptchaProvider,
-    OAuthProvider,
-    SmtpSecurity,
-    UpperStrEnum,
-)
+from app.core.enums import AccessMode, CaptchaProvider, OAuthProvider, SmtpSecurity, UpperStrEnum
+
+
+class AppearanceTarget(StrEnum):
+    DASHBOARD = auto()
+    CABINET = auto()
+
+
+class AppearanceImageFormat(StrEnum):
+    JPG = auto()
+    PNG = auto()
+    WEBP = auto()
+    SVG = auto()
 
 
 class AppearanceImageKind(StrEnum):

@@ -2,9 +2,13 @@ import html
 from functools import lru_cache
 from typing import Any, Final, Optional
 
-from app.core.enums import AppearanceTarget
 from app.core.utils.image import svg_to_png
-from app.modules.settings.dto import AppearanceImageDto, AppearanceImageKind, AppearanceSettingsDto
+from app.modules.settings.dto import (
+    AppearanceImageDto,
+    AppearanceImageKind,
+    AppearanceSettingsDto,
+    AppearanceTarget,
+)
 
 _DEFAULT_NAME: Final[str] = "Remnashop"
 _DEFAULT_COLOR: Final[str] = "#111111"

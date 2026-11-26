@@ -6,7 +6,6 @@ from app.api.dependencies.admin import require_admin
 from app.api.errors import error_responses
 from app.api.uploads import MULTIPART_FILE_BODY, read_form_file
 from app.core.actor import Actor
-from app.core.enums import AppearanceTarget
 from app.modules.settings.api.schemas import (
     AccessSettingsResponse,
     AppearanceResponse,
@@ -36,6 +35,7 @@ from app.modules.settings.api.schemas import (
 )
 from app.modules.settings.appearance_images import MAX_APPEARANCE_IMAGE_SIZE_BYTES
 from app.modules.settings.dto import (
+    AppearanceTarget,
     GetBotCommandsDto,
     SetBotProxyDto,
     UpdateAccessSettingsDto,

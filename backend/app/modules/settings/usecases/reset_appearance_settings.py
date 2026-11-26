@@ -1,10 +1,9 @@
 from app.core.actor import Actor
 from app.core.db.uow import UnitOfWork
-from app.core.enums import AppearanceTarget
 from app.core.ports import EventPublisher
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
-from app.modules.settings.dto import AppearanceSettingsDto
+from app.modules.settings.dto import AppearanceSettingsDto, AppearanceTarget
 from app.modules.settings.events import AppearanceSettingsChangedEvent
 from app.modules.settings.repository import SettingsRepository
 
