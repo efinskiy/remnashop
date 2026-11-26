@@ -78,4 +78,10 @@ class BootstrapOwnerUseCase:
         if not settings.owner_claim_pending:
             return None
         await self._settings_repository.clear_owner_claim()
-        return await self._user_repository.claim_owner(login, password_hash)
+        owner = await self._user_repository.find_owner_for_update()
+        if owner is None:
+            return None
+        # staff go by their login until they set a name
+        return await self._user_repository.claim_owner(
+            owner.id, login=login, name=owner.name or login, password_hash=password_hash
+        )
