@@ -2,11 +2,13 @@ from datetime import timedelta
 
 import pytest
 
+import app.modules.promocodes.repository as promocode_repository_module
 from app.core.enums import PromocodeAvailability, PromocodeRewardType, PromocodeStatus
 from app.core.exceptions import ConflictError, NotFoundError
 from app.core.utils.time import datetime_now
 from app.modules.promocodes.dto import CreatePromocodeDto, ListPromocodesDto, UpdatePromocodeDto
 from app.modules.promocodes.repository import PromocodeRepository
+from app.modules.promocodes.rules import is_promocode_live
 from app.modules.users.dto import CreateUserDto
 from app.modules.users.repository import UserRepository
 
@@ -223,3 +225,49 @@ async def test_list_activations_by_user_returns_only_that_users_codes(
     assert {a.code for a in activations} == {"MINE1", "MINE2"}
     assert total == 2
     assert len(page) == 1
+
+
+async def test_sql_statuses_agree_with_the_liveness_rule(
+    promocode_repository: PromocodeRepository,
+    user_repository: UserRepository,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # the list filters and the summary count repeat is_promocode_live in SQL
+    now = datetime_now()
+    monkeypatch.setattr(promocode_repository_module, "datetime_now", lambda: now)
+    expiries = [None, now - timedelta(days=1), now, now + timedelta(days=1)]
+    user_id = await _create_user(user_repository, 1301)
+    created = []
+    for index, expires_at in enumerate(expiries):
+        for active in (True, False):
+            for capped in (False, True):
+                promo = await promocode_repository.create(
+                    _create_dto(
+                        f"PARITY{index}{int(active)}{int(capped)}",
+                        expires_at=expires_at,
+                        max_activations=1 if capped else None,
+                    )
+                )
+                if capped:
+                    await promocode_repository.add_activation(promo.id, user_id, None)
+                if not active:
+                    promo = await promocode_repository.update(
+                        UpdatePromocodeDto(promocode_id=promo.id, is_active=False)
+                    )
+                created.append((promo, capped))
+
+    async def codes(status: PromocodeStatus) -> set[str]:
+        items, _ = await promocode_repository.list_paginated(
+            ListPromocodesDto(search="parity", status=status, page_size=100)
+        )
+        return {item.code for item in items}
+
+    live = {promo.code for promo, _ in created if is_promocode_live(promo, now)}
+    redeemable = {promo.code for promo, capped in created if promo.code in live and not capped}
+    total, active_count = await promocode_repository.count_total_and_active(now)
+
+    assert live  # not vacuous
+    assert await codes(PromocodeStatus.ACTIVE) | await codes(PromocodeStatus.EXHAUSTED) == live
+    assert await codes(PromocodeStatus.ACTIVE) == redeemable
+    assert active_count == len(redeemable)
+    assert total == len(created)

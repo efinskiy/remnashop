@@ -90,7 +90,8 @@ class PromocodeRepository:
     async def count_total_and_active(self, now: datetime) -> tuple[int, int]:
         active = and_(
             Promocode.is_active.is_(True),
-            or_(Promocode.expires_at.is_(None), Promocode.expires_at > now),
+            # usable through the expiry instant itself, as rules.is_promocode_live
+            or_(Promocode.expires_at.is_(None), Promocode.expires_at >= now),
             not_(_exhausted()),
         )
         total, active_count = (
