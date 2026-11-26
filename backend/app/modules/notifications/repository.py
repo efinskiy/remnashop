@@ -1,4 +1,4 @@
-from typing import Final, Optional
+from typing import Optional
 
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -15,8 +15,6 @@ from app.modules.notifications.dto import (
     PushSubscriptionDto,
     UpdateNotificationSettingsDto,
 )
-
-_MAX_PUSH_FAILURES: Final[int] = 3
 
 
 class NotificationRepository:
@@ -125,11 +123,17 @@ class NotificationRepository:
             row.last_seen_at = datetime_now()
             await self.session.flush()
 
-    async def record_push_failure(self, subscription_id: int, *, gone: bool) -> None:
+    async def record_push_failure(self, subscription_id: int) -> int:
+        """Failures in a row so far, 0 when the subscription is gone."""
         row = await self.session.get(PushSubscription, subscription_id)
         if row is None:
-            return
+            return 0
         row.failure_count += 1
-        if gone or row.failure_count >= _MAX_PUSH_FAILURES:
-            await self.session.delete(row)
         await self.session.flush()
+        return row.failure_count
+
+    async def drop_push_subscription(self, subscription_id: int) -> None:
+        row = await self.session.get(PushSubscription, subscription_id)
+        if row is not None:
+            await self.session.delete(row)
+            await self.session.flush()
