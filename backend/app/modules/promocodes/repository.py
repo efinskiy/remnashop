@@ -76,7 +76,8 @@ class PromocodeRepository:
         return self._to_dto(await self._get_or_raise(promocode_id))
 
     async def find_by_id(self, promocode_id: int) -> Optional[PromocodeDto]:
-        row = await self.session.get(Promocode, promocode_id)
+        # a fresh read: a code switched off since this session loaded it is off
+        row = await self.session.get(Promocode, promocode_id, populate_existing=True)
         return self._to_dto(row) if row is not None else None
 
     async def find_by_code(self, code: str) -> Optional[PromocodeDto]:

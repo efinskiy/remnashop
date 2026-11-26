@@ -283,3 +283,37 @@ async def test_claim_refuses_a_code_expired_after_it_was_read(
         await claim_activation(
             promocode_repository, promocode_id=created.id, user_id=user_id, subscription_id=None
         )
+
+
+async def test_liveness_sees_a_code_switched_off_after_the_session_read_it(
+    engine: AsyncEngine,
+) -> None:
+    # checkout reads the promocode, an admin switches it off and commits, then the
+    # same session asks whether the discount still holds
+    session = AsyncSession(bind=engine, expire_on_commit=False)
+    admin_session = AsyncSession(bind=engine, expire_on_commit=False)
+    promocode_id = None
+    try:
+        created = await PromocodeRepository(session).create(_create_dto("STALE1"))
+        promocode_id = created.id
+        await session.commit()
+        repository = PromocodeRepository(session)
+        # anything still holding the row keeps it in the identity map
+        held = await session.get(Promocode, promocode_id)
+        assert await PromocodeLivenessCheck(repository).is_live(promocode_id)
+
+        await PromocodeRepository(admin_session).update(
+            UpdatePromocodeDto(promocode_id=promocode_id, is_active=False)
+        )
+        await admin_session.commit()
+
+        assert not await PromocodeLivenessCheck(repository).is_live(promocode_id)
+        assert held is not None
+    finally:
+        await session.close()
+        await admin_session.close()
+        if promocode_id is not None:
+            async with engine.begin() as connection:
+                await connection.execute(
+                    text("DELETE FROM promocodes WHERE id = :id"), {"id": promocode_id}
+                )
