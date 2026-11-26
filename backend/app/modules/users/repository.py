@@ -371,13 +371,9 @@ class UserRepository:
         await self.session.flush()
 
     async def restore_purchase_discount(
-        self, user_id: int, percent: int, promocode_id: Optional[int], *, from_promocode: bool
+        self, user_id: int, percent: int, promocode_id: Optional[int]
     ) -> bool:
         """Whether the discount went back."""
-        # a promocode order whose promocode was deleted has no id left: handing
-        # its one-shot discount back would pass it off as admin-granted
-        if from_promocode and promocode_id is None:
-            return False
         # only into an empty slot, never over a discount granted since
         result = await self.session.execute(
             update(User)

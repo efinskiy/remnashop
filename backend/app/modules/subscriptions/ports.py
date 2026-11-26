@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, Protocol
 
@@ -9,21 +8,9 @@ class ReferrerLookup(Protocol):
     async def has_referrer(self, user_id: int) -> bool: ...
 
 
-@dataclass(frozen=True, kw_only=True)
-class SpentPurchaseDiscount:
-    user_id: int
-    percent: int
-    promocode_id: Optional[int]
-    from_promocode: bool
-
-
 class OrderFailer(Protocol):
-    async def fail_unpaid_free_order(self, idempotency_key: str) -> Optional[SpentPurchaseDiscount]:
-        """The one-shot discount to hand back when this call failed the order."""
-        ...
-
-    async def mark_discount_returned(self, idempotency_key: str) -> None:
-        """Records that the failed order's discount went back, for a late manual issue."""
+    async def fail_unpaid_free_order(self, idempotency_key: str) -> None:
+        """Fails a paid free order left unissued and hands its one-shot discount back."""
         ...
 
 

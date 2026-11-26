@@ -24,11 +24,13 @@ async def give_back_purchase_discount(
     # nobody paid returns it, and remembers it did for a late payment
     if order.discount_source is not DiscountSource.PURCHASE:
         return
+    # its promocode deleted since: handed back without an id it would pass for admin-granted
+    if order.discount_from_promocode and order.discount_promocode_id is None:
+        return
     if await user_repository.restore_purchase_discount(
         order.user_id,
         order.discount_percent,
         order.discount_promocode_id,
-        from_promocode=order.discount_from_promocode,
     ):
         await transaction_repository.mark_discount_returned(order.idempotency_key)
 
@@ -103,3 +105,20 @@ class PaidOrderHolder:
             transaction_repository=self._transaction_repository,
             event_publisher=self._event_publisher,
         )
+
+
+class FreeOrderFailer:
+    """Fails a free order the subscriptions module can't issue: the buyer is at the cap."""
+
+    def __init__(
+        self, transaction_repository: TransactionRepository, user_repository: UserRepository
+    ) -> None:
+        self._transaction_repository = transaction_repository
+        self._user_repository = user_repository
+
+    async def fail_unpaid_free_order(self, idempotency_key: str) -> None:
+        order = await self._transaction_repository.fail_unpaid_free_order(idempotency_key)
+        if order is not None:
+            await give_back_purchase_discount(
+                self._user_repository, self._transaction_repository, order
+            )

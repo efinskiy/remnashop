@@ -77,7 +77,7 @@ from app.modules.subscriptions.usecases import (
 )
 from app.modules.transactions.dto import CreateTransactionDto
 from app.modules.transactions.repository import TransactionRepository
-from app.modules.transactions.unpaid_orders import PaidOrderHolder
+from app.modules.transactions.unpaid_orders import FreeOrderFailer, PaidOrderHolder
 from app.modules.users.dto import CreateUserDto, UpdateUserDto, UserDto
 from app.modules.users.repository import UserRepository
 from tests.fakes.events import RecordingEventPublisher
@@ -2891,7 +2891,7 @@ async def test_a_paid_order_still_renews_a_subscription_disabled_after_checkout(
     fulfill = FulfillPurchaseUseCase(
         user_repository,
         purchase_subscription_use_case,
-        TransactionRepository(user_repository.session),
+        FreeOrderFailer(TransactionRepository(user_repository.session), user_repository),
         PaidOrderHolder(TransactionRepository(user_repository.session), RecordingEventPublisher()),
         UnitOfWork(user_repository.session),
     )
@@ -4388,7 +4388,7 @@ async def test_fulfilling_a_refunded_order_ends_without_a_retry(
     fulfill = FulfillPurchaseUseCase(
         user_repository,
         purchase_subscription_use_case,
-        TransactionRepository(user_repository.session),
+        FreeOrderFailer(TransactionRepository(user_repository.session), user_repository),
         PaidOrderHolder(TransactionRepository(user_repository.session), RecordingEventPublisher()),
         UnitOfWork(user_repository.session),
     )
@@ -4413,7 +4413,7 @@ async def test_fulfilling_an_order_another_attempt_holds_ends_without_a_retry(
     fulfill = FulfillPurchaseUseCase(
         user_repository,
         purchase_subscription_use_case,
-        TransactionRepository(user_repository.session),
+        FreeOrderFailer(TransactionRepository(user_repository.session), user_repository),
         PaidOrderHolder(TransactionRepository(user_repository.session), RecordingEventPublisher()),
         UnitOfWork(user_repository.session),
     )
@@ -4514,7 +4514,7 @@ async def test_a_paid_renewal_of_a_since_changed_plan_is_held_then_issued_by_an_
     fulfill = FulfillPurchaseUseCase(
         user_repository,
         purchase_subscription_use_case,
-        transactions,
+        FreeOrderFailer(transactions, user_repository),
         PaidOrderHolder(transactions, events),
         UnitOfWork(user_repository.session),
     )
