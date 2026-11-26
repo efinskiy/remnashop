@@ -400,7 +400,9 @@ async def test_block_matching_handles_more_ids_than_bind_param_cap(
     telegram_ids = set(range(40_000_000, 40_040_000))
 
     async with uow:
-        blocked = await user_blacklist_repository.block_matching(telegram_ids, set())
+        blocked = await user_blacklist_repository.block_matching(
+            telegram_ids, set(), roles=[Role.USER]
+        )
 
     assert blocked == [target.id]
 

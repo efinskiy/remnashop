@@ -2,6 +2,7 @@ from loguru import logger
 
 from app.core.actor import Actor
 from app.core.db.uow import UnitOfWork
+from app.core.enums import Role
 from app.core.ports import EventPublisher
 from app.core.usecase import UseCase
 from app.modules.blacklist import BlacklistReconciledEvent, BlacklistRepository
@@ -28,7 +29,10 @@ class BlockBlacklistMatchesUseCase(UseCase[None, None]):
             ids, emails = await self._blacklist_repository.all_blocked_identities()
             if not ids and not emails:
                 return
-            blocked = await self._user_blacklist.block_matching(ids, emails)
+            # customers only: reconcile runs with no actor and no role guard, and an
+            # auto-blocked OWNER has no recovery path (unblock_user needs a strictly
+            # higher-role actor). Blocking staff stays an explicit BlockUserUseCase call.
+            blocked = await self._user_blacklist.block_matching(ids, emails, roles=[Role.USER])
             if blocked:
                 await self._event_publisher.publish(
                     BlacklistReconciledEvent(blocked_user_ids=blocked)
