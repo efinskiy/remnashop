@@ -64,22 +64,6 @@ async def test_create_roundtrips_json(broadcast_repository: BroadcastRepository)
     assert loaded.contents[Locale.EN].text == "Hi { $name }"
 
 
-async def test_replace_resets_to_draft(broadcast_repository: BroadcastRepository) -> None:
-    created = await broadcast_repository.create(save_dto(), created_by=None)
-    await set_broadcast(
-        broadcast_repository.session,
-        created.id,
-        status=BroadcastStatus.SCHEDULED,
-        scheduled_at=datetime_now(),
-    )
-    replaced = await broadcast_repository.replace(
-        created.id, save_dto(contents={Locale.EN: BroadcastContentDto(text="New")})
-    )
-    assert replaced.status is BroadcastStatus.DRAFT
-    assert replaced.scheduled_at is None
-    assert replaced.contents[Locale.EN].text == "New"
-
-
 async def test_list_newest_first(broadcast_repository: BroadcastRepository) -> None:
     first = await broadcast_repository.create(save_dto(), created_by=None)
     second = await broadcast_repository.create(save_dto(), created_by=None)

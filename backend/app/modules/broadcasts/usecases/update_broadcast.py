@@ -50,6 +50,8 @@ class UpdateBroadcastUseCase(UseCase[UpdateBroadcastDto, BroadcastDto]):
             await assert_references(
                 data.data, self._broadcast_repository, self._promocode_repository
             )
+            # an edited broadcast goes out only once it is scheduled again
+            await self._broadcast_repository.return_to_draft(current.id)
             updated = await self._broadcast_repository.replace(current.id, data.data)
             referenced = set().union(
                 *(email_image_ids(content.html) for content in data.data.email_contents.values())
