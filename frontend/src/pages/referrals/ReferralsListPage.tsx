@@ -40,10 +40,11 @@ import { Badge, type BadgeTone } from "@shared/ui/Badge";
 import { KpiTile, type KpiTrend } from "@shared/ui/KpiTile";
 import { GLASS_LIST_HEAD_CLASS, LIST_BODY_CLASS, LIST_SCROLL_X_CLASS, PAGE_CLASS, PAGE_SCROLL_UNDER_BAR_CLASS, PAGE_TOOLBAR_CLASS, PAGE_TOOLBAR_SEARCH_CLASS } from "@shared/ui/classes";
 import { ListRow } from "@shared/ui/ListRow";
+import { allValues } from "@shared/lib/all-values";
 
 const FILTER_DEBOUNCE_MS = 200;
 const LEVELS = [1, 2, 3];
-const REWARD_TYPES: ReferralRewardType[] = ["EXTRA_DAYS", "POINTS"];
+const REWARD_TYPES = allValues<ReferralRewardType>()(["EXTRA_DAYS", "POINTS"]);
 const REWARD_TYPE_ICONS: Record<ReferralRewardType, ComponentType<{ className?: string }>> = {
   EXTRA_DAYS: CalendarPlus,
   POINTS: Coins,

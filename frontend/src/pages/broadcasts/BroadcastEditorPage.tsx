@@ -12,7 +12,7 @@ import {
   sendTestBroadcast,
   updateBroadcast,
 } from "@entities/broadcasts/api";
-import type { Broadcast } from "@entities/broadcasts/api";
+import type { Broadcast, BroadcastChannel } from "@entities/broadcasts/api";
 import { BROADCAST_STATUS_TONE, broadcastTitle, isEditable } from "@entities/broadcasts/display";
 import { listPlans } from "@entities/plans/api";
 import { listPromocodes } from "@entities/promocodes/api";
@@ -92,7 +92,7 @@ function BroadcastEditorLoader({ id }: { id: number | null }) {
   if (broadcast && !isEditable(broadcast)) return <Navigate to={`${LIST_PATH}/${broadcast.id}`} replace />;
 
   const botLocales = localesState.kind === "ready" ? localesState.data.active : [];
-  const defaultLocale = botLocales.includes(i18n.language) ? i18n.language : (botLocales[0] ?? "en");
+  const defaultLocale = botLocales.find((locale) => locale === i18n.language) ?? botLocales[0] ?? "en";
   return <BroadcastEditor initial={broadcast} botLocales={botLocales} defaultLocale={defaultLocale} />;
 }
 
@@ -266,7 +266,7 @@ function BroadcastEditor({ initial, botLocales, defaultLocale }: BroadcastEditor
   const showEmail = sendsEmail(form) && (!bothChannels || contentTab === "EMAIL");
   const previewTelegram = sendsTelegram(form) && (!bothChannels || previewTab === "TELEGRAM");
   const previewEmail = sendsEmail(form) && (!bothChannels || previewTab === "EMAIL");
-  const channelTabs = (active: "TELEGRAM" | "EMAIL", onSelect: (key: "TELEGRAM" | "EMAIL") => void) =>
+  const channelTabs = (active: BroadcastChannel, onSelect: (key: BroadcastChannel) => void) =>
     bothChannels ? (
       <PillTabs
         items={(["TELEGRAM", "EMAIL"] as const).map((key) => ({ key, label: t(`broadcasts.channel.${key}`) }))}

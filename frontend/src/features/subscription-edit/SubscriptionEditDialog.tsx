@@ -36,6 +36,7 @@ import { useTranslation } from "react-i18next";
 import {
   SUBSCRIPTION_STATUS_BADGE_TONE,
   type SubscriptionListItem,
+  TRAFFIC_LIMIT_STRATEGIES,
   type TrafficLimitStrategy,
   type UpdateSubscriptionRequest,
   addonTotal,
@@ -85,7 +86,6 @@ import { DialogTabs, type DialogTabItem } from "@shared/ui/DialogTabs";
 import { Badge } from "@shared/ui/Badge";
 import { ConfirmDialog } from "@shared/ui/ConfirmDialog";
 
-const STRATEGIES: TrafficLimitStrategy[] = ["NO_RESET", "DAY", "WEEK", "MONTH", "MONTH_ROLLING"];
 const QUICK_EXTEND_DAYS = [7, 30, 90] as const;
 const GB_BYTES = 1024 ** 3;
 const TRAFFIC_WARNING_RATIO = 0.6;
@@ -698,7 +698,7 @@ function SubscriptionParamsForm({
               onChange={(value) => setStrategy(value as TrafficLimitStrategy)}
               icon={Filter}
               placeholder={t(`subscriptions.edit.strategy.${strategy}`)}
-              options={STRATEGIES.map((value) => ({ value, label: t(`subscriptions.edit.strategy.${value}`) }))}
+              options={TRAFFIC_LIMIT_STRATEGIES.map((value) => ({ value, label: t(`subscriptions.edit.strategy.${value}`) }))}
             />
           </Field>
         </div>

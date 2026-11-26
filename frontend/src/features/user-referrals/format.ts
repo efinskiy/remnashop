@@ -1,8 +1,9 @@
 import type { TFunction } from "i18next";
 
 import type { ReferralRewardType } from "@entities/referrals/api";
+import { allValues } from "@shared/lib/all-values";
 
-export const REWARD_TYPES: ReferralRewardType[] = ["EXTRA_DAYS", "POINTS"];
+export const REWARD_TYPES = allValues<ReferralRewardType>()(["EXTRA_DAYS", "POINTS"]);
 
 export function formatReward(t: TFunction, type: ReferralRewardType, amount: string | number): string {
   const count = Math.trunc(Number(amount));

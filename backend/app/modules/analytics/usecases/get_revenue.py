@@ -11,7 +11,7 @@ from app.core.usecase import UseCase
 from app.core.utils.money import round_cents
 from app.core.utils.time import datetime_now
 from app.modules.analytics.aggregates import (
-    Granularity,
+    RevenueGranularity,
     bucket_index,
     bucket_starts,
     median,
@@ -85,7 +85,7 @@ def _count_attempts(
 def _build_revenue(
     *,
     period: AnalyticsPeriod,
-    granularity: Granularity,
+    granularity: RevenueGranularity,
     paid: list[PaidTransactionDto],
     attempts: list[PaymentAttemptDto],
     previous_attempts: list[PaymentAttemptDto],

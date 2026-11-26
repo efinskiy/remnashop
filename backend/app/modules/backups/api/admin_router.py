@@ -2,7 +2,7 @@ from typing import Optional
 
 from dishka import FromDishka
 from dishka.integrations.fastapi import inject
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.responses import FileResponse
 
 from app.api.dependencies.admin import require_admin
@@ -129,7 +129,7 @@ async def get_backup_run(
     return BackupRunResponse.model_validate(run, from_attributes=True)
 
 
-@router.get("/runs/{run_id:int}/download", responses=error_responses(404))
+@router.get("/runs/{run_id:int}/download", response_class=Response, responses=error_responses(404))
 @inject
 async def download_backup_run(
     run_id: int,

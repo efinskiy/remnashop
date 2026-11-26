@@ -3,13 +3,14 @@ from typing import Final, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.core.dto import ResponseModel
 from app.core.utils.http import validate_ip_allowlist
 
 # keeps the per-request allowlist check fixed-cost
 MAX_TOKEN_IP_ALLOWLIST: Final[int] = 64
 
 
-class ApiTokenResponse(BaseModel):
+class ApiTokenResponse(ResponseModel):
     id: int
     name: str
     scopes: list[str]
@@ -28,15 +29,15 @@ class CreateApiTokenRequest(BaseModel):
     _validate_ip_allowlist = field_validator("ip_allowlist")(validate_ip_allowlist)
 
 
-class CreatedApiTokenResponse(BaseModel):
+class CreatedApiTokenResponse(ResponseModel):
     token: ApiTokenResponse
     secret: str
 
 
-class DocsOttResponse(BaseModel):
+class DocsOttResponse(ResponseModel):
     ott: str
 
 
-class ApiTokenListResponse(BaseModel):
+class ApiTokenListResponse(ResponseModel):
     items: list[ApiTokenResponse]
     total: int

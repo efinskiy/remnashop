@@ -8,6 +8,7 @@ from app.modules.users.blacklist_repository import UserBlacklistRepository
 from app.modules.users.dto import (
     BlacklistHitDto,
     BlacklistMatchDto,
+    BlacklistMatchOrigin,
     BlacklistMatchPageDto,
     ListBlacklistMatchesDto,
     UserDto,
@@ -56,10 +57,10 @@ class ListBlacklistMatchesUseCase(UseCase[ListBlacklistMatchesDto, BlacklistMatc
                 *identities_of(origins), roles=BLACKLIST_MATCH_ROLES
             )
             manual_total = await self._user_blacklist.count_matching(
-                *identities_of(origins, "manual"), roles=BLACKLIST_MATCH_ROLES
+                *identities_of(origins, BlacklistMatchOrigin.MANUAL), roles=BLACKLIST_MATCH_ROLES
             )
             lists_total = await self._user_blacklist.count_matching(
-                *identities_of(origins, "lists"), roles=BLACKLIST_MATCH_ROLES
+                *identities_of(origins, BlacklistMatchOrigin.LISTS), roles=BLACKLIST_MATCH_ROLES
             )
             users, total = await self._user_blacklist.list_matching(
                 *identities_of(origins, data.origin),

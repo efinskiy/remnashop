@@ -1,25 +1,24 @@
 from datetime import datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel
-
+from app.core.dto import ResponseModel
 from app.core.security.permissions import Permission
 
 
-class GitInfoResponse(BaseModel):
+class GitInfoResponse(ResponseModel):
     commit_sha: Optional[str]
     commit_date: Optional[datetime]
     branch: Optional[str]
     is_official_build: bool
 
 
-class SystemMetadataResponse(BaseModel):
+class SystemMetadataResponse(ResponseModel):
     version: str
     repository_url: str
     git: GitInfoResponse
 
 
-class PermissionCatalogEntryResponse(BaseModel):
+class PermissionCatalogEntryResponse(ResponseModel):
     permission: Permission
     resource: str
     kind: Literal["read", "write"]
@@ -27,6 +26,6 @@ class PermissionCatalogEntryResponse(BaseModel):
     admin_default: bool
 
 
-class PermissionCatalogResponse(BaseModel):
+class PermissionCatalogResponse(ResponseModel):
     items: list[PermissionCatalogEntryResponse]
     total: int

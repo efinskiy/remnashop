@@ -21,8 +21,9 @@ import { BarRows, ColumnChart, Legend } from "@pages/analytics/charts";
 import type { BarRow } from "@pages/analytics/charts";
 import { useAnalyticsPeriod } from "@pages/analytics/period";
 import { countTrend, previousPeriodHint, relativeTrend } from "@pages/analytics/trends";
+import { allValues } from "@shared/lib/all-values";
 
-const GRANULARITIES: RevenueGranularity[] = ["day", "week", "month"];
+const GRANULARITIES = allValues<RevenueGranularity>()(["day", "week", "month"]);
 const MAX_DAILY_RANGE_DAYS = 92;
 const GROUPS = ["plan", "duration", "channel"] as const;
 const GROUP_KEYS = { plan: "byPlan", duration: "byDuration", channel: "byChannel" } as const;

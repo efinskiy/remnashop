@@ -18,9 +18,10 @@ import { LoadMoreButton } from "@shared/ui/LoadMoreButton";
 import { PillTabs } from "@shared/ui/PillTabs";
 import { SelectDropdown } from "@shared/ui/SelectDropdown";
 import { Spinner } from "@shared/ui/Spinner";
+import { allValues } from "@shared/lib/all-values";
 
 const ROW_GRID_CLASS = "grid grid-cols-[minmax(0,1.6fr)_minmax(0,0.5fr)_minmax(0,1fr)_minmax(0,1.6fr)_minmax(0,0.9fr)] items-center gap-3";
-const CHANNELS: BroadcastChannel[] = ["TELEGRAM", "EMAIL"];
+const CHANNELS = allValues<BroadcastChannel>()(["TELEGRAM", "EMAIL"]);
 // the backend stores these as fixed English markers (broadcasts/repository.py)
 const REASON_KEYS: Record<string, ParseKeys> = {
   stopped: "broadcasts.details.stopped",

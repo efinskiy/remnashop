@@ -3,13 +3,15 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from app.core.dto import ResponseModel
+
 
 class LoyaltyTierRequest(BaseModel):
     threshold: Decimal = Field(gt=0, max_digits=10, decimal_places=2)
     percent: int = Field(ge=1, le=100)
 
 
-class LoyaltyTierResponse(BaseModel):
+class LoyaltyTierResponse(ResponseModel):
     threshold: Decimal
     percent: int
 
@@ -20,7 +22,7 @@ class LoyaltySettingsRequest(BaseModel):
     tiers: list[LoyaltyTierRequest] = Field(max_length=20)
 
 
-class LoyaltySettingsResponse(BaseModel):
+class LoyaltySettingsResponse(ResponseModel):
     enabled: bool
     window_months: Optional[int]
     tiers: list[LoyaltyTierResponse]
@@ -31,7 +33,7 @@ class UserLoyaltyRequest(BaseModel):
     excluded: bool
 
 
-class UserLoyaltyResponse(BaseModel):
+class UserLoyaltyResponse(ResponseModel):
     discount: int
     excluded: bool
     is_program_active: bool

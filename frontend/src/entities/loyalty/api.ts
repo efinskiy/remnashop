@@ -1,34 +1,18 @@
 import { apiGet, apiPatch, apiPost, apiPut } from "@shared/api/http";
+import type { ApiSchema } from "@shared/api/schemas";
 
-export interface LoyaltyTier {
-  threshold: string;
-  percent: number;
-}
-
-export interface LoyaltySettings {
-  enabled: boolean;
-  window_months: number | null;
-  tiers: LoyaltyTier[];
-  currency: string | null;
-}
+export type LoyaltySettings = ApiSchema<"LoyaltySettingsResponse">;
 
 export type SaveLoyaltySettingsRequest = Omit<LoyaltySettings, "currency">;
 
-export interface UserLoyalty {
-  discount: number;
-  excluded: boolean;
-  is_program_active: boolean;
-  spent: string;
-  next_tier: LoyaltyTier | null;
-  currency: string;
-}
+export type UserLoyalty = ApiSchema<"UserLoyaltyResponse">;
 
 export function getLoyaltySettings(signal?: AbortSignal): Promise<LoyaltySettings> {
   return apiGet<LoyaltySettings>("/loyalty/settings", signal);
 }
 
 export function saveLoyaltySettings(payload: SaveLoyaltySettingsRequest): Promise<LoyaltySettings> {
-  return apiPut<LoyaltySettings, SaveLoyaltySettingsRequest>("/loyalty/settings", payload);
+  return apiPut<LoyaltySettings, ApiSchema<"LoyaltySettingsRequest">>("/loyalty/settings", payload);
 }
 
 export function resetLoyaltySettings(): Promise<LoyaltySettings> {
@@ -40,5 +24,5 @@ export function getUserLoyalty(userId: number, signal?: AbortSignal): Promise<Us
 }
 
 export function setUserLoyaltyExcluded(userId: number, excluded: boolean): Promise<UserLoyalty> {
-  return apiPatch<UserLoyalty, { excluded: boolean }>(`/users/${userId}/loyalty`, { excluded });
+  return apiPatch<UserLoyalty, ApiSchema<"UserLoyaltyRequest">>(`/users/${userId}/loyalty`, { excluded });
 }

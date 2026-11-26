@@ -4,6 +4,7 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
+from app.core.dto import ResponseModel
 from app.core.enums import (
     Currency,
     DiscountSource,
@@ -36,7 +37,7 @@ class CreateCheckoutRequest(BaseModel):
     _legal_locale = field_validator("legal_locale", mode="before")(known_locale)
 
 
-class CheckoutResponse(BaseModel):
+class CheckoutResponse(ResponseModel):
     order_id: int
     confirmation_url: Optional[str] = None
 
@@ -51,7 +52,7 @@ class QuoteCheckoutRequest(BaseModel):
     change_subscription_id: Optional[int] = None
 
 
-class CheckoutQuoteResponse(BaseModel):
+class CheckoutQuoteResponse(ResponseModel):
     base_price: Decimal
     change_credit: Decimal
     change_credit_days: int
@@ -62,14 +63,14 @@ class CheckoutQuoteResponse(BaseModel):
     currency: Currency
 
 
-class TransactionUserResponse(BaseModel):
+class TransactionUserResponse(ResponseModel):
     name: str
     username: Optional[str]
     telegram_id: Optional[int]
     email: Optional[str]
 
 
-class TransactionResponse(BaseModel):
+class TransactionResponse(ResponseModel):
     id: int
     user_id: int
     user: Optional[TransactionUserResponse]
@@ -102,8 +103,9 @@ class TransactionResponse(BaseModel):
     expires_at: datetime
     # the subscription the order provisioned, once reconciliation has seen it
     fulfilled_subscription_id: Optional[int]
-    created_at: Optional[datetime]
-    updated_at: Optional[datetime]
+    # always a stored row here
+    created_at: datetime
+    updated_at: datetime
 
     @field_validator("plan_snapshot", "previous_plan_snapshot", mode="before")
     @classmethod
@@ -111,12 +113,12 @@ class TransactionResponse(BaseModel):
         return value.to_json() if isinstance(value, PlanSnapshot) else value
 
 
-class TransactionPageResponse(BaseModel):
+class TransactionPageResponse(ResponseModel):
     items: list[TransactionResponse]
     total: int
 
 
-class TransactionSummaryResponse(BaseModel):
+class TransactionSummaryResponse(ResponseModel):
     report_currency: Currency
     total_count: int
     pending_count: int
@@ -129,17 +131,17 @@ class TransactionSummaryResponse(BaseModel):
     refunded_amount: Decimal
 
 
-class TransactionGatewayListResponse(BaseModel):
+class TransactionGatewayListResponse(ResponseModel):
     items: list[PaymentGatewayType]
     total: int
 
 
-class UnratedAnchorCountResponse(BaseModel):
+class UnratedAnchorCountResponse(ResponseModel):
     currency: Currency
     count: int
 
 
-class UnratedAnchorCountListResponse(BaseModel):
+class UnratedAnchorCountListResponse(ResponseModel):
     items: list[UnratedAnchorCountResponse]
     total: int
 
@@ -149,26 +151,26 @@ class CreateTestPaymentRequest(BaseModel):
     channel: PurchaseChannel = PurchaseChannel.BOT
 
 
-class TestPaymentResponse(BaseModel):
+class TestPaymentResponse(ResponseModel):
     order_id: int
     confirmation_url: Optional[str]
 
 
-class TestPaymentStatusResponse(BaseModel):
+class TestPaymentStatusResponse(ResponseModel):
     status: TransactionStatus
 
 
-class PaymentWaitlistCountResponse(BaseModel):
+class PaymentWaitlistCountResponse(ResponseModel):
     total: int
 
 
-class RollbackPreviewResponse(BaseModel):
+class RollbackPreviewResponse(ResponseModel):
     available: bool
     blocked_reason: Optional[str]
     old_term_expired: bool
 
 
-class RefundPreviewResponse(BaseModel):
+class RefundPreviewResponse(ResponseModel):
     refundable: bool
     reason: Optional[str]
     rollback: Optional[RollbackPreviewResponse]
@@ -178,17 +180,17 @@ class RefundTransactionRequest(BaseModel):
     rollback_subscription: bool
 
 
-class PaymentCheckResponse(BaseModel):
+class PaymentCheckResponse(ResponseModel):
     transaction: TransactionResponse
     paid: bool
 
 
-class RefundTransactionResponse(BaseModel):
+class RefundTransactionResponse(ResponseModel):
     transaction: TransactionResponse
     rollback_failed: bool
 
 
-class OwnTransactionResponse(BaseModel):
+class OwnTransactionResponse(ResponseModel):
     id: int
     status: TransactionStatus
     final_price: Decimal
@@ -235,14 +237,14 @@ class OwnTransactionResponse(BaseModel):
         )
 
 
-class OwnTransactionListResponse(BaseModel):
+class OwnTransactionListResponse(ResponseModel):
     items: list[OwnTransactionResponse]
     total: int
     page: int
     page_size: int
 
 
-class PaymentMethodResponse(BaseModel):
+class PaymentMethodResponse(ResponseModel):
     gateway_type: PaymentGatewayType
     currency: Currency
     name: str
@@ -250,6 +252,6 @@ class PaymentMethodResponse(BaseModel):
     asks_email: bool
 
 
-class PaymentMethodListResponse(BaseModel):
+class PaymentMethodListResponse(ResponseModel):
     items: list[PaymentMethodResponse]
     total: int

@@ -9,8 +9,9 @@ import { PillTabs } from "@shared/ui/PillTabs";
 
 import { setDelivery, setEmailFallback } from "@pages/broadcasts/editor/form";
 import type { EditorForm } from "@pages/broadcasts/editor/form";
+import { allValues } from "@shared/lib/all-values";
 
-const DELIVERIES: BroadcastDelivery[] = ["TELEGRAM", "EMAIL", "ALL"];
+const DELIVERIES = allValues<BroadcastDelivery>()(["TELEGRAM", "EMAIL", "ALL"]);
 
 interface DeliveryPickerProps {
   form: EditorForm;

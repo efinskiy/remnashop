@@ -8,8 +8,9 @@ import { KPI_VALUE_CLASS } from "@shared/ui/classes";
 import { IconCircle } from "@shared/ui/glass/IconCircle";
 import { Section } from "@shared/ui/glass/Section";
 import { Spinner } from "@shared/ui/Spinner";
+import { allValues } from "@shared/lib/all-values";
 
-const CHANNELS: BroadcastChannel[] = ["TELEGRAM", "EMAIL"];
+const CHANNELS = allValues<BroadcastChannel>()(["TELEGRAM", "EMAIL"]);
 const CHANNEL_ICON: Record<BroadcastChannel, LucideIcon> = { TELEGRAM: Send, EMAIL: Mail };
 
 interface RecipientsPreviewProps {

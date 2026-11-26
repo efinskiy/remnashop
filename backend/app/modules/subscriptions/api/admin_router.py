@@ -169,7 +169,7 @@ async def list_subscriptions(
     status_filter: Optional[SubscriptionStatus] = Query(None, alias="status"),
     search: Optional[str] = Query(None, max_length=SEARCH_MAX_LENGTH),
     user_id: Optional[int] = None,
-    sort: SubscriptionSort = "created_at",
+    sort: SubscriptionSort = SubscriptionSort.CREATED_AT,
     descending: bool = True,
     page: int = Query(1, ge=1),
     page_size: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),

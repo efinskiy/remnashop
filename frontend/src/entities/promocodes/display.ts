@@ -8,14 +8,16 @@ import type {
   Promocode,
   PromocodeAvailability,
   PromocodeRewardType,
-  UpdatePromocodeRequest,
+  CreatePromocodeRequest,
 } from "@entities/promocodes/api";
 import { formatDuration } from "@shared/lib/duration";
 import { endOfDayToIso, isoToLastDay } from "@shared/lib/iso-date";
 import { parseOptionalInt } from "@shared/lib/number-input";
 import type { BadgeTone } from "@shared/ui/Badge";
+import type { ApiSchema } from "@shared/api/schemas";
+import { allValues } from "@shared/lib/all-values";
 
-export type PromocodeStatus = "ACTIVE" | "INACTIVE" | "EXPIRED" | "EXHAUSTED";
+export type PromocodeStatus = ApiSchema<"PromocodeStatus">;
 export type PromocodeReward = Pick<
   Promocode,
   "reward_type" | "reward" | "reward_addon_id" | "reward_plan_id" | "reward_duration_days"
@@ -29,18 +31,29 @@ export interface PromocodeLimitsDraft {
   maxActivations: string;
   isReusable: boolean;
 }
-type LimitsPayload = Required<Omit<UpdatePromocodeRequest, "is_active">>;
+type LimitsPayload = Required<
+  Pick<
+    CreatePromocodeRequest,
+    | "availability"
+    | "allowed_user_ids"
+    | "prior_customers_only"
+    | "allowed_plan_ids"
+    | "expires_at"
+    | "max_activations"
+    | "is_reusable"
+  >
+>;
 
-export const PROMOCODE_STATUSES: PromocodeStatus[] = ["ACTIVE", "EXHAUSTED", "INACTIVE", "EXPIRED"];
-export const REWARD_TYPES: PromocodeRewardType[] = [
+export const PROMOCODE_STATUSES = allValues<PromocodeStatus>()(["ACTIVE", "EXHAUSTED", "INACTIVE", "EXPIRED"]);
+export const REWARD_TYPES = allValues<PromocodeRewardType>()([
   "DURATION",
   "TRAFFIC",
   "DEVICES",
   "SUBSCRIPTION",
   "PERSONAL_DISCOUNT",
   "PURCHASE_DISCOUNT",
-];
-export const AVAILABILITIES: PromocodeAvailability[] = ["ALL", "NEW", "EXISTING", "INVITED", "ALLOWED"];
+]);
+export const AVAILABILITIES = allValues<PromocodeAvailability>()(["ALL", "NEW", "EXISTING", "INVITED", "ALLOWED"]);
 
 export const REWARD_TYPE_ICON: Record<PromocodeRewardType, ComponentType<{ className?: string }>> = {
   DURATION: CalendarPlus,

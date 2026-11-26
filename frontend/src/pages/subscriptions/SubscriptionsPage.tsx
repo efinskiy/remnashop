@@ -47,8 +47,9 @@ import { Collapse } from "@shared/ui/Collapse";
 import { GLASS_LIST_HEAD_CLASS, LIST_BODY_CLASS, LIST_SCROLL_X_CLASS, PAGE_CLASS, PAGE_SCROLL_UNDER_BAR_CLASS, PAGE_TOOLBAR_CLASS, PAGE_TOOLBAR_SEARCH_CLASS } from "@shared/ui/classes";
 import { formatDate } from "@shared/lib/relative-time";
 import { useCollapsedSet } from "@shared/lib/use-collapsed-set";
+import { allValues } from "@shared/lib/all-values";
 
-const STATUSES: SubscriptionStatus[] = ["ACTIVE", "LIMITED", "EXPIRED", "DISABLED", "DELETED"];
+const STATUSES = allValues<SubscriptionStatus>()(["ACTIVE", "LIMITED", "EXPIRED", "DISABLED", "DELETED"]);
 const FILTER_DEBOUNCE_MS = 200;
 const ROW_GRID_CLASSNAME =
   "grid grid-cols-[32px_minmax(0,1fr)_130px_96px_150px_112px_16px] items-center gap-3";

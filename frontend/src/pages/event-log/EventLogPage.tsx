@@ -51,11 +51,13 @@ import { SelectDropdown } from "@shared/ui/SelectDropdown";
 import { RefetchSpinner, Spinner } from "@shared/ui/Spinner";
 import { GLASS_LIST_HEAD_CLASS, LIST_BODY_CLASS, LIST_SCROLL_X_CLASS, PAGE_CLASS, PAGE_SCROLL_UNDER_BAR_CLASS, PAGE_TOOLBAR_CLASS, PAGE_TOOLBAR_SEARCH_CLASS } from "@shared/ui/classes";
 import { ListRow } from "@shared/ui/ListRow";
+import type { ApiSchema } from "@shared/api/schemas";
+import { allValues } from "@shared/lib/all-values";
 
 const ROW_GRID_CLASSNAME = "grid grid-cols-[32px_minmax(0,2fr)_64px_minmax(0,1fr)_140px_16px] items-center gap-3";
 
-// Mirrors `EventCategory` (backend/app/core/events.py), in sidebar order.
-const CATEGORIES = [
+// in sidebar order
+const CATEGORIES = allValues<ApiSchema<"EventCategory">>()([
   "USER",
   "SUBSCRIPTION",
   "PLANS",
@@ -68,8 +70,8 @@ const CATEGORIES = [
   "SETTINGS",
   "BROADCAST",
   "INFRASTRUCTURE",
-] as const;
-const CATEGORY_ICONS: Record<(typeof CATEGORIES)[number], LucideIcon> = {
+]);
+const CATEGORY_ICONS: Record<ApiSchema<"EventCategory">, LucideIcon> = {
   AUTH: LogIn,
   ADMIN_MANAGEMENT: ShieldCheck,
   USER: Users,

@@ -1,9 +1,8 @@
-from pydantic import BaseModel
-
+from app.core.dto import ResponseModel
 from app.core.enums import Locale
 
 
-class BannerMetaResponse(BaseModel):
+class BannerMetaResponse(ResponseModel):
     name: str
     locale: Locale
     content_type: str

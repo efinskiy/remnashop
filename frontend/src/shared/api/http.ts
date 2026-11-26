@@ -6,11 +6,6 @@ import { clearAccessToken, getAccessToken, saveAccessToken } from "@shared/lib/t
 
 export const BASE_URL = "/api/v1";
 
-export interface ListResponse<T> {
-  items: T[];
-  total: number;
-}
-
 // rejected: the refresh token is dead, the session is over. unavailable: the
 // backend didn't answer (offline, restarting, proxy 5xx); the session may be
 // fine, so the caller keeps the token and fails only this request.

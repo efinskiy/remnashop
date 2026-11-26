@@ -1,31 +1,13 @@
 import { apiGet, apiPost } from "@shared/api/http";
-import type { Role } from "@shared/types/rbac";
+import type { ApiSchema } from "@shared/api/schemas";
 
-export interface AuthStatus {
-  is_login_allowed: boolean;
-  is_register_allowed: boolean;
-  oauth_providers: Record<string, boolean>;
-  oidc_display_name: string | null;
-  is_password_login_enabled: boolean;
-  is_passkey_login_enabled: boolean;
-}
+export type AuthStatus = ApiSchema<"StatusResponse">;
 
-export interface AuthResult {
-  id: number;
-  login: string;
-  role: Role;
-  access_token: string;
-}
+export type AuthResult = ApiSchema<"AuthResponse">;
 
-export interface BootstrapOwnerPayload {
-  login: string;
-  password: string;
-}
+export type BootstrapOwnerPayload = ApiSchema<"BootstrapRequest">;
 
-export interface LoginPayload {
-  login: string;
-  password: string;
-}
+export type LoginPayload = ApiSchema<"LoginRequest">;
 
 export function getAuthStatus(signal?: AbortSignal): Promise<AuthStatus> {
   return apiGet<AuthStatus>("/auth/status", signal);

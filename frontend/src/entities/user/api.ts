@@ -1,22 +1,9 @@
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "@shared/api/http";
-import type { Permission, Role } from "@shared/types/rbac";
+import type { ApiSchema } from "@shared/api/schemas";
 
-export interface CurrentUser {
-  id: number;
-  login: string | null;
-  name: string;
-  role: Role;
-  effective_permissions: Permission[];
-  password_change_required: boolean;
-  language: string;
-}
+export type CurrentUser = ApiSchema<"CurrentUserResponse">;
 
-export interface UpdateOwnProfileRequest {
-  name?: string;
-  current_password?: string;
-  new_password?: string;
-  language?: string;
-}
+export type UpdateOwnProfileRequest = ApiSchema<"UpdateOwnProfileRequest">;
 
 export function getCurrentUser(signal?: AbortSignal): Promise<CurrentUser> {
   return apiGet<CurrentUser>("/users/me", signal);
@@ -26,52 +13,21 @@ export function updateOwnProfile(payload: UpdateOwnProfileRequest): Promise<Curr
   return apiPatch<CurrentUser, UpdateOwnProfileRequest>("/users/me", payload);
 }
 
-export interface UserBase {
-  id: number;
-  name: string;
-  role: Role;
-  telegram_id: number | null;
-  username: string | null;
-  email: string | null;
-  login: string | null;
-  language: string;
-  is_blocked: boolean;
-  personal_discount: number;
-  purchase_discount: number;
-  loyalty_discount: number;
-  /** admin only, the customer never sees it */
-  markup_percent: number;
-  referral_code?: string | null;
-  points: string;
-  bonus_days: number;
-  is_trial_available: boolean;
-  created_at: string | null;
-  /** set once the account is soft-deleted; name and contacts are wiped then */
-  deleted_at?: string | null;
-  email_undeliverable_at?: string | null;
-  is_bot_blocked?: boolean;
-}
+export type UserBase = ApiSchema<"UserResponse">;
 
-export interface UserListItem extends UserBase {
-  active_subscriptions: number;
-  limited_subscriptions: number;
-  expired_subscriptions: number;
-}
+export type UserListItem = ApiSchema<"UserListItemResponse">;
 
 export const DEFAULT_PAGE_SIZE = 50;
 
-export interface UserListPage {
-  items: UserListItem[];
-  total: number;
-}
+export type UserListPage = ApiSchema<"UserPageResponse">;
 
-export type UserSort = "created_at" | "points" | "discount" | "name" | "channels" | "subscriptions";
+export type UserSort = ApiSchema<"UserSort">;
 
 // exclude: live accounts only (the default); include: both; only: deleted ones
-export type DeletedFilter = "exclude" | "include" | "only";
+export type DeletedFilter = ApiSchema<"DeletedFilter">;
 
 // which blacklist a blocked user is on: the manual list or external sources
-export type BlockedBy = "manual" | "lists";
+export type BlockedBy = ApiSchema<"BlacklistMatchOrigin">;
 
 export interface UserListFilters {
   search?: string;
@@ -86,15 +42,7 @@ export interface UserListFilters {
   pageSize?: number;
 }
 
-export interface UserListStats {
-  total: number;
-  subscribed: number;
-  blocked: number;
-  /** registrations over the last 30 days */
-  total_growth: number;
-  /** an expired subscription and nothing active or limited */
-  churned: number;
-}
+export type UserListStats = ApiSchema<"UserListStatsResponse">;
 
 export function listUsers(
   filters: UserListFilters = {},
@@ -128,16 +76,16 @@ export function deleteUser(userId: number): Promise<void> {
 }
 
 export function setUserMarkup(userId: number, markupPercent: number): Promise<UserListItem> {
-  return apiPatch<UserListItem, { markup_percent: number }>(`/users/${userId}/markup`, {
+  return apiPatch<UserListItem, ApiSchema<"SetMarkupRequest">>(`/users/${userId}/markup`, {
     markup_percent: markupPercent,
   });
 }
 
 export function setUserDiscount(
   userId: number,
-  discounts: { personal_discount?: number; purchase_discount?: number },
+  discounts: ApiSchema<"SetDiscountRequest">,
 ): Promise<UserListItem> {
-  return apiPatch<UserListItem, typeof discounts>(`/users/${userId}/discount`, discounts);
+  return apiPatch<UserListItem, ApiSchema<"SetDiscountRequest">>(`/users/${userId}/discount`, discounts);
 }
 
 export function blockUser(userId: number): Promise<UserListItem> {
@@ -145,7 +93,7 @@ export function blockUser(userId: number): Promise<UserListItem> {
 }
 
 export function setUserTrialAvailability(userId: number, isTrialAvailable: boolean): Promise<UserListItem> {
-  return apiPatch<UserListItem, { is_trial_available: boolean }>(`/users/${userId}/trial`, {
+  return apiPatch<UserListItem, ApiSchema<"SetTrialAvailabilityRequest">>(`/users/${userId}/trial`, {
     is_trial_available: isTrialAvailable,
   });
 }
@@ -163,30 +111,9 @@ export function unblockUser(userId: number): Promise<UserListItem> {
   return apiPost<UserListItem, Record<string, never>>(`/users/${userId}/actions/unblock`, {});
 }
 
-export type MergeSide = "source" | "target";
+export type MergeSide = NonNullable<ApiSchema<"MergeConflictResponse">["forced"]>;
 
-export interface MergeConflict {
-  key: string;
-  source_value: string | null;
-  target_value: string | null;
-  forced: MergeSide | null;
-}
-
-export interface MergePreview {
-  source: UserBase;
-  target: UserBase;
-  conflicts: MergeConflict[];
-  /** keeping this side's inviter would loop, so the merge drops the link */
-  referrer_cycles: { side: MergeSide; referrer_id: number }[];
-  fingerprint: string;
-  source_counts: {
-    subscriptions: number;
-    transactions: number;
-    referrals: number;
-    passkeys: number;
-    oauth_identities: number;
-  };
-}
+export type MergePreview = ApiSchema<"MergePreviewResponse">;
 
 export function getMergePreview(targetId: number, sourceId: number, signal?: AbortSignal): Promise<MergePreview> {
   return apiGet<MergePreview>(`/users/${targetId}/merge-preview?source_id=${sourceId}`, signal);
@@ -198,53 +125,26 @@ export function mergeUsers(
   choices: Record<string, MergeSide>,
   fingerprint: string,
 ): Promise<UserListItem> {
-  return apiPost<UserListItem, { source_id: number; choices: Record<string, MergeSide>; fingerprint: string }>(
+  return apiPost<UserListItem, ApiSchema<"MergeAccountsRequest">>(
     `/users/${targetId}/actions/merge`,
     { source_id: sourceId, choices, fingerprint },
   );
 }
 
 export function bindUserTelegram(userId: number, telegramId: number): Promise<UserListItem> {
-  return apiPut<UserListItem, { telegram_id: number }>(`/users/${userId}/telegram`, { telegram_id: telegramId });
+  return apiPut<UserListItem, ApiSchema<"BindTelegramRequest">>(`/users/${userId}/telegram`, { telegram_id: telegramId });
 }
 
 export function unbindUserTelegram(userId: number): Promise<UserListItem> {
   return apiDelete<UserListItem>(`/users/${userId}/telegram`);
 }
 
-export type RegistrationSource =
-  | "BOT"
-  | "CABINET_TELEGRAM"
-  | "CABINET_MINI_APP"
-  | "CABINET_BOT_LINK"
-  | "CABINET_EMAIL"
-  | "CABINET_GOOGLE"
-  | "CABINET_YANDEX";
-
-export interface RegistrationSnapshot {
-  source: RegistrationSource;
-  start_payload: string | null;
-  telegram_language_code: string | null;
-  telegram_is_premium: boolean | null;
-  ip_address: string | null;
-  user_agent: string | null;
-  browser: string | null;
-  landing_url: string | null;
-  referer: string | null;
-  utm_source: string | null;
-  utm_medium: string | null;
-  utm_campaign: string | null;
-  utm_content: string | null;
-  utm_term: string | null;
-  click_id: string | null;
-  platform: string | null;
-  created_at: string;
-}
+export type RegistrationSnapshot = ApiSchema<"RegistrationSnapshotResponse">;
 
 // registration is null for accounts made before snapshots were kept
 export function getUserRegistration(
   userId: number,
   signal?: AbortSignal,
-): Promise<{ registration: RegistrationSnapshot | null }> {
-  return apiGet<{ registration: RegistrationSnapshot | null }>(`/users/${userId}/registration`, signal);
+): Promise<ApiSchema<"UserRegistrationResponse">> {
+  return apiGet<ApiSchema<"UserRegistrationResponse">>(`/users/${userId}/registration`, signal);
 }

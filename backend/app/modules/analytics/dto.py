@@ -6,7 +6,7 @@ from typing import Optional
 from pydantic import BaseModel
 
 from app.core.enums import Currency, PaymentGatewayType, PromocodeRewardType, PromocodeStatus
-from app.modules.analytics.aggregates import Granularity
+from app.modules.analytics.aggregates import RevenueGranularity
 from app.modules.analytics.sources import SourceKind
 
 
@@ -318,7 +318,7 @@ class AnalyticsPeriodQueryDto:
 
 @dataclass(frozen=True, kw_only=True)
 class GetRevenueDto(AnalyticsPeriodQueryDto):
-    granularity: Granularity = "day"
+    granularity: RevenueGranularity = RevenueGranularity.DAY
 
 
 class RewardTypeCountDto(BaseModel):

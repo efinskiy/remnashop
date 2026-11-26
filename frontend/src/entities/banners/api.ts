@@ -1,11 +1,7 @@
 import { apiDelete, apiGetRaw, apiPost, apiUpload } from "@shared/api/http";
+import type { ApiSchema } from "@shared/api/schemas";
 
-export interface BannerMeta {
-  name: string;
-  locale: string;
-  content_type: string;
-  size_bytes: number;
-}
+export type BannerMeta = ApiSchema<"BannerMetaResponse">;
 
 export function uploadBanner(name: string, locale: string, file: File): Promise<BannerMeta> {
   const formData = new FormData();

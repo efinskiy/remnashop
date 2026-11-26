@@ -167,7 +167,7 @@ class SubscriptionRepository:
         status: Optional[SubscriptionStatus] = None,
         search: Optional[str] = None,
         user_id: Optional[int] = None,
-        sort: SubscriptionSort = "created_at",
+        sort: SubscriptionSort = SubscriptionSort.CREATED_AT,
         descending: bool = True,
         page: int = 1,
         page_size: int = DEFAULT_PAGE_SIZE,

@@ -2,9 +2,9 @@ import hmac
 from typing import Literal
 
 from fastapi import Request, Response
-from pydantic import BaseModel
 
 from app.core.constants import CSRF_COOKIE_NAME, REFRESH_COOKIE_NAME, REFRESH_COOKIE_PATH
+from app.core.dto import ResponseModel
 from app.core.enums import Role
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import PermissionDeniedError
@@ -14,7 +14,7 @@ from app.modules.auth.session_issuer import IssuedSession
 from app.modules.users import UserDto
 
 
-class AuthResponse(BaseModel):
+class AuthResponse(ResponseModel):
     id: int
     login: str
     role: Role

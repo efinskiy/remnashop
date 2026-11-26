@@ -53,7 +53,8 @@ LocalizedParagraph = Annotated[dict[Locale, _Paragraph], AfterValidator(_not_emp
 
 
 class _Value(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    # returned by the API: see core.dto.ResponseModel for the schema flag
+    model_config = ConfigDict(frozen=True, json_schema_serialization_defaults_required=True)
 
 
 class ExternalButton(_Value):

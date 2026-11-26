@@ -6,7 +6,7 @@ from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.modules.blacklist import BlacklistRepository
 from app.modules.users.blacklist_repository import UserBlacklistRepository
-from app.modules.users.dto import UnblockBlacklistMatchesDto
+from app.modules.users.dto import BlacklistMatchOrigin, UnblockBlacklistMatchesDto
 from app.modules.users.events import UsersBulkUnblockedEvent
 from app.modules.users.listing import BLACKLIST_MATCH_ROLES, identities_of
 
@@ -31,7 +31,7 @@ class UnblockBlacklistMatchesUseCase(UseCase[UnblockBlacklistMatchesDto, int]):
             origins = await self._blacklist_repository.identity_origins()
             # source-list entries can't be removed here; the next reconcile re-blocks those users
             manual_ids, manual_emails = await self._user_blacklist.matching_identities(
-                *identities_of(origins, "manual"), roles=BLACKLIST_MATCH_ROLES
+                *identities_of(origins, BlacklistMatchOrigin.MANUAL), roles=BLACKLIST_MATCH_ROLES
             )
             for telegram_id in manual_ids:
                 await self._blacklist_repository.remove_entry(

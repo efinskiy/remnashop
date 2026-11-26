@@ -28,10 +28,11 @@ import { Input } from "@shared/ui/glass/Input";
 import { Modal } from "@shared/ui/Modal";
 import { useModalClose } from "@shared/ui/modal-hooks";
 import { SelectDropdown } from "@shared/ui/SelectDropdown";
+import { allValues } from "@shared/lib/all-values";
 
 const BULK_SCOPES = ["ALL_PLANS", "ALL_ADDONS"] as const satisfies BulkAdjustScope[];
-const MODES: PriceAdjustMode[] = ["MULTIPLY", "SET", "LADDER"];
-const PINNED_ACTIONS: PinnedPriceAction[] = ["KEEP", "SCALE", "RESET"];
+const MODES = allValues<PriceAdjustMode>()(["MULTIPLY", "SET", "LADDER"]);
+const PINNED_ACTIONS = allValues<PinnedPriceAction>()(["KEEP", "SCALE", "RESET"]);
 // the ladder's base when the selection has a 30-day duration
 const PREFERRED_LADDER_BASE_DAYS = 30;
 // the backend's bound on a negative discount

@@ -5,6 +5,7 @@ import { matchPath, Navigate, useLocation, useNavigate, useOutlet } from "react-
 
 import { logout } from "@shared/api/http";
 import { disablePushOnSignOut, pushApi } from "@entities/notifications/push-api";
+import type { Locale } from "@entities/translations/api";
 import { updateOwnProfile } from "@entities/user/api";
 import { CurrentUserProvider } from "@entities/user/CurrentUserProvider";
 import { PasswordChangeRequired } from "@features/password-change-required/PasswordChangeRequired";
@@ -72,7 +73,8 @@ function DashboardShell({ onLogout, isLeaving, onLeft }: DashboardShellProps) {
     syncedLanguage.current ??= serverLanguage;
     if (syncedLanguage.current === i18n.language) return;
     syncedLanguage.current = i18n.language;
-    updateOwnProfile({ language: i18n.language }).catch(() => {
+    // the dashboard's languages are all bot locales
+    updateOwnProfile({ language: i18n.language as Locale }).catch(() => {
       syncedLanguage.current = serverLanguage;
     });
   }, [serverLanguage, i18n.language]);

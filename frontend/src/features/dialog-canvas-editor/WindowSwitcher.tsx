@@ -7,6 +7,7 @@ import type { DialogFlow, DialogWindow } from "@entities/dialogs/api";
 import { CreateWindowDialog } from "@features/dialog-canvas-editor/CreateWindowDialog";
 import { useHorizontalWheelScroll } from "@shared/lib/use-horizontal-wheel-scroll";
 import { SegmentedPills } from "@shared/ui/SegmentedPills";
+import { allValues } from "@shared/lib/all-values";
 
 interface WindowSwitcherProps {
   windows: DialogWindow[];
@@ -26,7 +27,7 @@ interface WindowSwitcherProps {
 }
 
 // custom windows are their own flow and sit last
-const FLOW_ORDER: DialogFlow[] = ["menu", "purchase", "renewal", "change", "subscription", "promocode", "referrals", "custom"];
+const FLOW_ORDER = allValues<DialogFlow>()(["menu", "purchase", "renewal", "change", "subscription", "promocode", "referrals", "custom"]);
 
 /** Two levels: the flows as pills, the open flow's windows as underline tabs under them. A window's
  *  state shows as an icon on its tab; the inspector spells it out. */
