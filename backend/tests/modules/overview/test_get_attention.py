@@ -444,7 +444,7 @@ async def test_process_without_a_heartbeat_is_down(
     assert items["process_down"][0].severity == "critical"
 
 
-async def test_outbox_entry_waiting_over_five_minutes_is_stuck_unless_poisoned(
+async def test_outbox_entry_waiting_over_five_minutes_is_stuck_unless_poisoned_then_listed_apart(
     session: AsyncSession,
     settings_repository: SettingsRepository,
     uow: UnitOfWork,
@@ -466,6 +466,8 @@ async def test_outbox_entry_waiting_over_five_minutes_is_stuck_unless_poisoned(
     items = await _kinds(session, settings_repository, uow, redis_alive)
 
     assert items["outbox_stuck"][0].count == 1
+    [poisoned] = items["outbox_poisoned"]
+    assert (poisoned.count, poisoned.since) == (1, now - timedelta(minutes=30))
 
 
 async def test_smtp_failure_is_reported_per_profile(

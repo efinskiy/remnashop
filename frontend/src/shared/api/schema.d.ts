@@ -620,7 +620,7 @@ export interface components {
          * AttentionKind
          * @enum {string}
          */
-        AttentionKind: "process_down" | "host_disk_full" | "host_memory_high" | "event_loop_lag" | "outbox_stuck" | "panel_unavailable" | "node_offline" | "gateway_failures" | "smtp_failed" | "backup_failed" | "backup_overdue" | "broadcast_failed" | "paid_not_fulfilled" | "panel_users_missing" | "stale_pending" | "broadcast_stalled" | "email_undeliverable" | "expiring_paid" | "api_token_expiring" | "bot_webhook" | "plan_squads_missing" | "unrated_anchor_amounts";
+        AttentionKind: "process_down" | "host_disk_full" | "host_memory_high" | "event_loop_lag" | "outbox_stuck" | "outbox_poisoned" | "panel_unavailable" | "node_offline" | "gateway_failures" | "smtp_failed" | "backup_failed" | "backup_overdue" | "broadcast_failed" | "paid_not_fulfilled" | "panel_users_missing" | "stale_pending" | "broadcast_stalled" | "email_undeliverable" | "expiring_paid" | "api_token_expiring" | "bot_webhook" | "plan_squads_missing" | "unrated_anchor_amounts";
         /** AttentionResponse */
         AttentionResponse: {
             /** Items */

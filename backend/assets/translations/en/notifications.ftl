@@ -265,6 +265,9 @@ ntf-remnawave-unavailable = Connection to Remnawave lost ({ $error }).
     .title = Remnawave connection error!
 ntf-remnawave-restored = Connection to Remnawave restored.
     .title = Remnawave connection restored!
+ntf-outbox-entry-poisoned = Event { $failed_event } (#{ $outbox_id }) failed after { $attempts } attempts: { $error }
+    .title = Event failed to process!
+    .emoji = ⚠️
 ntf-system-health-degraded = { $kind ->
         [process_down] The { $subject } process is not responding.
         [host_disk_full] The server disk is { $value }% full.

@@ -274,6 +274,9 @@ ntf-remnawave-unavailable = Соединение с Remnawave потеряно (
     .title = Ошибка при подключении к Remnawave!
 ntf-remnawave-restored = Соединение с Remnawave восстановлено.
     .title = Соединение с Remnawave восстановлено!
+ntf-outbox-entry-poisoned = Событие { $failed_event } (#{ $outbox_id }) не обработано за { $attempts } попыток: { $error }
+    .title = Событие не обработано!
+    .emoji = ⚠️
 ntf-system-health-degraded = { $kind ->
         [process_down] Процесс { $subject } не отвечает.
         [host_disk_full] Диск сервера заполнен на { $value }%.

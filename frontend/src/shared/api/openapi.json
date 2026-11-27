@@ -1942,6 +1942,7 @@
           "host_memory_high",
           "event_loop_lag",
           "outbox_stuck",
+          "outbox_poisoned",
           "panel_unavailable",
           "node_offline",
           "gateway_failures",

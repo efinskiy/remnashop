@@ -52,7 +52,7 @@ async def deliver_once(redis: Redis, outbox_id: int, run: Callable[[], Awaitable
 
 def coalesce_scope(event_type: str, payload: dict[str, Any], ip_address: Optional[str]) -> str:
     # per source: one decoy failure must not hide every other source's alerts
-    source = ip_address or payload.get("login") or "-"
+    source = ip_address or payload.get("login") or payload.get("failed_event") or "-"
     return f"{event_type}:{source}"
 
 

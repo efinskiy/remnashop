@@ -14,6 +14,7 @@ import {
   Hourglass,
   Info,
   KeyRound,
+  ListRestart,
   ListX,
   MailWarning,
   MailX,
@@ -76,6 +77,7 @@ const KIND_ICON: Record<AttentionKind, ComponentType<{ className?: string }>> = 
   host_memory_high: MemoryStick,
   event_loop_lag: Gauge,
   outbox_stuck: ListX,
+  outbox_poisoned: ListRestart,
   panel_unavailable: CloudOff,
   node_offline: ServerOff,
   gateway_failures: CreditCard,
@@ -214,6 +216,11 @@ function itemText(item: AttentionItem, t: TFunction, language: string): { title:
           duration: waited,
         }),
       };
+    case "outbox_poisoned":
+      return {
+        title: t("dashboard.attention.outboxPoisoned.title"),
+        sub: counted("dashboard.attention.outboxPoisoned.sub"),
+      };
     case "panel_unavailable":
       return {
         title: t("dashboard.attention.panelUnavailable.title"),
@@ -335,6 +342,7 @@ const KIND_KEY: Record<AttentionKind, string> = {
   host_memory_high: "hostMemoryHigh",
   event_loop_lag: "eventLoopLag",
   outbox_stuck: "outboxStuck",
+  outbox_poisoned: "outboxPoisoned",
   panel_unavailable: "panelUnavailable",
   node_offline: "nodeOffline",
   gateway_failures: "gatewayFailures",
