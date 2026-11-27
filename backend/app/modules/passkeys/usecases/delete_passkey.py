@@ -6,7 +6,7 @@ from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.modules.auth import SignInMethodGuard
 from app.modules.passkeys.dto import DeletePasskeyDto
-from app.modules.passkeys.events import PasskeyRemovedEvent
+from app.modules.passkeys.events import PasskeyChangedEvent
 from app.modules.passkeys.repository import PasskeyRepository
 from app.modules.users import UserDto
 
@@ -41,7 +41,10 @@ class DeletePasskeyUseCase(UseCase[DeletePasskeyDto, None, UserDto]):
             if not deleted:
                 raise NotFoundError("Passkey not found", code=ErrorCode.PASSKEY_NOT_FOUND)
             await self._event_publisher.publish(
-                PasskeyRemovedEvent(
-                    user=actor, credential_name=credential.name, ip_address=data.client_ip
+                PasskeyChangedEvent(
+                    user=actor,
+                    action="delete",
+                    credential_name=credential.name,
+                    ip_address=data.client_ip,
                 )
             )

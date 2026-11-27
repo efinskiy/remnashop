@@ -2,7 +2,6 @@ from dataclasses import dataclass, field
 from enum import auto
 from typing import Any, ClassVar, Literal, Optional, TypeAlias
 
-from app.core.actor import Actor
 from app.core.enums import AddOnType, PurchaseType, SubscriptionStatus, UpperStrEnum
 from app.core.events import (
     ActorEvent,
@@ -72,10 +71,8 @@ class SubscriptionChangedEvent(UserEvent):
 
 
 @dataclass(frozen=True, kw_only=True)
-class SubscriptionAddOnGrantedEvent(UserEvent):
+class SubscriptionAddOnGrantedEvent(ActorTargetEvent):
     category: ClassVar[EventCategory] = EventCategory.SUBSCRIPTION
-    # the subscription's owner; `user` is the system actor on the promocode path
-    target: Optional[Actor]
     subscription_id: int
     addon_id: int
     addon_type: AddOnType

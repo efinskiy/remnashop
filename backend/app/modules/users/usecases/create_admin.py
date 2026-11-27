@@ -7,7 +7,7 @@ from app.core.security import generate_password, hash_password
 from app.core.security.permissions import Permission, assert_grantable
 from app.core.usecase import UseCase
 from app.modules.users.dto import AdminWithPasswordDto, CreateAdminDto, CreateUserDto
-from app.modules.users.events import AdminCreatedEvent
+from app.modules.users.events import AdminChangedEvent
 from app.modules.users.repository import UserRepository
 
 
@@ -47,7 +47,9 @@ class CreateAdminUseCase(UseCase[CreateAdminDto, AdminWithPasswordDto]):
                 )
             )
             await self._event_publisher.publish(
-                AdminCreatedEvent(actor=actor, target=admin, ip_address=data.client_ip)
+                AdminChangedEvent(
+                    actor=actor, action="create", target=admin, ip_address=data.client_ip
+                )
             )
 
         return AdminWithPasswordDto(admin=admin, password=password)

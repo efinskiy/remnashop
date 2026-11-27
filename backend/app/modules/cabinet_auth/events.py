@@ -13,7 +13,7 @@ class EmailCodeAttemptsExhaustedEvent(BaseEvent):
 
 @dataclass(frozen=True, kw_only=True)
 class CabinetNewDeviceSignInEvent(UserEvent):
-    category: ClassVar[EventCategory] = EventCategory.USER
+    category: ClassVar[EventCategory] = EventCategory.AUTH
     browser: str
 
 

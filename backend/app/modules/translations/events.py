@@ -6,20 +6,9 @@ from app.core.events import ActorEvent, EventCategory
 
 
 @dataclass(frozen=True, kw_only=True)
-class LocaleActivatedEvent(ActorEvent):
+class LocaleChangedEvent(ActorEvent):
     category: ClassVar[EventCategory] = EventCategory.SETTINGS
-    locale: Locale
-
-
-@dataclass(frozen=True, kw_only=True)
-class DefaultLocaleChangedEvent(ActorEvent):
-    category: ClassVar[EventCategory] = EventCategory.SETTINGS
-    locale: Locale
-
-
-@dataclass(frozen=True, kw_only=True)
-class LocaleDeactivatedEvent(ActorEvent):
-    category: ClassVar[EventCategory] = EventCategory.SETTINGS
+    action: Literal["activate", "deactivate", "set_default"]
     locale: Locale
 
 

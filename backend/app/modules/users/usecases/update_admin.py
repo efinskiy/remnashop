@@ -6,7 +6,7 @@ from app.core.ports import EventPublisher
 from app.core.security.permissions import Permission, assert_grantable
 from app.core.usecase import UseCase
 from app.modules.users.dto import UpdateAdminDto, UpdateUserDto, UserDto
-from app.modules.users.events import AdminPermissionsUpdatedEvent
+from app.modules.users.events import AdminChangedEvent
 from app.modules.users.ports import SessionRevoker
 from app.modules.users.repository import UserRepository
 
@@ -59,8 +59,9 @@ class UpdateAdminUseCase(UseCase[UpdateAdminDto, UserDto]):
             if data.permission_revokes is not None:
                 await self._session_revoker.revoke_all_by_user(target.id)
             await self._event_publisher.publish(
-                AdminPermissionsUpdatedEvent(
+                AdminChangedEvent(
                     actor=actor,
+                    action="permissions",
                     target=updated,
                     permission_grants=update_data.permission_grants,
                     permission_revokes=update_data.permission_revokes,

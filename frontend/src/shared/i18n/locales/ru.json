@@ -853,41 +853,31 @@
       "OAuthLoginSucceededEvent": "Вход в панель управления (OAuth)",
       "OAuthLoginFailedEvent": "Неудачный вход в панель управления (OAuth)",
       "EmailCodeAttemptsExhaustedEvent": "Попытки ввода кода из письма исчерпаны",
-      "OAuthIdentityConnectedEvent": "OAuth-аккаунт привязан",
-      "OAuthIdentityDisconnectedEvent": "OAuth-аккаунт отвязан",
+      "OAuthIdentityLinkedEvent": "OAuth-аккаунт привязан",
+      "OAuthIdentityUnlinkedEvent": "OAuth-аккаунт отвязан",
       "SignInMethodLinkedEvent": "Способ входа привязан",
       "SignInMethodUnlinkedEvent": "Способ входа отвязан",
       "SessionRevokedEvent": "Сессия отозвана",
       "OtherSessionsRevokedEvent": "Другие сессии отозваны",
       "SessionTheftDetectedEvent": "Кража сессии",
       "UserSessionRevokedByAdminEvent": "Сессия отозвана администратором",
-      "AdminCreatedEvent": "Администратор создан",
-      "AdminPromotedEvent": "Администратор назначен",
-      "AdminPermissionsUpdatedEvent": "Права администратора изменены",
-      "AdminDemotedEvent": "Администратор понижен",
-      "AdminDeletedEvent": "Администратор удалён",
-      "TelegramIdBoundEvent": "Telegram ID привязан",
-      "TelegramIdUnboundEvent": "Telegram ID отвязан",
+      "AdminChangedEvent": "Администратор изменён",
+      "TelegramIdChangedEvent": "Telegram ID изменён",
       "UserDeletedEvent": "Пользователь удалён",
       "CabinetUserRegisteredEvent": "Регистрация в кабинете",
       "TelegramUserRegisteredEvent": "Регистрация в боте",
-      "LocaleActivatedEvent": "Язык добавлен",
-      "LocaleDeactivatedEvent": "Язык удалён",
-      "DefaultLocaleChangedEvent": "Язык по умолчанию изменён",
+      "LocaleChangedEvent": "Язык изменён",
       "AnchorSwitchedEvent": "Опорная валюта изменена",
       "UnratedAnchorAmountsRatedEvent": "Старые оплаты пересчитаны по курсу",
       "BasePricesAdjustedEvent": "Базовые цены изменены",
-      "ApiTokenCreatedEvent": "API-токен создан",
-      "ApiTokenRevokedEvent": "API-токен отозван",
-      "BlacklistEntryAddedEvent": "Запись добавлена в чёрный список",
-      "BlacklistEntryRemovedEvent": "Запись удалена из чёрного списка",
+      "ApiTokenChangedEvent": "API-токен изменён",
+      "BlacklistEntryChangedEvent": "Запись чёрного списка изменена",
       "BlacklistReconciledEvent": "Автоблокировка по чёрному списку",
       "CurrencyRateChangedEvent": "Курс валюты изменён",
       "OidcIssuerChangedEvent": "OIDC-издатель изменён",
       "PasskeyLoginFailedEvent": "Неудачный вход в панель управления (Passkey)",
       "PasskeyLoginSucceededEvent": "Вход в панель управления (Passkey)",
-      "PasskeyRegisteredEvent": "Passkey добавлен",
-      "PasskeyRemovedEvent": "Passkey удалён",
+      "PasskeyChangedEvent": "Passkey изменён",
       "PlanChangedEvent": "План изменён",
       "BonusDaysRedeemedEvent": "Бонусные дни потрачены",
       "PromocodeActivatedEvent": "Промокод активирован",
@@ -907,13 +897,12 @@
       "CabinetRegistrationBlockedEvent": "Регистрация в кабинете заблокирована",
       "CabinetNewDeviceSignInEvent": "Вход в кабинет с нового устройства",
       "AccountsMergedEvent": "Аккаунты объединены",
-      "UserBlockedEvent": "Пользователь заблокирован",
+      "UserBlockChangedEvent": "Блокировка пользователя изменена",
       "UserPointsAdjustedEvent": "Баллы изменены",
       "UserBonusDaysAdjustedEvent": "Бонусные дни изменены",
       "UserPersonalDiscountChangedEvent": "Персональная скидка изменена",
       "UserMarkupChangedEvent": "Наценка изменена",
       "UserPurchaseDiscountChangedEvent": "Скидка на покупку изменена",
-      "UserUnblockedEvent": "Пользователь разблокирован",
       "UserBotMenuResetEvent": "Меню бота клиента сброшено",
       "UserEmailUndeliverableClearedEvent": "Отметка о недоставке почты снята",
       "UserTrialAvailabilityChangedEvent": "Доступ к пробному периоду изменён",
@@ -930,12 +919,9 @@
       "BackupFailedEvent": "Ошибка резервного копирования",
       "BonusDaysRenewalStuckEvent": "Бонусные дни не применены",
       "BroadcastChangedEvent": "Рассылка изменена",
-      "BroadcastScheduledEvent": "Рассылка запланирована",
       "BroadcastStartedEvent": "Рассылка запущена",
       "BroadcastCompletedEvent": "Рассылка завершена",
       "BroadcastFailedEvent": "Ошибка рассылки",
-      "BroadcastCanceledEvent": "Рассылка отменена",
-      "BroadcastRecalledEvent": "Рассылка отозвана",
       "VapidKeysGeneratedEvent": "Ключи push-уведомлений сгенерированы",
       "GatewayChangedEvent": "Платёжный шлюз изменён",
       "PricingSettingsChangedEvent": "Настройки цен изменены",
@@ -1005,7 +991,6 @@
       "TransactionExpiredEvent": "Неоплаченный заказ истёк",
       "MarketingOptOutChangedEvent": "Согласие на рекламу изменено",
       "BotBlockedByUserEvent": "Бот заблокирован пользователем",
-      "PasskeyRenamedEvent": "Passkey переименован",
       "AdLinkAttributedEvent": "Переход по рекламной ссылке",
       "BackupCompletedEvent": "Резервная копия создана",
       "DailyReportEvent": "Ежедневный отчёт",
@@ -1044,11 +1029,11 @@
       "BannerChangedEvent": {
         "upload": "Баннер загружен",
         "delete": "Баннер удалён",
-        "reset_default": "Баннер сброшен"
+        "reset": "Баннер сброшен"
       },
       "BlacklistSourceChangedEvent": {
-        "add": "Источник чёрного списка добавлен",
-        "remove": "Источник чёрного списка удалён",
+        "create": "Источник чёрного списка добавлен",
+        "delete": "Источник чёрного списка удалён",
         "enable": "Источник чёрного списка включён",
         "disable": "Источник чёрного списка выключен",
         "sync": "Чёрный список синхронизирован"
@@ -1061,7 +1046,10 @@
         "set_media": "Медиа рассылки изменено",
         "delete_media": "Медиа рассылки удалено",
         "add_email_image": "Картинка письма добавлена",
-        "duplicate": "Создана копия рассылки"
+        "duplicate": "Создана копия рассылки",
+        "schedule": "Рассылка запланирована",
+        "cancel": "Рассылка отменена",
+        "recall": "Рассылка отозвана"
       },
       "ConnectGuideChangedEvent": {
         "update": "Инструкция подключения изменена",
@@ -1161,6 +1149,39 @@
         "import": "Переводы импортированы",
         "reset": "Перевод сброшен",
         "reset_all": "Все переводы сброшены"
+      },
+      "LocaleChangedEvent": {
+        "activate": "Язык добавлен",
+        "deactivate": "Язык удалён",
+        "set_default": "Язык по умолчанию изменён"
+      },
+      "BlacklistEntryChangedEvent": {
+        "create": "Запись добавлена в чёрный список",
+        "delete": "Запись удалена из чёрного списка"
+      },
+      "AdminChangedEvent": {
+        "create": "Администратор создан",
+        "promote": "Администратор назначен",
+        "demote": "Администратор понижен",
+        "delete": "Администратор удалён",
+        "permissions": "Права администратора изменены"
+      },
+      "UserBlockChangedEvent": {
+        "block": "Пользователь заблокирован",
+        "unblock": "Пользователь разблокирован"
+      },
+      "PasskeyChangedEvent": {
+        "create": "Passkey добавлен",
+        "delete": "Passkey удалён",
+        "rename": "Passkey переименован"
+      },
+      "ApiTokenChangedEvent": {
+        "create": "API-токен создан",
+        "delete": "API-токен отозван"
+      },
+      "TelegramIdChangedEvent": {
+        "link": "Telegram ID привязан",
+        "unlink": "Telegram ID отвязан"
       }
     }
   },

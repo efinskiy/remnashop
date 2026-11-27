@@ -5,7 +5,7 @@ from app.core.ports import EventPublisher
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.modules.users.dto import UnbindTelegramDto, UserListItemDto
-from app.modules.users.events import TelegramIdUnboundEvent
+from app.modules.users.events import TelegramIdChangedEvent
 from app.modules.users.listing import detail_roles
 from app.modules.users.ports import SignInMethodCheck
 from app.modules.users.repository import UserRepository
@@ -44,8 +44,9 @@ class UnbindTelegramIdUseCase(UseCase[UnbindTelegramDto, UserListItemDto]):
                     target, without_provider=OAuthProvider.TELEGRAM
                 )
             await self._event_publisher.publish(
-                TelegramIdUnboundEvent(
+                TelegramIdChangedEvent(
                     actor=actor,
+                    action="unlink",
                     target=updated,
                     previous_telegram_id=target.telegram_id,
                     ip_address=data.client_ip,

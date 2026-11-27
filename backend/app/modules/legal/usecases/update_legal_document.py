@@ -39,7 +39,9 @@ class UpdateLegalDocumentUseCase(UseCase[UpdateLegalDocumentDto, LegalDocumentDt
                     actor=actor,
                     action="update",
                     kind=data.kind,
-                    changed=changed_fields(before, after, ("show_in_bot", "show_in_cabinet")),
+                    changed_fields=changed_fields(
+                        before, after, ("show_in_bot", "show_in_cabinet")
+                    ),
                     ip_address=data.client_ip,
                 )
             )

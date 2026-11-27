@@ -33,6 +33,6 @@ class AddBlacklistSourceUseCase(UseCase[AddBlacklistSourceDto, BlacklistSourceDt
             name = (data.name or "").strip() or derive_source_name(data.url)
             source = await self._blacklist_repository.add_source(replace(data, name=name))
             await self._event_publisher.publish(
-                BlacklistSourceChangedEvent(actor=actor, action="add", source_id=source.id)
+                BlacklistSourceChangedEvent(actor=actor, action="create", source_id=source.id)
             )
         return source

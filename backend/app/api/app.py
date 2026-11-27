@@ -26,7 +26,11 @@ from app.api.errors import (
     register_error_handlers,
 )
 from app.api.lifespan import lifespan
-from app.api.middlewares import BodySizeLimitMiddleware, SecurityHeadersMiddleware
+from app.api.middlewares import (
+    BodySizeLimitMiddleware,
+    ClientIpMiddleware,
+    SecurityHeadersMiddleware,
+)
 from app.api.probes_router import router as probes_router
 from app.api.routers import CABINET_ROUTERS, ROUTERS
 from app.api.system_router import router as system_router
@@ -223,6 +227,7 @@ def get_app(config: AppConfig, frontend_dist: Path = FRONTEND_DIST) -> FastAPI:
         config.cabinet.proxy_secret.get_secret_value() if config.cabinet.proxy_secret else None
     )
     _warn_about_cabinet_proxy_secret(config)
+    app.add_middleware(ClientIpMiddleware)
     app.add_middleware(BodySizeLimitMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)
     cors_origins, allow_credentials = resolve_cors(list(config.origins))

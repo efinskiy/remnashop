@@ -22,30 +22,12 @@ class CabinetUserRegisteredEvent(UserEvent):
 
 
 @dataclass(frozen=True, kw_only=True)
-class AdminCreatedEvent(ActorTargetEvent):
+class AdminChangedEvent(ActorTargetEvent):
     category: ClassVar[EventCategory] = EventCategory.ADMIN_MANAGEMENT
-
-
-@dataclass(frozen=True, kw_only=True)
-class AdminPromotedEvent(ActorTargetEvent):
-    category: ClassVar[EventCategory] = EventCategory.ADMIN_MANAGEMENT
-
-
-@dataclass(frozen=True, kw_only=True)
-class AdminPermissionsUpdatedEvent(ActorTargetEvent):
-    category: ClassVar[EventCategory] = EventCategory.ADMIN_MANAGEMENT
+    action: Literal["create", "delete", "demote", "permissions", "promote"]
+    # set on "permissions"
     permission_grants: Optional[list[str]] = None
     permission_revokes: Optional[list[str]] = None
-
-
-@dataclass(frozen=True, kw_only=True)
-class AdminDemotedEvent(ActorTargetEvent):
-    category: ClassVar[EventCategory] = EventCategory.ADMIN_MANAGEMENT
-
-
-@dataclass(frozen=True, kw_only=True)
-class AdminDeletedEvent(ActorTargetEvent):
-    category: ClassVar[EventCategory] = EventCategory.ADMIN_MANAGEMENT
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -54,25 +36,16 @@ class UserDeletedEvent(ActorTargetEvent):
 
 
 @dataclass(frozen=True, kw_only=True)
-class TelegramIdBoundEvent(ActorTargetEvent):
+class TelegramIdChangedEvent(ActorTargetEvent):
     category: ClassVar[EventCategory] = EventCategory.USER
+    action: Literal["link", "unlink"]
     previous_telegram_id: Optional[int] = None
 
 
 @dataclass(frozen=True, kw_only=True)
-class TelegramIdUnboundEvent(ActorTargetEvent):
+class UserBlockChangedEvent(ActorTargetEvent):
     category: ClassVar[EventCategory] = EventCategory.USER
-    previous_telegram_id: int
-
-
-@dataclass(frozen=True, kw_only=True)
-class UserBlockedEvent(ActorTargetEvent):
-    category: ClassVar[EventCategory] = EventCategory.USER
-
-
-@dataclass(frozen=True, kw_only=True)
-class UserUnblockedEvent(ActorTargetEvent):
-    category: ClassVar[EventCategory] = EventCategory.USER
+    action: Literal["block", "unblock"]
 
 
 @dataclass(frozen=True, kw_only=True)

@@ -186,7 +186,7 @@ async def test_set_text_stores_reacceptance_flag(
     assert saved.requires_reacceptance is True
     (event,) = events.events
     assert isinstance(event, LegalDocumentChangedEvent)
-    assert "requires_reacceptance" in event.changed
+    assert "requires_reacceptance" in event.changed_fields
 
 
 async def test_reacceptance_flag_rejected_for_offer(
@@ -252,7 +252,7 @@ async def test_update_publishes_changed_fields(
     assert document.show_in_bot is True
     (event,) = events.events
     assert isinstance(event, LegalDocumentChangedEvent)
-    assert event.changed == ["show_in_bot"]
+    assert event.changed_fields == ["show_in_bot"]
     assert event.ip_address == "1.1.1.1"
 
 

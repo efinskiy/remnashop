@@ -56,7 +56,7 @@ class RemoveLegalTextUseCase(UseCase[LegalTextKeyDto, None]):
                     kind=data.kind,
                     locale=data.locale,
                     channel=data.channel,
-                    changed=["body"],
+                    changed_fields=["body"],
                     ip_address=data.client_ip,
                 )
             )

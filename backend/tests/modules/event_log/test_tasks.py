@@ -42,7 +42,7 @@ async def test_process_outbox_entry_persists_and_marks_processed(
     target = await user_repository.create(CreateUserDto(name="Target", login="target"))
     entry = EventOutboxEntry(
         category=EventCategory.ADMIN_MANAGEMENT,
-        event_type="AdminCreatedEvent",
+        event_type="AdminChangedEvent",
         occurred_at=datetime.now(timezone.utc),
         payload={"target": {"id": target.id}},
         attempts=0,

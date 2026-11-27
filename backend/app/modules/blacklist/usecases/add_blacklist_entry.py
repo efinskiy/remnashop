@@ -7,7 +7,7 @@ from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.modules.blacklist.dispatch import ReconcileBlacklistDispatch
 from app.modules.blacklist.dto import BlacklistDto, BlacklistEntryInputDto
-from app.modules.blacklist.events import BlacklistEntryAddedEvent
+from app.modules.blacklist.events import BlacklistEntryChangedEvent
 from app.modules.blacklist.normalize import normalize_identity
 from app.modules.blacklist.repository import BlacklistRepository
 
@@ -39,7 +39,9 @@ class AddBlacklistEntryUseCase(UseCase[BlacklistEntryInputDto, BlacklistDto]):
             added = await self._blacklist_repository.add_entry(data.kind, data.value)
             if added:
                 await self._event_publisher.publish(
-                    BlacklistEntryAddedEvent(actor=actor, kind=data.kind, value=normalized)
+                    BlacklistEntryChangedEvent(
+                        actor=actor, action="create", kind=data.kind, value=normalized
+                    )
                 )
                 await self._uow.after_commit(self._reconcile_dispatch.kiq)
 

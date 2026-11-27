@@ -6,7 +6,7 @@ from app.core.ports import EventPublisher
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.modules.users.dto import DemoteAdminDto, UserDto
-from app.modules.users.events import AdminDemotedEvent
+from app.modules.users.events import AdminChangedEvent
 from app.modules.users.ports import PasskeyRevoker, SessionRevoker
 from app.modules.users.repository import UserRepository
 
@@ -49,7 +49,9 @@ class DemoteAdminUseCase(UseCase[DemoteAdminDto, UserDto]):
             # ip_allowlist, until it expired
             await self._session_revoker.revoke_all_by_user(data.user_id)
             await self._event_publisher.publish(
-                AdminDemotedEvent(actor=actor, target=target, ip_address=data.client_ip)
+                AdminChangedEvent(
+                    actor=actor, action="demote", target=target, ip_address=data.client_ip
+                )
             )
 
         return updated

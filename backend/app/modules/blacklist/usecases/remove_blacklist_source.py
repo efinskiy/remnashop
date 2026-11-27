@@ -26,5 +26,5 @@ class RemoveBlacklistSourceUseCase(UseCase[int, None]):
         async with self._uow:
             await self._blacklist_repository.remove_source(data)
             await self._event_publisher.publish(
-                BlacklistSourceChangedEvent(actor=actor, action="remove", source_id=data)
+                BlacklistSourceChangedEvent(actor=actor, action="delete", source_id=data)
             )
