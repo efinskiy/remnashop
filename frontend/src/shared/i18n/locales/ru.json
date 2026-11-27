@@ -5345,7 +5345,7 @@
         "undeliverable": "Почтовый ящик не принимает письма",
         "botBlocked": "Заблокировал бота",
         "userGone": "Аккаунт удалён",
-        "noDetails": "Ошибка без описания",
+        "noDetails": "Без описания",
         "recallFailed": "Отозвать не удалось: {{reason}}"
       },
       "params": {

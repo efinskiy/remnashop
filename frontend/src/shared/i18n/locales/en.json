@@ -5203,7 +5203,7 @@
         "undeliverable": "Mailbox refuses delivery",
         "botBlocked": "Blocked the bot",
         "userGone": "Account deleted",
-        "noDetails": "Failed without details",
+        "noDetails": "No details",
         "recallFailed": "Recall failed: {{reason}}"
       },
       "params": {

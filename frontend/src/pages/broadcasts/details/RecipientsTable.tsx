@@ -33,8 +33,15 @@ const REASON_KEYS: Record<string, ParseKeys> = {
   "bot blocked": "broadcasts.details.reasons.botBlocked",
   "user gone": "broadcasts.details.reasons.userGone",
   "no details": "broadcasts.details.reasons.noDetails",
+  // the same fallback, as rows stored it before "no details"
+  retry: "broadcasts.details.reasons.noDetails",
 };
 const RECALL_FAILED_PREFIX = "recall failed: ";
+
+// the error is provider text too: an own-key check, so "constructor" isn't found on Object
+function reasonKey(error: string): ParseKeys | undefined {
+  return Object.hasOwn(REASON_KEYS, error) ? REASON_KEYS[error] : undefined;
+}
 
 type TabKey = "all" | BroadcastRecipientStatus;
 
@@ -124,12 +131,12 @@ export function RecipientsTable({ broadcast, refreshKey }: RecipientsTableProps)
 
   const details = (r: BroadcastRecipient): string => {
     if (r.error) {
-      const key = REASON_KEYS[r.error];
+      const key = reasonKey(r.error);
       if (key) return t(key);
       if (r.error.startsWith(RECALL_FAILED_PREFIX)) {
         const reason = r.error.slice(RECALL_FAILED_PREFIX.length);
-        const reasonKey = REASON_KEYS[reason];
-        return t("broadcasts.details.reasons.recallFailed", { reason: reasonKey ? t(reasonKey) : reason });
+        const inner = reasonKey(reason);
+        return t("broadcasts.details.reasons.recallFailed", { reason: inner ? t(inner) : reason });
       }
       return r.error;
     }
