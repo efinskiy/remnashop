@@ -1,9 +1,8 @@
-from typing import Any, Optional
+from typing import Any, Final, Optional
 
 from loguru import logger
 
 from app.core.actor import Actor
-from app.core.db.models import EventOutboxEntry
 from app.core.db.uow import UnitOfWork
 from app.core.event_bus import EventBus
 from app.core.events import StoredEvent
@@ -11,9 +10,15 @@ from app.core.ports import EventPublisher
 from app.core.usecase import UseCase
 from app.modules.event_log.dto import EventLogEntryDto
 from app.modules.event_log.events import OutboxEntryPoisonedEvent
-from app.modules.event_log.outbox_repository import MAX_ATTEMPTS, EventOutboxRepository
+from app.modules.event_log.outbox_repository import (
+    MAX_ATTEMPTS,
+    EventOutboxRepository,
+    OutboxFailure,
+)
 from app.modules.event_log.repository import EventLogRepository
 from app.modules.users import UserDeletedEvent
+
+_ALERT_ERROR_LENGTH: Final[int] = 255
 
 
 def _snapshot_id(value: Any) -> Optional[int]:
@@ -106,14 +111,22 @@ class ProcessOutboxEntryUseCase(UseCase[int, None]):
                 await self._record_failure(data, str(error))
 
     async def _record_failure(self, entry_id: int, error: str) -> None:
-        row = await self._outbox_repository.record_failure(entry_id, error=error)
-        if row is not None and _just_poisoned(row):
+        failure = await self._outbox_repository.record_failure(entry_id, error=error)
+        if failure is not None and _just_poisoned(failure):
             await self._event_publisher.publish(
-                OutboxEntryPoisonedEvent(outbox_id=row.id, failed_event=row.event_type, error=error)
+                OutboxEntryPoisonedEvent(
+                    outbox_id=entry_id,
+                    failed_event=failure.event_type,
+                    attempts=failure.attempts,
+                    # a database error carries its SQL and parameters on the lines below
+                    error=error.split("\n", 1)[0][:_ALERT_ERROR_LENGTH],
+                )
             )
 
 
-def _just_poisoned(row: EventOutboxEntry) -> bool:
+def _just_poisoned(failure: OutboxFailure) -> bool:
     # once: a redelivered task can fail a row past the cap again. Not for its own kind,
     # or a broken notification subscriber would poison one alert after another
-    return row.attempts == MAX_ATTEMPTS and row.event_type != OutboxEntryPoisonedEvent.__name__
+    return (
+        failure.attempts == MAX_ATTEMPTS and failure.event_type != OutboxEntryPoisonedEvent.__name__
+    )

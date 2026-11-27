@@ -300,7 +300,7 @@ async def test_an_entry_reaching_the_attempt_cap_is_reported_once(
     bus = EventBus()
 
     async def failing_handler(entry: object) -> None:
-        raise RuntimeError("boom")
+        raise RuntimeError("b" * 300 + "\n[SQL: INSERT ...]")
 
     bus.subscribe_stored(event_type, failing_handler)
     publisher = RecordingEventPublisher()
@@ -317,4 +317,10 @@ async def test_an_entry_reaching_the_attempt_cap_is_reported_once(
         assert events == []
         return
     [event] = events
-    assert (event.outbox_id, event.failed_event, event.error) == (entry.id, event_type, "boom")
+    assert (event.outbox_id, event.failed_event, event.attempts) == (
+        entry.id,
+        event_type,
+        MAX_ATTEMPTS,
+    )
+    # one line, capped: no SQL or parameters in the alert
+    assert event.error == "b" * 255

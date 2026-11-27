@@ -11,6 +11,11 @@ from app.modules.event_log.retention import anonymize_snapshots
 MAX_ATTEMPTS: Final[int] = 5
 
 
+class OutboxFailure(NamedTuple):
+    attempts: int
+    event_type: str
+
+
 class OutboxLagStats(NamedTuple):
     unprocessed_count: int
     oldest_occurred_at: Optional[datetime]
@@ -87,13 +92,17 @@ class EventOutboxRepository:
         count, oldest = (await self.session.execute(stmt)).one()
         return OutboxLagStats(unprocessed_count=count, oldest_occurred_at=oldest)
 
-    async def record_failure(self, entry_id: int, *, error: str) -> Optional[EventOutboxEntry]:
-        row = await self.session.get(EventOutboxEntry, entry_id)
-        if row is not None:
-            row.attempts += 1
-            row.last_error = error
-            await self.session.flush()
-        return row
+    async def record_failure(self, entry_id: int, *, error: str) -> Optional[OutboxFailure]:
+        # in SQL: after a broken transaction the row is no longer locked, and a
+        # concurrent processor may be counting the same attempt
+        stmt = (
+            update(EventOutboxEntry)
+            .where(EventOutboxEntry.id == entry_id)
+            .values(attempts=EventOutboxEntry.attempts + 1, last_error=error)
+            .returning(EventOutboxEntry.attempts, EventOutboxEntry.event_type)
+        )
+        row = (await self.session.execute(stmt)).one_or_none()
+        return None if row is None else OutboxFailure(attempts=row[0], event_type=row[1])
 
     async def get_lag_stats(self) -> OutboxLagStats:
         # poisoned rows (past MAX_ATTEMPTS) included: the operator wants the

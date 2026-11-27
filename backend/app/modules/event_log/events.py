@@ -9,4 +9,5 @@ class OutboxEntryPoisonedEvent(SystemEvent):
     category: ClassVar[EventCategory] = EventCategory.INFRASTRUCTURE
     outbox_id: int
     failed_event: str
+    attempts: int
     error: str
