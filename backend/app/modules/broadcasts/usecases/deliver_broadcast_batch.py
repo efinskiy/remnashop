@@ -22,7 +22,11 @@ from app.core.usecase import UseCase
 from app.core.utils.time import datetime_now
 from app.modules.broadcasts.completion import complete_broadcast, fail_broadcast
 from app.modules.broadcasts.dispatch import DeliverBroadcastDispatch, RecallBroadcastDispatch
-from app.modules.broadcasts.dto import PendingRecipientDto, RecipientContextDto
+from app.modules.broadcasts.dto import (
+    BroadcastRecipientError,
+    PendingRecipientDto,
+    RecipientContextDto,
+)
 from app.modules.broadcasts.pacing import (
     BATCH_SIZE,
     CLAIM_LEASE,
@@ -257,7 +261,7 @@ class DeliverBroadcastBatchUseCase(UseCase[int, None]):
     ) -> SendResult:
         context = contexts.get(recipient.user_id)
         if context is None:
-            return SendResult(outcome=SendOutcome.FAILED, error="user gone")
+            return SendResult(outcome=SendOutcome.FAILED, error=BroadcastRecipientError.USER_GONE)
         message = renderer.render(context, now)
         waited = 0.0
         while True:
@@ -322,7 +326,7 @@ class DeliverBroadcastBatchUseCase(UseCase[int, None]):
             )
         else:
             await self._recipient_repository.bump_attempt(
-                recipient.id, MAX_ATTEMPTS, result.error or "retry"
+                recipient.id, MAX_ATTEMPTS, result.error or BroadcastRecipientError.NO_DETAILS
             )
 
     async def _still_sending(self, broadcast_id: int) -> bool:

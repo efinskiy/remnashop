@@ -22,14 +22,26 @@ import { allValues } from "@shared/lib/all-values";
 
 const ROW_GRID_CLASS = "grid grid-cols-[minmax(0,1.6fr)_minmax(0,0.5fr)_minmax(0,1fr)_minmax(0,1.6fr)_minmax(0,0.9fr)] items-center gap-3";
 const CHANNELS = allValues<BroadcastChannel>()(["TELEGRAM", "EMAIL"]);
-// the backend stores these as fixed English markers (broadcasts/repository.py)
+// the backend stores these as fixed English markers (BroadcastRecipientError in broadcasts/dto.py)
 const REASON_KEYS: Record<string, ParseKeys> = {
   stopped: "broadcasts.details.stopped",
   "no telegram": "broadcasts.details.reasons.noTelegram",
   "opted out": "broadcasts.details.reasons.optedOut",
   blocked: "broadcasts.details.reasons.blocked",
+  "no email": "broadcasts.details.reasons.noEmail",
+  undeliverable: "broadcasts.details.reasons.undeliverable",
+  "bot blocked": "broadcasts.details.reasons.botBlocked",
+  "user gone": "broadcasts.details.reasons.userGone",
+  "no details": "broadcasts.details.reasons.noDetails",
+  // older rows store this fallback as "retry"
+  retry: "broadcasts.details.reasons.noDetails",
 };
 const RECALL_FAILED_PREFIX = "recall failed: ";
+
+// the error is provider text too: an own-key check, so "constructor" isn't found on Object
+function reasonKey(error: string): ParseKeys | undefined {
+  return Object.hasOwn(REASON_KEYS, error) ? REASON_KEYS[error] : undefined;
+}
 
 type TabKey = "all" | BroadcastRecipientStatus;
 
@@ -119,10 +131,12 @@ export function RecipientsTable({ broadcast, refreshKey }: RecipientsTableProps)
 
   const details = (r: BroadcastRecipient): string => {
     if (r.error) {
-      const key = REASON_KEYS[r.error];
+      const key = reasonKey(r.error);
       if (key) return t(key);
       if (r.error.startsWith(RECALL_FAILED_PREFIX)) {
-        return t("broadcasts.details.reasons.recallFailed", { reason: r.error.slice(RECALL_FAILED_PREFIX.length) });
+        const reason = r.error.slice(RECALL_FAILED_PREFIX.length);
+        const inner = reasonKey(reason);
+        return t("broadcasts.details.reasons.recallFailed", { reason: inner ? t(inner) : reason });
       }
       return r.error;
     }

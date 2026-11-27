@@ -19,10 +19,10 @@ from app.core.exceptions import NotFoundError
 from app.core.ports import EventPublisher
 from app.core.usecase import UseCase
 from app.core.utils.time import datetime_now
-from app.modules.broadcasts.audience import UNDELIVERABLE_ERROR
 from app.modules.broadcasts.completion import complete_broadcast, fail_broadcast
 from app.modules.broadcasts.dispatch import DeliverBroadcastEmailDispatch
 from app.modules.broadcasts.dto import (
+    BroadcastRecipientError,
     PendingEmailRecipientDto,
     RecipientContextDto,
 )
@@ -67,7 +67,6 @@ from app.modules.users import UserRepository
 _NOT_CONFIGURED: Final[str] = "SMTP is not configured"
 _AUTH_FAILED: Final[str] = "SMTP authentication failed"
 _IMAGE_MISSING: Final[str] = "Email image is missing"
-_USER_GONE: Final[str] = "user gone"
 
 
 class DeliverBroadcastEmailBatchUseCase(UseCase[int, None]):
@@ -325,7 +324,9 @@ class DeliverBroadcastEmailBatchUseCase(UseCase[int, None]):
         # None result: the user is gone; returns the metric label, if any
         if result is None:
             await self._recipient_repository.mark_recipient(
-                recipient.id, BroadcastRecipientStatus.FAILED, error=_USER_GONE
+                recipient.id,
+                BroadcastRecipientStatus.FAILED,
+                error=BroadcastRecipientError.USER_GONE,
             )
             return "failed"
         if result.outcome is EmailOutcome.SENT:
@@ -335,12 +336,14 @@ class DeliverBroadcastEmailBatchUseCase(UseCase[int, None]):
             return "sent"
         if result.outcome is EmailOutcome.REFUSED:
             await self._recipient_repository.mark_recipient(
-                recipient.id, BroadcastRecipientStatus.FAILED, error=UNDELIVERABLE_ERROR
+                recipient.id,
+                BroadcastRecipientStatus.FAILED,
+                error=BroadcastRecipientError.UNDELIVERABLE,
             )
             await self._user_repository.set_email_undeliverable(recipient.user_id, datetime_now())
             return "undeliverable"
         await self._recipient_repository.bump_attempt(
-            recipient.id, MAX_ATTEMPTS, result.error or "retry"
+            recipient.id, MAX_ATTEMPTS, result.error or BroadcastRecipientError.NO_DETAILS
         )
         # counted once, by the bump that gives up on the row
         return "failed" if recipient.attempts + 1 >= MAX_ATTEMPTS else None

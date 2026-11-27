@@ -1,6 +1,6 @@
 import builtins
 from datetime import datetime, timedelta
-from typing import Any, Final, Optional
+from typing import Any, Optional
 from typing import cast as typing_cast
 
 from sqlalchemy import (
@@ -45,14 +45,13 @@ from app.modules.broadcasts.dto import (
     AudiencePreviewDto,
     BroadcastAudienceDto,
     BroadcastRecipientDto,
+    BroadcastRecipientError,
     ListBroadcastRecipientsDto,
     PendingEmailRecipientDto,
     PendingRecipientDto,
     RecipientContextDto,
     SentRecipientDto,
 )
-
-RECALL_FAILED_ERROR: Final[str] = "recall failed"
 
 
 def _channel_conditions(
@@ -262,7 +261,7 @@ class BroadcastRecipientRepository:
         await self.session.execute(
             update(BroadcastRecipient)
             .where(BroadcastRecipient.id == recipient_id)
-            .values(error=f"{RECALL_FAILED_ERROR}: {error}"[:255])
+            .values(error=f"{BroadcastRecipientError.RECALL_FAILED}: {error}"[:255])
         )
 
     async def count_recallable(self, broadcast_id: int) -> int:
@@ -286,7 +285,7 @@ class BroadcastRecipientRepository:
             .where(
                 BroadcastRecipient.broadcast_id == broadcast_id,
                 BroadcastRecipient.status == BroadcastRecipientStatus.SENT,
-                BroadcastRecipient.error.startswith(RECALL_FAILED_ERROR),
+                BroadcastRecipient.error.startswith(BroadcastRecipientError.RECALL_FAILED),
             )
             .values(error=None)
         )

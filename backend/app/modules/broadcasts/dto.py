@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import auto
+from enum import StrEnum, auto
 from pathlib import Path
 from typing import Optional
 
@@ -27,6 +27,21 @@ class BroadcastButtonKind(UpperStrEnum):
     MENU = auto()
     CLOSE = auto()
     SHARE_REFERRAL = auto()
+
+
+# our own reasons in BroadcastRecipient.error, which otherwise holds the provider's text
+class BroadcastRecipientError(StrEnum):
+    NO_TELEGRAM = "no telegram"
+    NO_EMAIL = "no email"
+    UNDELIVERABLE = "undeliverable"
+    OPTED_OUT = "opted out"
+    BLOCKED = "blocked"
+    BOT_BLOCKED = "bot blocked"
+    USER_GONE = "user gone"
+    RECALL_FAILED = "recall failed"
+    STOPPED = "stopped"
+    # a failure that came without any text
+    NO_DETAILS = "no details"
 
 
 class BroadcastSubscriptionFilter(UpperStrEnum):

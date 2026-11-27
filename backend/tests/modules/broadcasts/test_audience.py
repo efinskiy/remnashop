@@ -1,9 +1,13 @@
+import re
 from datetime import timedelta
+from pathlib import Path
+from typing import Final
 
 import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import app as app_package
 from app.core.db.models.ad_link import AdLink
 from app.core.db.models.ad_link_attribution import AdLinkAttribution
 from app.core.db.models.referral import Referral
@@ -16,7 +20,7 @@ from app.core.enums import (
 )
 from app.core.utils.time import datetime_now
 from app.modules.broadcasts.audience import audience_predicate
-from app.modules.broadcasts.dto import BroadcastAudienceDto
+from app.modules.broadcasts.dto import BroadcastAudienceDto, BroadcastRecipientError
 from app.modules.broadcasts.dto import BroadcastSubscriptionFilter as F
 from app.modules.users.repository import UserRepository
 from tests.modules.broadcasts.factories import add_paid_transaction, add_subscription, make_customer
@@ -249,3 +253,36 @@ async def test_a_pasted_id_list_longer_than_asyncpg_takes_parameters(
     ids = [people["none"], *range(10_000_000, 10_040_000)]
 
     assert await _match(session, BroadcastAudienceDto(user_ids=ids)) == {people["none"]}
+
+
+def test_recipient_error_values_stay_as_stored() -> None:
+    # stored in broadcast_recipients.error: rows written before a rename keep the old text
+    assert {e.name: e.value for e in BroadcastRecipientError} == {
+        "NO_TELEGRAM": "no telegram",
+        "NO_EMAIL": "no email",
+        "UNDELIVERABLE": "undeliverable",
+        "OPTED_OUT": "opted out",
+        "BLOCKED": "blocked",
+        "BOT_BLOCKED": "bot blocked",
+        "USER_GONE": "user gone",
+        "RECALL_FAILED": "recall failed",
+        "STOPPED": "stopped",
+        "NO_DETAILS": "no details",
+    }
+
+
+_RECIPIENTS_TABLE: Final[Path] = (
+    Path(app_package.__file__).parents[2]
+    / "frontend/src/pages/broadcasts/details/RecipientsTable.tsx"
+)
+
+
+@pytest.mark.skipif(not _RECIPIENTS_TABLE.exists(), reason="frontend sources not present")
+def test_dashboard_translates_every_recipient_error() -> None:
+    source = _RECIPIENTS_TABLE.read_text()
+    start = source.index("const REASON_KEYS")
+    keys = set(re.findall(r'^\s*"?([a-z ]+)"?:', source[start : source.index("};", start)], re.M))
+    # recall failures are matched by prefix, not by key
+    expected = {e.value for e in BroadcastRecipientError} - {BroadcastRecipientError.RECALL_FAILED}
+    assert expected <= keys
+    assert f'"{BroadcastRecipientError.RECALL_FAILED}: "' in source
