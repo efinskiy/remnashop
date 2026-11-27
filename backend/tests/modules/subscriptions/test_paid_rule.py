@@ -2,8 +2,10 @@ from decimal import Decimal
 from typing import Optional
 
 import pytest
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.db.models.credit_segment import CreditSegment
 from app.core.enums import CreditSegmentKind, Currency
 from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
 from app.modules.subscriptions.dto import CreateCreditSegmentDto
@@ -65,3 +67,26 @@ async def test_paid_subscription_rule(
     assert (
         await subscription_repository.has_paid_subscription_before(subscription.user_id) is expected
     )
+
+
+async def test_a_sale_counts_when_its_segment_says_zero(
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+) -> None:
+    # migration 1027 wrote a term renewed free after it lapsed with paid 0
+    subscription = await create_subscription(
+        subscription_repository,
+        user_repository,
+        telegram_id=880_002,
+        remnawave_user_id=880_002,
+        price_paid=Decimal("300"),
+    )
+    await session.execute(
+        update(CreditSegment)
+        .where(CreditSegment.subscription_id == subscription.id)
+        .values(paid=Decimal("0"))
+    )
+
+    live = await SubscriptionStatsRepository(session).list_live()
+    assert [row.is_paid for row in live if row.user_id == subscription.user_id] == [True]
