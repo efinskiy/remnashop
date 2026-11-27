@@ -115,6 +115,7 @@ class SubscriptionRepository:
             first_connected_at=row.first_connected_at,
             panel_created_at=row.panel_created_at,
             term_anchor_day=row.term_anchor_day,
+            replaced_paid=row.replaced_paid,
             paused_by_channel_leave=row.paused_by_channel_leave,
             grace_until=row.grace_until,
             grace_started_at=row.grace_started_at,
@@ -276,6 +277,10 @@ class SubscriptionRepository:
         count = await self.session.scalar(stmt)
         return bool(count)
 
+    async def is_paid(self, subscription_id: int) -> bool:
+        stmt = select(exists().where(Subscription.id == subscription_id, is_paid_subscription()))
+        return bool(await self.session.scalar(stmt))
+
     async def has_paid_subscription(self, user_id: int) -> bool:
         stmt = select(exists().where(Subscription.user_id == user_id, is_paid_subscription()))
         return bool(await self.session.scalar(stmt))
@@ -421,6 +426,7 @@ class SubscriptionRepository:
             plan_snapshot=data.plan_snapshot.to_json(),
             panel_created_at=data.panel_created_at,
             term_anchor_day=data.term_anchor_day,
+            replaced_paid=data.replaced_paid,
             device_single_reset_at=None,
             device_all_reset_at=None,
             link_reset_at=None,

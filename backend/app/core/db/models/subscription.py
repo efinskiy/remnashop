@@ -94,3 +94,6 @@ class Subscription(BaseSql, TimestampMixin):
     # day of the month calendar terms land on: started on the 31st, back on the 31st
     # after a shorter month cut a term to the 28th
     term_anchor_day: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    # the subscription a plan change replaced with this one was paid: the new row's
+    # snapshot may say 0, and only live segments come over
+    replaced_paid: Mapped[bool] = mapped_column(default=False, server_default="false")
