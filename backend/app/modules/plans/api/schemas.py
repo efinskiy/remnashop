@@ -185,14 +185,6 @@ class SetPlanDurationsRequest(BaseModel):
     durations: list[PlanDurationRequest]
 
 
-class SetPlanPriceOverrideRequest(BaseModel):
-    price: Optional[Decimal] = Field(default=None, gt=0)
-
-
-class SetPlanDurationBasePriceRequest(BaseModel):
-    base_price: Decimal = Field(gt=0)
-
-
 class UpdatePlanAccessRequest(BaseModel):
     availability: PlanAvailability
     allowed_telegram_ids: list[int] = Field(default_factory=list)
@@ -247,14 +239,6 @@ class UpdateAddOnRequest(BaseModel):
     type: Optional[AddOnType] = None
     amount: Optional[int] = Field(default=None, gt=0)
     is_active: Optional[bool] = None
-
-
-class SetAddOnBasePriceRequest(BaseModel):
-    base_price: Decimal = Field(gt=0)
-
-
-class SetAddOnPriceOverrideRequest(BaseModel):
-    price: Optional[Decimal] = Field(default=None, gt=0)
 
 
 class AddOnListResponse(ResponseModel):

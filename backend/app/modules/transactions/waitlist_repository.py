@@ -18,13 +18,11 @@ class WaitlistRepository:
             pg_insert(PaymentWaitlistEntry).values(user_id=user_id).on_conflict_do_nothing()
         )
 
-    async def claim_batch(self, limit: int, exclude: set[int]) -> list[int]:
+    async def claim_batch(self, limit: int) -> list[int]:
         # row locks keep a concurrent broadcast off these users until commit
-        query = select(PaymentWaitlistEntry.user_id)
-        if exclude:
-            query = query.where(PaymentWaitlistEntry.user_id.not_in(exclude))
         result = await self.session.scalars(
-            query.order_by(PaymentWaitlistEntry.created_at)
+            select(PaymentWaitlistEntry.user_id)
+            .order_by(PaymentWaitlistEntry.created_at)
             .limit(limit)
             .with_for_update(skip_locked=True)
         )

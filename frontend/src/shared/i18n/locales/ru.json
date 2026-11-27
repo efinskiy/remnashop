@@ -797,7 +797,6 @@
       "categoryPayment": "Платежи",
       "categoryBroadcast": "Рассылки",
       "categoryInfrastructure": "Инфраструктура",
-      "actor": "Инициатор",
       "actorPlaceholder": "Имя, @username, ID или email",
       "dateFrom": "С",
       "dateTo": "По"
@@ -1242,7 +1241,6 @@
     "empty": "Нет пользователей",
     "noMatches": "Ничего не найдено",
     "filters": {
-      "search": "Поиск",
       "searchPlaceholder": "Имя, ID или email",
       "blockedByAll": "Блокировка: все",
       "blockedByManual": "Заблокирован вручную",
@@ -3202,8 +3200,6 @@
       "description": "Локали, уведомления, ошибки и прочие сообщения",
       "languages": "Языки · {{total}}",
       "defaultLanguageHint": "★ — язык по умолчанию: его получают пользователи, чей язык не включён.",
-      "localeSource": "исходник · {{total}}",
-      "localeTranslated": "{{translated}} из {{total}}",
       "importConfirm": "Заменить переводы значениями из файла? Строки активных локалей будут перезаписаны, остальные пропущены.",
       "imported": "Импортировано строк: {{applied}}, пропущено: {{skipped}}.",
       "importInvalid": "Этот файл — не выгрузка переводов.",
@@ -3264,9 +3260,6 @@
         "referrals": "Рефералы",
         "custom": "Свои окна"
       },
-      "seedBadge": "системное",
-      "disabledBadge": "выключено",
-      "unlinkedBadge": "не связано",
       "windows": {
         "menu": {
           "main": "Главное меню",
@@ -3362,7 +3355,6 @@
         "symbols": "Знаки",
         "flags": "Флаги"
       },
-      "dirtyTitle": "Несохранённые изменения",
       "disabledNote": "Окно выключено: в боте его не видно.",
       "unlinkedNote": "Ни одна кнопка не ведёт в это окно — пользователь до него не доберётся.",
       "bannerHintShared": "Общий баннер один на все окна, файл — для языка «{{locale}}».",
@@ -3515,7 +3507,6 @@
       "level": "Уровень {{level}}",
       "levelBadge": "Ур. {{level}}",
       "levelHint": "Пользователей на уровне {{level}}: {{count}}",
-      "search": "Пользователь",
       "searchPlaceholder": "Имя, @username, ID или email",
       "rewardStatusAll": "Все статусы",
       "rewardStatusWith": "С наградами",
@@ -3834,7 +3825,6 @@
       }
     },
     "delete": {
-      "button": "Удалить план",
       "confirmTitle": "Удалить план?",
       "confirm": "Безвозвратно удалить план «{{name}}»? Это действие нельзя отменить. Промокоды, ограниченные только этим планом, будут выключены.",
       "error": "Не удалось удалить план."
@@ -3990,7 +3980,6 @@
     "devicesCount_other": "{{count}} устройства",
     "until": "до {{date}}",
     "filters": {
-      "search": "Поиск",
       "searchPlaceholder": "ID подписки, ID пользователя, тег или план",
       "all": "Все статусы"
     },

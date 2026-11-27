@@ -4937,16 +4937,6 @@ export interface components {
             /** User Agent */
             user_agent: string | null;
         };
-        /** SetAddOnBasePriceRequest */
-        SetAddOnBasePriceRequest: {
-            /** Base Price */
-            base_price: number | string;
-        };
-        /** SetAddOnPriceOverrideRequest */
-        SetAddOnPriceOverrideRequest: {
-            /** Price */
-            price?: number | string | null;
-        };
         /** SetBotProxyRequest */
         SetBotProxyRequest: {
             /** Proxy Url */
@@ -4975,20 +4965,10 @@ export interface components {
             /** Plan Overrides */
             plan_overrides?: components["schemas"]["MatrixPlanOverrideRequest"][];
         };
-        /** SetPlanDurationBasePriceRequest */
-        SetPlanDurationBasePriceRequest: {
-            /** Base Price */
-            base_price: number | string;
-        };
         /** SetPlanDurationsRequest */
         SetPlanDurationsRequest: {
             /** Durations */
             durations: components["schemas"]["PlanDurationRequest"][];
-        };
-        /** SetPlanPriceOverrideRequest */
-        SetPlanPriceOverrideRequest: {
-            /** Price */
-            price?: number | string | null;
         };
         /** SetTrialAvailabilityRequest */
         SetTrialAvailabilityRequest: {
