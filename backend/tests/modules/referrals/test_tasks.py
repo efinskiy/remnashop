@@ -41,7 +41,7 @@ from app.modules.transactions.dto import CreateTransactionDto
 from app.modules.transactions.repository import TransactionRepository
 from app.modules.users.dto import CreateUserDto
 from app.modules.users.repository import UserRepository
-from tests.modules.subscriptions.factories import make_plan_snapshot
+from tests.modules.subscriptions.factories import add_paid_term, make_plan_snapshot
 
 
 @pytest.fixture
@@ -121,6 +121,7 @@ async def _create_active_subscription(
             plan_snapshot=make_plan_snapshot(plan_id=1, price_paid=price_paid),
         )
     )
+    await add_paid_term(subscription_repository.session, sub)
     return sub.id
 
 

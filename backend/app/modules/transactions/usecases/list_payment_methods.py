@@ -52,7 +52,7 @@ class ListPaymentMethodsUseCase(UseCase[ListPaymentMethodsDto, list[PaymentMetho
                 settings = await self._gateway_repository.get_raw_settings(gateway.type)
                 if gateway_flags(gateway.type, settings).get(
                     REQUIRE_PAID_PURCHASE_FIELD_KEY, False
-                ) and not await self._transaction_repository.has_paid_purchase(actor.id):
+                ) and not await self._transaction_repository.has_paid_order_outside_stars(actor.id):
                     continue
                 methods.append(
                     PaymentMethodDto(

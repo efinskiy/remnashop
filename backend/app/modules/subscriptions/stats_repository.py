@@ -11,6 +11,7 @@ from app.core.db.models.subscription import Subscription
 from app.core.enums import Currency, SubscriptionStatus
 from app.modules.subscriptions.domain import OWNED_STATUSES
 from app.modules.subscriptions.dto import LiveSubscriptionDto, SubscriptionOverviewCountsDto
+from app.modules.subscriptions.paid import is_paid_subscription
 from app.modules.subscriptions.unlimited import UNLIMITED_EXPIRE_YEAR
 
 _DEFAULT_TRIAL_DAYS: Final[int] = 7
@@ -46,6 +47,8 @@ class SubscriptionStatsRepository:
                         Subscription.expire_at >= expiring_from,
                         Subscription.expire_at < expiring_to,
                     ),
+                    # every non-trial ACTIVE row, paid or not: the status rows add up
+                    # to the total; count_paying is the paid count
                     func.count().filter(
                         status == SubscriptionStatus.ACTIVE, Subscription.is_trial.is_(False)
                     ),
@@ -71,7 +74,7 @@ class SubscriptionStatsRepository:
             await self.session.scalar(
                 select(func.count())
                 .select_from(Subscription)
-                .where(Subscription.status.in_(statuses), Subscription.is_trial.is_(False))
+                .where(Subscription.status.in_(statuses), is_paid_subscription())
             )
             or 0
         )
@@ -83,7 +86,7 @@ class SubscriptionStatsRepository:
                 .select_from(Subscription)
                 .where(
                     Subscription.status.in_(_PAYING_STATUSES),
-                    Subscription.is_trial.is_(False),
+                    is_paid_subscription(),
                     Subscription.first_connected_at.is_(None),
                 )
             )
@@ -113,7 +116,7 @@ class SubscriptionStatsRepository:
                     func.count(), func.count().filter(Subscription.expire_at < urgent_until)
                 ).where(
                     Subscription.status.in_(_PAYING_STATUSES),
-                    Subscription.is_trial.is_(False),
+                    is_paid_subscription(),
                     Subscription.expire_at >= now,
                     Subscription.expire_at < until,
                 )
@@ -129,6 +132,7 @@ class SubscriptionStatsRepository:
             select(currency_col, func.sum(price_col / duration_col * 30))
             .where(
                 Subscription.status.in_(_PAYING_STATUSES),
+                # a row paid only through its segments has 0 here: the filter adds nothing
                 Subscription.is_trial.is_(False),
                 duration_col > 0,
                 # renewed into unlimited, the snapshot still holds the finite term
@@ -190,6 +194,7 @@ class SubscriptionStatsRepository:
         stmt = select(
             Subscription.user_id,
             Subscription.is_trial,
+            is_paid_subscription(),
             Subscription.status,
             Subscription.expire_at,
             snapshot["name"].astext,
@@ -202,6 +207,7 @@ class SubscriptionStatsRepository:
             LiveSubscriptionDto(
                 user_id=user_id,
                 is_trial=is_trial,
+                is_paid=is_paid,
                 status=status,
                 expire_at=expire_at,
                 plan_name=name or "",
@@ -209,5 +215,15 @@ class SubscriptionStatsRepository:
                 currency=Currency(currency),
                 duration_days=duration,
             )
-            for user_id, is_trial, status, expire_at, name, price, currency, duration in rows
+            for (
+                user_id,
+                is_trial,
+                is_paid,
+                status,
+                expire_at,
+                name,
+                price,
+                currency,
+                duration,
+            ) in rows
         ]

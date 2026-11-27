@@ -35,7 +35,11 @@ from app.modules.users.dto import CreateUserDto, UserDto
 from app.modules.users.repository import UserRepository
 from app.modules.users.stats_repository import UserStatsRepository
 from tests.fakes.analytics_cache import PassThroughAnalyticsCache
-from tests.modules.subscriptions.factories import create_subscription, make_plan_snapshot
+from tests.modules.subscriptions.factories import (
+    add_paid_term,
+    create_subscription,
+    make_plan_snapshot,
+)
 
 OWNER = UserDto(id=1, login="owner", name="owner", role=Role.OWNER, language=Locale.EN)
 
@@ -254,7 +258,7 @@ async def test_snapshot_counts_customers_risks_and_balances(
         update(Subscription).where(Subscription.id == soon.id).values(first_connected_at=now)
     )
     # the same customer's second subscription, never connected
-    await subscription_repository.create(
+    extra = await subscription_repository.create(
         CreateSubscriptionDto(
             user_id=soon.user_id,
             remnawave_user_id=840_602,
@@ -264,15 +268,17 @@ async def test_snapshot_counts_customers_risks_and_balances(
             device_limit=3,
             expire_at=now + timedelta(days=60),
             url="https://example.com/sub/840602",
-            plan_snapshot=make_plan_snapshot(),
+            plan_snapshot=make_plan_snapshot(price_paid=Decimal("300")),
         )
     )
+    await add_paid_term(session, extra)
     await create_subscription(
         subscription_repository,
         user_repository,
         telegram_id=840_603,
         remnawave_user_id=840_603,
         expire_at=now + timedelta(days=20),
+        price_paid=Decimal("300"),
     )
     for telegram_id, days in ((840_604, 2), (840_605, 10)):
         await create_subscription(

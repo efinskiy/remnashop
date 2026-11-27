@@ -1,4 +1,5 @@
 from datetime import timedelta
+from decimal import Decimal
 
 import pytest
 
@@ -47,6 +48,7 @@ async def test_list_stats_counts_each_tile(
             user_repository,
             telegram_id=831_000 + offset,
             remnawave_user_id=831_000 + offset,
+            price_paid=Decimal("100"),
             **row,
         )
 

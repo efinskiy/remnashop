@@ -243,7 +243,7 @@ class TransactionRepository:
         row = await self.session.scalar(select(Transaction).where(*filters))
         return self._to_dto(row) if row is not None else None
 
-    async def has_paid_purchase(self, user_id: int) -> bool:
+    async def has_paid_order_outside_stars(self, user_id: int) -> bool:
         stmt = select(
             exists().where(
                 Transaction.user_id == user_id,
