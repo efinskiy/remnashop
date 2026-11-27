@@ -30,7 +30,11 @@ from app.modules.users.dto import UserDto
 from app.modules.users.repository import UserRepository
 from tests.fakes.analytics_cache import PassThroughAnalyticsCache
 from tests.modules.analytics.test_get_analytics import _paid_order_dto
-from tests.modules.subscriptions.factories import create_subscription, make_plan_snapshot
+from tests.modules.subscriptions.factories import (
+    add_paid_term,
+    create_subscription,
+    make_plan_snapshot,
+)
 
 OWNER = UserDto(id=1, login="owner", name="owner", role=Role.OWNER, language=Locale.EN)
 NOW = datetime(2026, 6, 15, 12, tzinfo=UTC)
@@ -178,7 +182,7 @@ async def test_retention_expiring_blocks(
         is_trial=True,
         expire_at=now + timedelta(days=5),
     )
-    await subscription_repository.create(
+    extra = await subscription_repository.create(
         CreateSubscriptionDto(
             user_id=soon.user_id,
             remnawave_user_id=870_004,
@@ -191,6 +195,7 @@ async def test_retention_expiring_blocks(
             plan_snapshot=make_plan_snapshot(name="Extra", price_paid=Decimal("100")),
         )
     )
+    await add_paid_term(session, extra)
     for user_id, tag, renew in ((soon.user_id, "a", 2), (later.user_id, "b", 0)):
         await _pay(
             transaction_repository, session, uow, user_id, plan_id, f"r-{tag}0",

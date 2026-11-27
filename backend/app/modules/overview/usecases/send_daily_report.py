@@ -10,7 +10,7 @@ from redis.asyncio import Redis
 from app.core.actor import Actor
 from app.core.constants import REDIS_KEY_PREFIX, TTL_7D, ZERO_AMOUNT
 from app.core.db.uow import UnitOfWork
-from app.core.enums import PurchaseType, Role
+from app.core.enums import PurchaseType, Role, SubscriptionStatus
 from app.core.ports import EventPublisher
 from app.core.usecase import UseCase
 from app.core.utils.money import round_cents
@@ -97,6 +97,9 @@ class SendDailyReportUseCase(UseCase[None, None]):
             payments = await self._transaction_stats.list_paid(start, end)
             subscriptions = await self._subscription_stats.overview_counts(now, now)
             never_connected = await self._subscription_stats.count_paying_never_connected()
+            active_paid = await self._subscription_stats.count_paying(
+                status=SubscriptionStatus.ACTIVE
+            )
             referrers = await self._referral_repository.top_referrers(start, end, _TOP_REFERRERS)
 
             counts: dict[PurchaseType, int] = defaultdict(int)
@@ -117,7 +120,7 @@ class SendDailyReportUseCase(UseCase[None, None]):
                     currency=currency.value,
                     revenue=str(round_cents(sum(amounts.values(), ZERO_AMOUNT))),
                     active_trials=subscriptions.active_trials,
-                    active_paid=subscriptions.paid_active,
+                    active_paid=active_paid,
                     purchases=counts[PurchaseType.NEW],
                     purchases_amount=str(round_cents(amounts[PurchaseType.NEW])),
                     renewals=counts[PurchaseType.RENEW],

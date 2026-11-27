@@ -838,6 +838,9 @@ async def test_change_plan_keeping_expiry_carries_the_paid_credit(
     assert {segment.kind for segment in carried} == {CreditSegmentKind.CARRIED}
     assert sum(segment.paid for segment in carried) == Decimal("300")
     assert {segment.ends_at for segment in carried} == {old.expire_at}
+    # the new row's snapshot says 0, and the customer's money still counts
+    assert changed.plan_snapshot.price_paid == Decimal(0)
+    assert await subscription_repository.has_paid_subscription_before(changed.user_id)
 
 
 async def test_squads_are_restored_in_the_panel_when_deleted_mid_edit(
