@@ -717,7 +717,6 @@
       "categoryPayment": "Payments",
       "categoryBroadcast": "Broadcasts",
       "categoryInfrastructure": "Infrastructure",
-      "actor": "Initiator",
       "actorPlaceholder": "Name, @username, ID or email",
       "dateFrom": "From",
       "dateTo": "To"
@@ -1159,7 +1158,6 @@
     "empty": "No users",
     "noMatches": "Nothing found",
     "filters": {
-      "search": "Search",
       "searchPlaceholder": "Name, ID or email",
       "blockedByAll": "Blocked: all",
       "blockedByManual": "Blocked manually",
@@ -3097,8 +3095,6 @@
       "description": "Locales, notifications, errors and other messages",
       "languages": "Languages · {{total}}",
       "defaultLanguageHint": "★ marks the default language: users whose language isn’t enabled get it.",
-      "localeSource": "source · {{total}}",
-      "localeTranslated": "{{translated}} / {{total}}",
       "importConfirm": "Replace the translations with this file? Strings of active locales are overwritten, the rest are skipped.",
       "imported": "Imported {{applied}} strings, skipped {{skipped}}.",
       "importInvalid": "This file is not a translations export.",
@@ -3159,9 +3155,6 @@
         "referrals": "Referrals",
         "custom": "Custom"
       },
-      "seedBadge": "built-in",
-      "disabledBadge": "off",
-      "unlinkedBadge": "unlinked",
       "windows": {
         "menu": {
           "main": "Main menu",
@@ -3257,7 +3250,6 @@
         "symbols": "Symbols",
         "flags": "Flags"
       },
-      "dirtyTitle": "Unsaved changes",
       "disabledNote": "The window is off: the bot doesn’t show it.",
       "unlinkedNote": "No button leads to this window, so users can’t reach it.",
       "bannerHintShared": "The shared banner is one for every window; the file is for “{{locale}}”.",
@@ -3408,7 +3400,6 @@
       "level": "Level {{level}}",
       "levelBadge": "Lvl {{level}}",
       "levelHint": "Users at level {{level}}: {{count}}",
-      "search": "User",
       "searchPlaceholder": "Name, @username, ID or email",
       "rewardStatusAll": "All statuses",
       "rewardStatusWith": "With rewards",
@@ -3715,7 +3706,6 @@
       }
     },
     "delete": {
-      "button": "Delete plan",
       "confirmTitle": "Delete plan?",
       "confirm": "Permanently delete “{{name}}”? This cannot be undone. Promocodes limited to this plan alone will be disabled.",
       "error": "Failed to delete the plan."
@@ -3869,7 +3859,6 @@
     "devicesCount_other": "{{count}} devices",
     "until": "until {{date}}",
     "filters": {
-      "search": "Search",
       "searchPlaceholder": "Subscription ID, user ID, tag or plan",
       "all": "All statuses"
     },

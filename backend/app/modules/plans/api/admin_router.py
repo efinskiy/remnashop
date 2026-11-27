@@ -22,12 +22,8 @@ from app.modules.plans.api.schemas import (
     PriceBookResponse,
     PricingDiffResponse,
     ReorderPlansRequest,
-    SetAddOnBasePriceRequest,
-    SetAddOnPriceOverrideRequest,
     SetMatrixPricesRequest,
-    SetPlanDurationBasePriceRequest,
     SetPlanDurationsRequest,
-    SetPlanPriceOverrideRequest,
     SwitchAnchorRequest,
     UpdateAddOnRequest,
     UpdateCurrencyRateRequest,
@@ -71,12 +67,8 @@ from app.modules.plans.usecases import (
     ListPlansUseCase,
     PreviewPricingChangeUseCase,
     ReorderPlansUseCase,
-    SetAddOnBasePriceUseCase,
-    SetAddOnPriceOverrideUseCase,
     SetMatrixPricesUseCase,
-    SetPlanDurationBasePriceUseCase,
     SetPlanDurationsUseCase,
-    SetPlanPriceOverrideUseCase,
     SwitchAnchorCurrencyUseCase,
     UpdateAddOnUseCase,
     UpdatePlanAccessUseCase,
@@ -247,52 +239,6 @@ async def set_plan_durations(
 
 
 @router.put(
-    "/{plan_id:int}/durations/{days:int}/override/{currency}",
-    response_model=PlanResponse,
-    responses=error_responses(400, 404),
-)
-@inject
-async def set_plan_price_override(
-    plan_id: int,
-    days: int,
-    currency: Currency,
-    payload: SetPlanPriceOverrideRequest,
-    use_case: FromDishka[SetPlanPriceOverrideUseCase],
-    actor: Actor = Depends(require_admin),
-) -> PlanResponse:
-    plan = await use_case(
-        actor,
-        SetPlanPriceOverrideDto(
-            plan_id=plan_id,
-            days=days,
-            currency=currency,
-            price=payload.price,
-        ),
-    )
-    return PlanResponse.model_validate(plan, from_attributes=True)
-
-
-@router.put(
-    "/{plan_id:int}/durations/{days:int}/base-price",
-    response_model=PlanResponse,
-    responses=error_responses(400, 404),
-)
-@inject
-async def set_plan_duration_base_price(
-    plan_id: int,
-    days: int,
-    payload: SetPlanDurationBasePriceRequest,
-    use_case: FromDishka[SetPlanDurationBasePriceUseCase],
-    actor: Actor = Depends(require_admin),
-) -> PlanResponse:
-    plan = await use_case(
-        actor,
-        SetPlanDurationBasePriceDto(plan_id=plan_id, days=days, base_price=payload.base_price),
-    )
-    return PlanResponse.model_validate(plan, from_attributes=True)
-
-
-@router.put(
     "/{plan_id:int}/access", response_model=PlanResponse, responses=error_responses(400, 404)
 )
 @inject
@@ -447,46 +393,6 @@ async def delete_addon(
     actor: Actor = Depends(require_admin),
 ) -> None:
     await use_case(actor, addon_id)
-
-
-@addons_router.put(
-    "/{addon_id:int}/base-price", response_model=AddOnResponse, responses=error_responses(404)
-)
-@inject
-async def set_addon_base_price(
-    addon_id: int,
-    payload: SetAddOnBasePriceRequest,
-    use_case: FromDishka[SetAddOnBasePriceUseCase],
-    actor: Actor = Depends(require_admin),
-) -> AddOnResponse:
-    addon = await use_case(
-        actor, SetAddOnBasePriceDto(addon_id=addon_id, base_price=payload.base_price)
-    )
-    return AddOnResponse.model_validate(addon, from_attributes=True)
-
-
-@addons_router.put(
-    "/{addon_id:int}/override/{currency}",
-    response_model=AddOnResponse,
-    responses=error_responses(400, 404),
-)
-@inject
-async def set_addon_price_override(
-    addon_id: int,
-    currency: Currency,
-    payload: SetAddOnPriceOverrideRequest,
-    use_case: FromDishka[SetAddOnPriceOverrideUseCase],
-    actor: Actor = Depends(require_admin),
-) -> AddOnResponse:
-    addon = await use_case(
-        actor,
-        SetAddOnPriceOverrideDto(
-            addon_id=addon_id,
-            currency=currency,
-            price=payload.price,
-        ),
-    )
-    return AddOnResponse.model_validate(addon, from_attributes=True)
 
 
 @addons_router.get("/{addon_id:int}", response_model=AddOnResponse, responses=error_responses(404))

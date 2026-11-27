@@ -16034,48 +16034,6 @@
         "title": "SessionResponse",
         "type": "object"
       },
-      "SetAddOnBasePriceRequest": {
-        "properties": {
-          "base_price": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0.0,
-                "type": "number"
-              },
-              {
-                "type": "string"
-              }
-            ],
-            "title": "Base Price"
-          }
-        },
-        "required": [
-          "base_price"
-        ],
-        "title": "SetAddOnBasePriceRequest",
-        "type": "object"
-      },
-      "SetAddOnPriceOverrideRequest": {
-        "properties": {
-          "price": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0.0,
-                "type": "number"
-              },
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Price"
-          }
-        },
-        "title": "SetAddOnPriceOverrideRequest",
-        "type": "object"
-      },
       "SetBotProxyRequest": {
         "properties": {
           "proxy_url": {
@@ -16175,27 +16133,6 @@
         "title": "SetMatrixPricesRequest",
         "type": "object"
       },
-      "SetPlanDurationBasePriceRequest": {
-        "properties": {
-          "base_price": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0.0,
-                "type": "number"
-              },
-              {
-                "type": "string"
-              }
-            ],
-            "title": "Base Price"
-          }
-        },
-        "required": [
-          "base_price"
-        ],
-        "title": "SetPlanDurationBasePriceRequest",
-        "type": "object"
-      },
       "SetPlanDurationsRequest": {
         "properties": {
           "durations": {
@@ -16210,27 +16147,6 @@
           "durations"
         ],
         "title": "SetPlanDurationsRequest",
-        "type": "object"
-      },
-      "SetPlanPriceOverrideRequest": {
-        "properties": {
-          "price": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0.0,
-                "type": "number"
-              },
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Price"
-          }
-        },
-        "title": "SetPlanPriceOverrideRequest",
         "type": "object"
       },
       "SetTrialAvailabilityRequest": {

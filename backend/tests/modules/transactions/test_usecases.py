@@ -1852,7 +1852,7 @@ async def test_checkout_with_payments_off_refuses_and_waitlists_the_buyer(
         assert error.value.code is ErrorCode.PAYMENTS_DISABLED
 
     async with uow:
-        assert await waitlist_repository.claim_batch(100, set()) == [actor.id]
+        assert await waitlist_repository.claim_batch(100) == [actor.id]
 
 
 async def test_payments_gate_fires_before_pricing_for_a_full_discount_order(

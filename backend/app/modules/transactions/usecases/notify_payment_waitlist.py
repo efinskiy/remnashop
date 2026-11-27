@@ -34,7 +34,7 @@ class NotifyPaymentWaitlistUseCase(UseCase[NotifyPaymentWaitlistDto, None]):
                 if not (await self._get_access_settings_use_case.system()).payments_enabled:
                     logger.info("Payments were disabled again, waitlist broadcast stopped")
                     break
-                user_ids = await waitlist.claim_batch(_BATCH_SIZE, set())
+                user_ids = await waitlist.claim_batch(_BATCH_SIZE)
                 if not user_ids:
                     break
                 await self._notifier.notify(user_ids, data.outbox_id)
