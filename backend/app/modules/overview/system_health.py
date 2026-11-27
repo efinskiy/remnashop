@@ -17,6 +17,7 @@ MEMORY_CRITICAL_PERCENT: Final[int] = 95
 EVENT_LOOP_LAG_MS: Final[int] = 500
 # the sweep runs every minute
 OUTBOX_STUCK_AFTER: Final[timedelta] = timedelta(minutes=5)
+OUTBOX_POISONED_ALERT_WINDOW: Final[timedelta] = timedelta(days=1)
 GATEWAY_FAILED_SPIKE: Final[int] = 5
 GATEWAY_FAILED_WINDOW: Final[timedelta] = timedelta(hours=1)
 
@@ -85,11 +86,10 @@ async def read_service_problems(
         problems.append(
             HealthProblem(kind=AttentionKind.OUTBOX_STUCK, value=outbox.unprocessed_count)
         )
-    poisoned = await outbox_repository.get_poisoned_stats()
-    if poisoned.unprocessed_count:
-        problems.append(
-            HealthProblem(kind=AttentionKind.OUTBOX_POISONED, value=poisoned.unprocessed_count)
-        )
+    # only fresh ones: the rows stay for good, and a lasting alert would hide the next failure
+    poisoned = await outbox_repository.count_poisoned_since(now - OUTBOX_POISONED_ALERT_WINDOW)
+    if poisoned:
+        problems.append(HealthProblem(kind=AttentionKind.OUTBOX_POISONED, value=poisoned))
     failed = await transaction_stats.count_failed_by_gateway(now - GATEWAY_FAILED_WINDOW)
     problems += [
         HealthProblem(kind=AttentionKind.GATEWAY_FAILURES, subject=gateway.value, value=count)
@@ -108,7 +108,7 @@ ALERT_AFTER_CHECKS: Final[dict[AttentionKind, int]] = {
     AttentionKind.EVENT_LOOP_LAG: 5,
     # already past their own thresholds (5 minutes waiting, 5 failures within an hour)
     AttentionKind.OUTBOX_STUCK: 1,
-    # the sweep has given up on these: nothing changes until an admin retries them
+    # the sweep has already given up on them
     AttentionKind.OUTBOX_POISONED: 1,
     AttentionKind.GATEWAY_FAILURES: 1,
     # a send that fails and is retried fine a minute later isn't worth a message

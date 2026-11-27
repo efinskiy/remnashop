@@ -77,23 +77,17 @@ class EventOutboxRepository:
         count, oldest = (await self.session.execute(stmt)).one()
         return OutboxLagStats(unprocessed_count=count, oldest_occurred_at=oldest)
 
-    async def reset_poisoned(self, *, occurred_after: datetime) -> int:
-        stmt = update(EventOutboxEntry).where(
-            EventOutboxEntry.processed_at.is_(None),
-            EventOutboxEntry.attempts >= _MAX_ATTEMPTS,
-            EventOutboxEntry.occurred_at >= occurred_after,
+    async def count_poisoned_since(self, since: datetime) -> int:
+        stmt = (
+            select(func.count())
+            .select_from(EventOutboxEntry)
+            .where(
+                EventOutboxEntry.processed_at.is_(None),
+                EventOutboxEntry.attempts >= _MAX_ATTEMPTS,
+                EventOutboxEntry.last_failed_at >= since,
+            )
         )
-        result = await self.session.execute(stmt.values(attempts=0))
-        return cast(CursorResult, result).rowcount
-
-    async def delete_poisoned_before(self, cutoff: datetime) -> int:
-        stmt = delete(EventOutboxEntry).where(
-            EventOutboxEntry.processed_at.is_(None),
-            EventOutboxEntry.attempts >= _MAX_ATTEMPTS,
-            EventOutboxEntry.occurred_at < cutoff,
-        )
-        result = await self.session.execute(stmt)
-        return cast(CursorResult, result).rowcount
+        return await self.session.scalar(stmt) or 0
 
     async def get_stuck_stats(self, before: datetime) -> OutboxLagStats:
         # poisoned rows are left out: the sweep no longer retries them
@@ -110,6 +104,7 @@ class EventOutboxRepository:
         if row is not None:
             row.attempts += 1
             row.last_error = error
+            row.last_failed_at = datetime_now()
             await self.session.flush()
 
     async def get_lag_stats(self) -> OutboxLagStats:

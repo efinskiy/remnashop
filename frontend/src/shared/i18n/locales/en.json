@@ -173,7 +173,7 @@
         "sub_other": "{{formatted}} events left unprocessed after 5 attempts",
         "what": "Processing these events failed 5 times in a row, and the queue stopped retrying them.",
         "why": "Until they are processed, what was meant to follow them has not run: admin and customer notifications, referral rewards, loyalty discount recalculation. Some of them may be missing from the event log too.",
-        "fix": "Find the error in the worker logs (“Event handler … failed”) and update the shop once it is fixed. When the updated worker starts, events younger than 3 days are processed again on their own, and notifications already sent are not sent twice. Customers get the rest late; older events are not retried and are deleted after 14 days."
+        "fix": "Find the error in the worker logs (“Event handler … failed”) and report it to the developers. These events are not retried, so what they missed will not happen: grant a missed reward or subscription by hand. Hide the item once handled; it comes back if more events fail."
       },
       "panelUnavailable": {
         "title": "Connection to Remnawave lost",
