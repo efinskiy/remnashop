@@ -225,11 +225,6 @@ export function EmojiPicker({
           </IconButton>
         </nav>
 
-        {/* x-hidden, not x-auto: a glyph the font renders wider than its
-            cell would otherwise add a scrollbar to a grid that is already
-            as wide as the popover. */}
-        {/* py matches the fade: at either end of the scroll the gradient
-            sits over padding, never over a row of emoji. */}
         {/* no autoFocus: the picker opens on hover and would pull the caret out of the text being edited */}
         {/* the tab bar's capsule: 26px slots in p-1, so the icons line up with the tabs and the + above */}
         <label className="glass-well mb-2 flex items-center rounded-full p-1">
@@ -250,11 +245,8 @@ export function EmojiPicker({
           )}
         </label>
 
-        {/* x-hidden, not x-auto: a glyph the font renders wider than its
-            cell would otherwise add a scrollbar to a grid that is already
-            as wide as the popover. */}
-        {/* py matches the fade: at either end of the scroll the gradient
-            sits over padding, never over a row of emoji. */}
+        {/* x-hidden: a glyph wider than its cell would add a scrollbar to a grid already as wide as the popover;
+            py matches the fade, so the gradient never covers a row */}
         <div className={`max-h-56 ${POPOVER_SCROLL_CLASS}`}>
           {needle ? (
             foundStandard.length + foundPremium.length === 0 ? (

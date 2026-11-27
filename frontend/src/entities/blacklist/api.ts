@@ -49,7 +49,6 @@ export function syncBlacklistSources(): Promise<void> {
 // source_id: null = the manual list
 export type BlacklistOrigin = ApiSchema<"BlacklistOriginResponse">;
 
-// Same shape as the users list item, kept local so entities don't import each other.
 export type BlacklistMatchUser = ApiSchema<"UserResponse">;
 
 export type BlacklistMatch = ApiSchema<"BlacklistMatchResponse">;

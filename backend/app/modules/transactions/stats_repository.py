@@ -187,8 +187,7 @@ class TransactionStatsRepository:
                 < tuple_(Transaction.paid_at, Transaction.duration_days, Transaction.id),
             )
         )
-        # an unlimited order has 0 days and covers for good
-        # what the term really added
+        # an unlimited order has 0 days and covers for good; otherwise what the term really added
         covered_days = case(
             (Transaction.duration_days == 0, UNLIMITED_COVERAGE_DAYS),
             else_=func.coalesce(Transaction.added_days, Transaction.duration_days),
