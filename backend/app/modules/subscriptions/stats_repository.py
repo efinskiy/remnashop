@@ -132,7 +132,8 @@ class SubscriptionStatsRepository:
             select(currency_col, func.sum(price_col / duration_col * 30))
             .where(
                 Subscription.status.in_(_PAYING_STATUSES),
-                is_paid_subscription(),
+                # a row paid only through its segments has 0 here: the filter adds nothing
+                Subscription.is_trial.is_(False),
                 duration_col > 0,
                 # renewed into unlimited, the snapshot still holds the finite term
                 Subscription.expire_at < datetime(UNLIMITED_EXPIRE_YEAR, 1, 1, tzinfo=timezone.utc),

@@ -4,10 +4,12 @@ from typing import Any, Final, Literal, Optional, cast
 
 from sqlalchemy import (
     ColumnElement,
+    Numeric,
     Table,
     and_,
     bindparam,
     delete,
+    exists,
     func,
     or_,
     select,
@@ -274,17 +276,24 @@ class SubscriptionRepository:
         count = await self.session.scalar(stmt)
         return bool(count)
 
-    async def has_paid_subscription_before(
-        self, user_id: int, subscription_id: Optional[int] = None
-    ) -> bool:
-        """Whether the user has a paid subscription created before subscription_id,
-        if given: "is this the first paid one", which has_any_subscription can't
-        answer once this one exists."""
-        conditions = [Subscription.user_id == user_id, is_paid_subscription()]
-        if subscription_id is not None:
-            # ids come from one sequence, so their order is creation order
-            conditions.append(Subscription.id < subscription_id)
-        stmt = select(func.count()).select_from(Subscription).where(*conditions)
+    async def has_paid_subscription(self, user_id: int) -> bool:
+        stmt = select(exists().where(Subscription.user_id == user_id, is_paid_subscription()))
+        return bool(await self.session.scalar(stmt))
+
+    async def has_bought_subscription_before(self, user_id: int, subscription_id: int) -> bool:
+        """Whether a subscription sold at a price was created before this one: "is this
+        the first paid purchase", which has_any_subscription can't answer once this one
+        exists. A paid renewal of a free one doesn't count: it is no purchase."""
+        price_paid = Subscription.plan_snapshot["price_paid"].astext.cast(Numeric)
+        stmt = select(
+            exists().where(
+                Subscription.user_id == user_id,
+                Subscription.is_trial.is_(False),
+                price_paid > 0,
+                # ids come from one sequence, so their order is creation order
+                Subscription.id < subscription_id,
+            )
+        )
         return bool(await self.session.scalar(stmt))
 
     async def list_linked_remnawave_user_ids(self) -> set[int]:

@@ -64,9 +64,7 @@ async def test_paid_subscription_rule(
     assert await stats.count_paying() - before == int(expected)
     live = [row.is_paid for row in await stats.list_live() if row.user_id == subscription.user_id]
     assert live == [expected]
-    assert (
-        await subscription_repository.has_paid_subscription_before(subscription.user_id) is expected
-    )
+    assert await subscription_repository.has_paid_subscription(subscription.user_id) is expected
 
 
 async def test_a_sale_counts_when_its_segment_says_zero(
@@ -90,3 +88,45 @@ async def test_a_sale_counts_when_its_segment_says_zero(
 
     live = await SubscriptionStatsRepository(session).list_live()
     assert [row.is_paid for row in live if row.user_id == subscription.user_id] == [True]
+
+
+async def test_a_paid_renewal_of_a_free_subscription_is_no_purchase(
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+) -> None:
+    # FIRST_PAYMENT rewards a NEW purchase only: the renewal earned nothing, so the
+    # purchase after it is still the first one
+    free = await create_subscription(
+        subscription_repository, user_repository, telegram_id=880_003, remnawave_user_id=880_003
+    )
+    await CreditSegmentRepository(session).create(
+        CreateCreditSegmentDto(
+            subscription_id=free.id,
+            kind=CreditSegmentKind.PURCHASE,
+            paid=Decimal("300"),
+            currency=Currency.RUB,
+            seconds=30 * 86400,
+            ends_at=free.expire_at,
+        )
+    )
+    later = free.id + 1_000
+
+    assert await subscription_repository.has_paid_subscription(free.user_id)
+    assert not await subscription_repository.has_bought_subscription_before(free.user_id, later)
+
+
+async def test_a_sale_before_makes_a_purchase_not_the_first(
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+) -> None:
+    sold = await create_subscription(
+        subscription_repository,
+        user_repository,
+        telegram_id=880_004,
+        remnawave_user_id=880_004,
+        price_paid=Decimal("300"),
+    )
+
+    assert await subscription_repository.has_bought_subscription_before(sold.user_id, sold.id + 1)
+    assert not await subscription_repository.has_bought_subscription_before(sold.user_id, sold.id)

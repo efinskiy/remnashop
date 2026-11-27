@@ -1,4 +1,4 @@
-from sqlalchemy import ColumnElement, Numeric, and_, exists, or_
+from sqlalchemy import ColumnElement, Numeric, and_, exists, func, or_
 
 from app.core.db.models.credit_segment import CreditSegment
 from app.core.db.models.subscription import Subscription
@@ -13,7 +13,7 @@ def is_paid_subscription() -> ColumnElement[bool]:
     return and_(
         Subscription.is_trial.is_(False),
         or_(
-            Subscription.plan_snapshot["price_paid"].astext.cast(Numeric) > 0,
+            func.coalesce(Subscription.plan_snapshot["price_paid"].astext.cast(Numeric), 0) > 0,
             exists().where(
                 CreditSegment.subscription_id == Subscription.id, CreditSegment.paid > 0
             ),
