@@ -9,7 +9,8 @@ def is_paid_subscription() -> ColumnElement[bool]:
     paid for. The snapshot holds only the price of the sale or plan change that made the
     row; the segments hold a renewal's price and the credit a plan change carries over.
     Segments written by migration 1027 can say 0 for a term sold for money, renewed free
-    after it lapsed; the snapshot keeps that sale."""
+    after it lapsed; the snapshot keeps that sale. A plan change carries the replaced
+    row's paid status in replaced_paid."""
     return and_(
         Subscription.is_trial.is_(False),
         or_(
@@ -17,5 +18,6 @@ def is_paid_subscription() -> ColumnElement[bool]:
             exists().where(
                 CreditSegment.subscription_id == Subscription.id, CreditSegment.paid > 0
             ),
+            Subscription.replaced_paid.is_(True),
         ),
     )

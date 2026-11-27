@@ -211,6 +211,7 @@ class SubscriptionDto(BaseDto, TimestampMixin):
     first_connected_at: Optional[datetime] = None
     panel_created_at: Optional[datetime] = None
     term_anchor_day: Optional[int] = None
+    replaced_paid: bool = False
     paused_by_channel_leave: bool = False
     grace_until: Optional[datetime] = None
     grace_started_at: Optional[datetime] = None
@@ -335,6 +336,7 @@ class CreateSubscriptionDto:
     external_squad: Optional[UUID] = None
     panel_created_at: Optional[datetime] = None
     term_anchor_day: Optional[int] = None
+    replaced_paid: bool = False
 
 
 @dataclass(frozen=True, kw_only=True)

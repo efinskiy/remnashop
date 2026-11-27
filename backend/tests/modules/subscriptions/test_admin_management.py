@@ -1,6 +1,7 @@
 from dataclasses import replace
 from datetime import timedelta
 from decimal import Decimal
+from typing import Optional
 from uuid import uuid4
 
 import pytest
@@ -1410,3 +1411,41 @@ async def test_an_admin_changes_their_own_subscription_only_with_staff_self_mana
     updated = await update(allowed, change)
 
     assert updated.device_limit == 7
+
+
+async def _is_paid(subscription_repository: SubscriptionRepository, user_id: int) -> list[bool]:
+    live = await SubscriptionStatsRepository(subscription_repository.session).list_live()
+    return [row.is_paid for row in live if row.user_id == user_id]
+
+
+@pytest.mark.parametrize("duration_days", [None, 5])
+@pytest.mark.parametrize("paid", [True, False])
+async def test_a_plan_change_keeps_the_paid_status(
+    grant_use_case: GrantSubscriptionUseCase,
+    change_plan_use_case: ChangeSubscriptionPlanUseCase,
+    user_repository: UserRepository,
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+    duration_days: Optional[int],
+    paid: bool,
+) -> None:
+    old = await _granted(grant_use_case, user_repository, plan_repository, 9420, "keep-paid-a")
+    if paid:
+        # paid only by its sale: a segment migration 1027 wrote with 0 carries nothing
+        await subscription_repository.session.execute(
+            update(Subscription)
+            .where(Subscription.id == old.id)
+            .values(plan_snapshot={**old.plan_snapshot.to_json(), "price_paid": "300"})
+        )
+    assert await _is_paid(subscription_repository, old.user_id) == [paid]
+    new_plan = await _plan(plan_repository, "keep-paid-b")
+
+    changed = await change_plan_use_case(
+        OWNER,
+        ChangeSubscriptionPlanDto(
+            subscription_id=old.id, plan_id=new_plan.id, duration_days=duration_days
+        ),
+    )
+
+    assert changed.plan_snapshot.price_paid == Decimal(0)
+    assert await _is_paid(subscription_repository, changed.user_id) == [paid]

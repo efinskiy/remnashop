@@ -151,6 +151,7 @@ class ChangePurchase:
                 ):
                     raise _TargetMovedError(locked_old, switched_on=old.disabled_by_expiry)
                 panel_user = await self._past_switch_off(old, locked_old, panel_user)
+                old_paid = await self._subscription_repository.is_paid(old.id)
                 await self._subscription_repository.mark_deleted(old.id)
                 updated = await self._subscription_repository.create(
                     subscription_row(
@@ -161,6 +162,7 @@ class ChangePurchase:
                         # which configure_for_plan leaves as it is
                         status=SubscriptionStatus(panel_user.status),
                         term_anchor_day=term.anchor_day,
+                        replaced_paid=old_paid,
                     )
                 )
                 await self._record_credit(old, updated, data, term)
