@@ -33,7 +33,7 @@ const REASON_KEYS: Record<string, ParseKeys> = {
   "bot blocked": "broadcasts.details.reasons.botBlocked",
   "user gone": "broadcasts.details.reasons.userGone",
   "no details": "broadcasts.details.reasons.noDetails",
-  // the same fallback, as rows stored it before "no details"
+  // older rows store this fallback as "retry"
   retry: "broadcasts.details.reasons.noDetails",
 };
 const RECALL_FAILED_PREFIX = "recall failed: ";

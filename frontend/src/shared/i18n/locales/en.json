@@ -5198,7 +5198,7 @@
       "reasons": {
         "noTelegram": "No Telegram account",
         "optedOut": "Opted out of promotional broadcasts",
-        "blocked": "Blocked by an admin",
+        "blocked": "Account blocked",
         "noEmail": "No email address",
         "undeliverable": "Mailbox refuses delivery",
         "botBlocked": "Blocked the bot",
