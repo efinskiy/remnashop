@@ -152,7 +152,7 @@ class GetAnalyticsUseCase(UseCase[AnalyticsPeriodQueryDto, AnalyticsDto]):
             )
 
             live = await self._subscription_stats.list_live()
-            paid = [row for row in live if not row.is_trial]
+            paid = [row for row in live if row.is_paid]
             expiring = [
                 row
                 for row in paid

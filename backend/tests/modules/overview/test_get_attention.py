@@ -155,6 +155,7 @@ async def _seed(
             remnawave_user_id=840_100 + n,
             status=SubscriptionStatus.ACTIVE,
             expire_at=now + delta,
+            price_paid=Decimal("100"),
         )
 
 

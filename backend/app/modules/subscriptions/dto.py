@@ -309,6 +309,7 @@ class SubscriptionListStatsDto:
 class LiveSubscriptionDto:
     user_id: int
     is_trial: bool
+    is_paid: bool
     status: SubscriptionStatus
     expire_at: datetime
     plan_name: str

@@ -4,7 +4,6 @@ from typing import Any, Final, Literal, Optional, cast
 
 from sqlalchemy import (
     ColumnElement,
-    Numeric,
     Table,
     and_,
     bindparam,
@@ -40,6 +39,7 @@ from app.modules.subscriptions.dto import (
     UpdateSubscriptionSquadsDto,
 )
 from app.modules.subscriptions.grace import LIVE_STATUSES
+from app.modules.subscriptions.paid import is_paid_subscription
 
 # pg_advisory_xact_lock namespace key, paired with a user_id (keys in
 # modules/plans/repository.py are 8221938/8221939).
@@ -279,14 +279,8 @@ class SubscriptionRepository:
     ) -> bool:
         """Whether the user has a paid subscription created before subscription_id,
         if given: "is this the first paid one", which has_any_subscription can't
-        answer once this one exists. A free one (100% discount, promocode grant)
-        doesn't count."""
-        price_paid = Subscription.plan_snapshot["price_paid"].astext.cast(Numeric)
-        conditions = [
-            Subscription.user_id == user_id,
-            Subscription.is_trial.is_(False),
-            price_paid > 0,
-        ]
+        answer once this one exists."""
+        conditions = [Subscription.user_id == user_id, is_paid_subscription()]
         if subscription_id is not None:
             # ids come from one sequence, so their order is creation order
             conditions.append(Subscription.id < subscription_id)

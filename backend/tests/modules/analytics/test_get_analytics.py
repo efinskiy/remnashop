@@ -264,7 +264,7 @@ async def test_snapshot_counts_customers_risks_and_balances(
             device_limit=3,
             expire_at=now + timedelta(days=60),
             url="https://example.com/sub/840602",
-            plan_snapshot=make_plan_snapshot(),
+            plan_snapshot=make_plan_snapshot(price_paid=Decimal("300")),
         )
     )
     await create_subscription(
@@ -273,6 +273,7 @@ async def test_snapshot_counts_customers_risks_and_balances(
         telegram_id=840_603,
         remnawave_user_id=840_603,
         expire_at=now + timedelta(days=20),
+        price_paid=Decimal("300"),
     )
     for telegram_id, days in ((840_604, 2), (840_605, 10)):
         await create_subscription(

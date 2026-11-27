@@ -1,5 +1,6 @@
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 
 import pytest
 from sqlalchemy import update
@@ -159,6 +160,7 @@ async def test_retention_expiring_blocks(
         telegram_id=870_001,
         remnawave_user_id=870_001,
         expire_at=now + timedelta(days=3, hours=1),
+        price_paid=Decimal("100"),
     )
     later = await create_subscription(
         subscription_repository,
@@ -166,6 +168,7 @@ async def test_retention_expiring_blocks(
         telegram_id=870_002,
         remnawave_user_id=870_002,
         expire_at=now + timedelta(days=20, hours=1),
+        price_paid=Decimal("100"),
     )
     await create_subscription(
         subscription_repository,
@@ -185,7 +188,7 @@ async def test_retention_expiring_blocks(
             device_limit=3,
             expire_at=now + timedelta(days=10, hours=1),
             url="https://example.com/sub/870004",
-            plan_snapshot=make_plan_snapshot(name="Extra"),
+            plan_snapshot=make_plan_snapshot(name="Extra", price_paid=Decimal("100")),
         )
     )
     for user_id, tag, renew in ((soon.user_id, "a", 2), (later.user_id, "b", 0)):
@@ -235,6 +238,7 @@ async def test_expiring_top_leaves_out_staff(
             telegram_id=telegram_id,
             remnawave_user_id=telegram_id,
             expire_at=now + timedelta(days=3, hours=1),
+            price_paid=Decimal("100"),
         )
         for telegram_id in (870_101, 870_102)
     ]

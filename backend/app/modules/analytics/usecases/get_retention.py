@@ -172,13 +172,13 @@ class GetRetentionUseCase(UseCase[None, RetentionDto]):
             )
             live = await self._subscription_stats.list_live()
             window = expiring_window(live, now)
-            expiring_paid = [row for row in window if not row.is_trial]
+            expiring_paid = [row for row in window if row.is_paid]
             return RetentionDto(
                 report_currency=rates.anchor,
                 points=await self._retention_points(first_paid, now),
                 avg_paid_months=await self._avg_paid_months(now),
                 expiring_paid=len(expiring_paid),
-                expiring_trials=len(window) - len(expiring_paid),
+                expiring_trials=sum(1 for row in window if row.is_trial),
                 expiring_weeks=_expiring_weeks(expiring_paid, now, rates),
                 active_by_plan=_active_by_plan(live),
                 monthly_churn=_monthly_churn(covered, months, now),
