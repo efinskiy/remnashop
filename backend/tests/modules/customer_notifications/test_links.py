@@ -33,6 +33,7 @@ _ORDER = {"order_id": 42}
         ("CabinetNewDeviceSignInEvent", None, {}, "/profile?signout=others"),
         ("AccountsMergedEvent", None, {}, "/profile?support=1"),
         ("ReferralRewardIssuedEvent", None, {}, "/invite/friends"),
+        ("ReferralAttachedEvent", None, {}, "/invite/friends"),
         ("InviteeRewardIssuedEvent", None, {}, "/profile"),
         ("PromocodeDiscountExpiringEvent", None, {}, "/purchase"),
         ("PaymentsRestored", None, {}, "/purchase"),

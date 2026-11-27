@@ -4,12 +4,17 @@ from app.core.constants import GB_TO_BYTES, MB_TO_BYTES
 from app.core.enums import Locale
 from app.core.utils.money import format_money
 from app.modules.subscriptions import (
+    SubscriptionChangedEvent,
     SubscriptionGraceStartedEvent,
     SubscriptionGrantedEvent,
     SubscriptionTrafficThresholdEvent,
 )
 
 _MB_PER_GB: Final[int] = GB_TO_BYTES // MB_TO_BYTES
+# the text names the plan the subscription now has
+NAMES_PLAN: Final[frozenset[str]] = frozenset(
+    {SubscriptionGrantedEvent.__name__, SubscriptionChangedEvent.__name__}
+)
 
 
 def customer_render_args(
@@ -26,7 +31,7 @@ def customer_render_args(
     minutes = args.get("minutes")
     if isinstance(minutes, int):
         rendered["span_unit"], rendered["span"] = "minute", minutes
-    if event_type == SubscriptionGrantedEvent.__name__:
+    if event_type in NAMES_PLAN:
         # a feed row stored before the plan name was has none
         rendered["has_plan_name"] = "yes" if args.get("plan_name") else "no"
     if event_type == SubscriptionTrafficThresholdEvent.__name__:

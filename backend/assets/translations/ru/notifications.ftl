@@ -4,47 +4,57 @@ ntf-session-theft-detected = Повторное использование refre
     .title = Обнаружена кража сессии!
     .emoji = ⚠️
 ntf-login-failed = Неверный пароль для «{ $login }». IP: { $ip }
-    .title = Неудачная попытка входа!
+    .title = Неудачный вход в панель управления!
     .emoji = ⚠️
 ntf-passkey-login-failed = Вход по Passkey отклонён. IP: { $ip }
-    .title = Неудачная попытка входа!
+    .title = Неудачный вход в панель управления!
     .emoji = ⚠️
-ntf-oauth-login-failed = Вход через { $provider } отклонён. IP: { $ip }
-    .title = Неудачная попытка входа!
+ntf-oauth-login-failed = Вход через { $provider ->
+        [GITHUB] GitHub
+        [TELEGRAM] Telegram
+        [GOOGLE] Google
+        [YANDEX] Яндекс
+       *[OIDC] OIDC
+    } отклонён. IP: { $ip }
+    .title = Неудачный вход в панель управления!
     .emoji = ⚠️
-ntf-backup-failed = Резервная копия { $kind } не создана: { $error }
+ntf-backup-failed = Резервная копия { $kind ->
+        [ASSETS] файлов
+       *[DATABASE] базы данных
+    } не создана: { $error }
     .title = Ошибка резервного копирования!
     .emoji = ⚠️
 ntf-bonus-days-renewal-stuck = Бонус-дни ({ $days }) пользователя #{ $user_id } не применены к подписке #{ $subscription_id }: { $error }. Примените вручную.
-    .title = Бонус-дни не применены!
+    .title = Бонусные дни не применены!
     .emoji = ⚠️
-ntf-subscription-purchased = { $is_trial ->
-        [yes] { $user } активировал пробную подписку
-       *[no] { $user } купил подписку ({ $purchase_type })
-    }
+ntf-subscription-purchased = Клиент: { $user }
     .title = { $is_trial ->
-        [yes] Получение пробной подписки!
+        [yes] Пробная подписка активирована!
        *[no] { $purchase_type ->
-            [CHANGE] Изменение подписки!
-            [RENEW] Продление подписки!
-           *[other] Покупка подписки!
+            [CHANGE] План подписки изменён!
+            [RENEW] Подписка продлена!
+           *[other] Подписка куплена!
         }
     }
-ntf-subscription-renewed = { $duration_days ->
-        [0] { $user } продлил подписку бессрочно
-       *[other] { $user } продлил подписку на { $duration_days } дн.
+ntf-subscription-renewed = Клиент: { $user }, { $duration_days ->
+        [0] бессрочно
+       *[other] на { $duration_days ->
+            [one] { $duration_days } день
+            [few] { $duration_days } дня
+           *[other] { $duration_days } дней
+        }
     }
-    .title = Продление подписки!
+    .title = Подписка продлена!
 ntf-transaction-refunded = Заказ #{ $order_id }: возврат { $money } через { $gateway_type }
-    .title = Платёж возвращён!
+    .title = Транзакция возвращена!
     .emoji = ⚠️
 ntf-transaction-partially-refunded = Заказ #{ $order_id }: частичный возврат { $money } через { $gateway_type }, проверьте вручную
-    .title = Платёж возвращён!
+    .title = Транзакция возвращена частично!
     .emoji = ⚠️
-ntf-transaction-fulfilled-manually = { $actor } вручную выдал заказ #{ $order_id } пользователю { $target }
-    .title = Ручная выдача подписки!
+ntf-transaction-fulfilled-manually = Заказ #{ $order_id }, клиент { $target }, выдал { $actor }
+    .title = Заказ выдан вручную!
 ntf-paid-order-not-fulfilled = Заказ #{ $order_id }: { $money } через { $gateway_type } оплачен, но подписка ещё не выдана. Проверьте заказ.
-    .title = Ошибка обработки платежа!
+    .title = Оплаченный заказ не выдан!
     .emoji = ⚠️
 ntf-broadcast-completed = Рассылка #{ $broadcast_id } завершена: доставлено { $sent }, ошибок { $failed }, заблокировали бота { $blocked }.
     .title = Рассылка завершена!
@@ -66,6 +76,8 @@ btn-customer-notification =
     .renew-icon = 🔄
     .buy = Купить подписку
     .buy-icon = 💳
+    .menu = К покупке
+    .menu-icon = 💳
     .close = Закрыть
     .close-icon = ❌
     .connect = Подключиться
@@ -100,7 +112,10 @@ ntf-customer-subscription-renewed = { $duration_days ->
        *[no] Подписка продлена
     }
     .emoji = ✅
-ntf-customer-subscription-changed = Ваша подписка изменена. Подключение остаётся прежним, ничего настраивать не нужно.
+ntf-customer-subscription-changed = { $has_plan_name ->
+        [yes] Ваша подписка переведена на тариф «{ $plan_name }».
+       *[other] Ваша подписка изменена.
+    } Подключение остаётся прежним, ничего настраивать не нужно.
     .title = { $paid ->
         [yes] Оплата прошла успешно!
        *[no] Тариф изменён
@@ -156,13 +171,19 @@ ntf-customer-subscription-expiring = { $is_trial ->
        *[hour] { $span } ч
     }. Продлите её заранее, чтобы не терять доступ к сервису.
     }
-    .title = Подписка скоро закончится
+    .title = { $is_trial ->
+        [yes] Пробный период скоро закончится
+       *[no] Подписка скоро закончится
+    }
     .emoji = ⚠️
 ntf-customer-subscription-expired = { $is_trial ->
         [yes] Ваш пробный период закончился. Оформите подписку, чтобы продолжить пользоваться VPN.
        *[no] Ваша подписка истекла. Продлите её, чтобы продолжить пользоваться VPN.
     }
-    .title = Доступ приостановлен — VPN не работает
+    .title = { $is_trial ->
+        [yes] Пробный период закончился — VPN не работает
+       *[no] Подписка истекла — VPN не работает
+    }
     .emoji = ⛔
 ntf-customer-subscription-grace-started = Ваша подписка истекла. { $grace_until ->
         [none] Действует
@@ -190,7 +211,7 @@ ntf-customer-subscription-traffic-limited = Ваш трафик израсход
            *[NO_RESET] Продлите подписку, чтобы сбросить трафик и продолжить пользоваться сервисом.
         }
     }
-    .title = Доступ приостановлен — VPN не работает
+    .title = Трафик закончился — VPN не работает
     .emoji = ⛔
 ntf-customer-subscription-traffic-threshold = { $percent ->
         [0] Трафик подходит к концу.
@@ -257,21 +278,25 @@ ntf-rescue-cli-used = { $action ->
     .title = Использована консоль восстановления!
     .emoji = ⚠️
 ntf-required-channel-check-failed = Бот не может проверить подписку на канал { $channel_id }: { $error }. Пока проблема не решена, клиенты проходят без проверки.
-    .title = Ошибка проверки подписки на канал/группу!
+    .title = Ошибка проверки обязательного канала!
     .emoji = ⚠️
     .hint = Пока проблема не решена, клиенты проходят без проверки.
-ntf-telegram-webhook-failed = Ошибка webhook Telegram: { $error }
-    .title = Зафиксирована ошибка вебхука!
+ntf-telegram-webhook-failed = Ошибка вебхука Telegram: { $error }
+    .title = Ошибка вебхука Telegram!
+    .emoji = ⚠️
 ntf-node-connection-lost = Соединение с узлом «{ $node_name }» потеряно.
     .title = Соединение с узлом потеряно!
+    .emoji = ⚠️
 ntf-node-connection-restored = Соединение с узлом «{ $node_name }» восстановлено.
     .title = Соединение с узлом восстановлено!
 ntf-node-traffic-reached = Узел «{ $node_name }» достиг лимита трафика.
-    .title = Узел достиг порога лимита трафика!
+    .title = Узел достиг лимита трафика!
+    .emoji = ⚠️
 ntf-node-billing-due = Оплата узла «{ $node_name }» у { $provider } — { $next_billing_at }.
-    .title = Приближается оплата узла!
+    .title = Подходит срок оплаты узла!
 ntf-remnawave-unavailable = Соединение с Remnawave потеряно ({ $error }).
-    .title = Ошибка при подключении к Remnawave!
+    .title = Соединение с Remnawave потеряно!
+    .emoji = ⚠️
 ntf-remnawave-restored = Соединение с Remnawave восстановлено.
     .title = Соединение с Remnawave восстановлено!
 ntf-outbox-entry-poisoned = Событие { $failed_event } (#{ $outbox_id }) не обработано за { $attempts } попыток: { $error }
@@ -290,6 +315,7 @@ ntf-system-health-degraded = { $kind ->
        *[event_loop_lag] Процесс { $subject } работает с задержкой: p99 event loop — { $value } мс.
     }
     .title = Критическое состояние системы!
+    .emoji = ⚠️
 ntf-system-health-restored = { $kind ->
         [process_down] Процесс { $subject } снова работает.
         [host_disk_full] Заполненность диска сервера вернулась к норме.
@@ -304,7 +330,7 @@ ntf-system-health-restored = { $kind ->
     }
     .title = Состояние системы восстановлено!
 ntf-remnawave-version-mismatch = Remnawave { $version } вне поддерживаемого диапазона { $supported }.
-    .title = Возможная несовместимость с Remnawave!
+    .title = Неподдерживаемая версия Remnawave!
     .emoji = ⚠️
 ntf-panel-started = Панель Remnawave перезапущена.
     .title = Панель Remnawave запущена!
@@ -313,26 +339,31 @@ ntf-bot-started = Бот @{ $username } запущен.
 ntf-bot-stopped = Бот остановлен.
     .title = Бот остановлен!
 ntf-telegram-user-registered = Новый клиент { $user } пришёл через бота.
-    .title = Новый пользователь!
-ntf-cabinet-user-registered = Новый клиент { $user } пришёл через веб-кабинет ({ $method }).
-    .title = Новый пользователь!
+    .title = Регистрация в боте!
+ntf-cabinet-user-registered = Новый клиент { $user } пришёл через веб-кабинет, вход через { $method ->
+        [EMAIL] почту
+        [GOOGLE] Google
+        [YANDEX] Яндекс
+       *[TELEGRAM] Telegram
+    }.
+    .title = Регистрация в кабинете!
 ntf-telegram-registration-blocked = Регистрация { $user } через бота заблокирована.
-    .title = Регистрация заблокирована!
+    .title = Регистрация в боте заблокирована!
 ntf-cabinet-registration-blocked = Регистрация { $user } через веб-кабинет заблокирована.
-    .title = Регистрация заблокирована!
-ntf-subscription-first-connected = { $user } впервые подключился к VPN.
-    .title = Первое подключение пользователя!
+    .title = Регистрация в кабинете заблокирована!
+ntf-subscription-first-connected = Клиент: { $user }
+    .title = Подписка подключена впервые!
 ntf-torrent-blocker-report = Торрент-трафик { $user } заблокирован на «{ $node_name }» ({ $destination }).
-    .title = Обнаружен BitTorrent-трафик!
+    .title = Торрент-трафик заблокирован!
     .emoji = ⚠️
 ntf-subscription-expired = Подписка { $user } истекла.
     .title = Подписка истекла!
 ntf-subscription-traffic-limited = У { $user } закончился трафик.
-    .title = Трафик исчерпан!
-ntf-subscription-revoked = { $user } перевыпустил ссылку подписки.
-    .title = Пользователь перевыпустил подписку!
-ntf-subscription-not-connected = { $user } не подключился через { $hours } ч после оформления.
-    .title = Пользователь не подключился!
+    .title = Лимит трафика исчерпан!
+ntf-subscription-revoked = Клиент: { $user }
+    .title = Ссылка подписки перевыпущена!
+ntf-subscription-not-connected = Клиент { $user }, { $hours } ч после оформления
+    .title = Подписка не подключена!
 ntf-customer-subscription-not-connected = Вы оформили подписку { $span_unit ->
         [day] { $span ->
             [one] { $span } день
@@ -361,7 +392,10 @@ ntf-customer-subscription-expired-ago = { $is_trial ->
        *[hour] { $span } ч
     } назад. Продлите её, чтобы снова пользоваться VPN.
     }
-    .title = Доступ приостановлен — VPN не работает
+    .title = { $is_trial ->
+        [yes] Пробный период закончился — VPN не работает
+       *[no] Подписка истекла — VPN не работает
+    }
     .emoji = ⛔
 ntf-customer-torrent-blocker-report = Мы заметили торрент-трафик через VPN. Торренты запрещены правилами сервиса, поэтому подключение ограничено{ $block_unit ->
         [minute] { " " }на { $block_span ->
@@ -371,7 +405,7 @@ ntf-customer-torrent-blocker-report = Мы заметили торрент-тр�
         }
         [hour] { " " }на { $block_span } ч
        *[none] {""}
-    }. Отключите торрент-клиент или исключите его из VPN, чтобы это не повторялось. При повторных нарушениях доступ может быть ограничен надолго.
+    }. Отключите торрент-клиент или исключите его из VPN, чтобы это не повторялось. При повторных нарушениях доступ может быть ограничен навсегда.
     .title = Подключение временно ограничено
     .emoji = ⛔
 ntf-customer-promocode-discount-expiring = { $percent }% по промокоду { $code } действуют ещё { $span_unit ->
@@ -562,16 +596,16 @@ ntf-telegram-traffic = { $unit ->
         [TB] { $amount } ТБ
        *[GB] { $amount } ГБ
     }
-ntf-subscription-changed = { $user } сменил тариф подписки.
-    .title = Изменение подписки!
-ntf-subscription-device-added = { $user } добавил новое устройство.
-    .title = Пользователь добавил новое устройство!
-ntf-subscription-device-removed = { $user } удалил устройство.
-    .title = Пользователь удалил устройство!
-ntf-promocode-activated = { $user } активировал промокод.
-    .title = Активация промокода!
+ntf-subscription-changed = Клиент: { $user }
+    .title = План подписки изменён!
+ntf-subscription-device-added = Клиент: { $user }
+    .title = Устройство добавлено!
+ntf-subscription-device-removed = Клиент: { $user }
+    .title = Устройство удалено!
+ntf-promocode-activated = Клиент: { $user }
+    .title = Промокод активирован!
 ntf-customer-referral-attached = Пользователь присоединился по вашей пригласительной ссылке.{ $rewarded ->
-        [yes] { " " }Награду вы получите, когда он оплатит подписку.
+        [yes] { " " }Награду вы получите после первой оплаты приглашённого.
        *[no] {""}
     }
     .title = Вы пригласили друга!

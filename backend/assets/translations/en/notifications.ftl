@@ -4,15 +4,24 @@ ntf-session-theft-detected = A reused refresh token ended session #{ $session_id
     .title = Session theft detected!
     .emoji = ⚠️
 ntf-login-failed = Wrong password for “{ $login }”. IP: { $ip }
-    .title = Failed sign-in attempt!
+    .title = Dashboard sign-in failed!
     .emoji = ⚠️
 ntf-passkey-login-failed = Passkey sign-in was rejected. IP: { $ip }
-    .title = Failed sign-in attempt!
+    .title = Dashboard sign-in failed!
     .emoji = ⚠️
-ntf-oauth-login-failed = { $provider } sign-in was rejected. IP: { $ip }
-    .title = Failed sign-in attempt!
+ntf-oauth-login-failed = { $provider ->
+        [GITHUB] GitHub
+        [TELEGRAM] Telegram
+        [GOOGLE] Google
+        [YANDEX] Yandex
+       *[OIDC] OIDC
+    } sign-in was rejected. IP: { $ip }
+    .title = Dashboard sign-in failed!
     .emoji = ⚠️
-ntf-backup-failed = { $kind } backup failed: { $error }
+ntf-backup-failed = { $kind ->
+        [ASSETS] Files
+       *[DATABASE] Database
+    } backup failed: { $error }
     .title = Backup failed!
     .emoji = ⚠️
 ntf-bonus-days-renewal-stuck = { $days } bonus days of user #{ $user_id } were not applied to subscription #{ $subscription_id }: { $error }. Apply them by hand.
@@ -20,12 +29,16 @@ ntf-bonus-days-renewal-stuck = { $days } bonus days of user #{ $user_id } were n
     .emoji = ⚠️
 ntf-subscription-purchased = { $is_trial ->
         [yes] { $user } activated a trial
-       *[no] { $user } bought a subscription ({ $purchase_type })
+       *[no] { $user } { $purchase_type ->
+            [RENEW] renewed a subscription
+            [CHANGE] changed their plan
+           *[NEW] bought a subscription
+        }
     }
     .title = { $is_trial ->
-        [yes] Trial subscription received!
+        [yes] Trial activated!
        *[no] { $purchase_type ->
-            [CHANGE] Subscription changed!
+            [CHANGE] Subscription plan changed!
             [RENEW] Subscription renewed!
            *[other] Subscription purchased!
         }
@@ -36,15 +49,15 @@ ntf-subscription-renewed = { $duration_days ->
     }
     .title = Subscription renewed!
 ntf-transaction-refunded = Order #{ $order_id }: { $money } refunded via { $gateway_type }
-    .title = Payment refunded!
+    .title = Transaction refunded!
     .emoji = ⚠️
 ntf-transaction-partially-refunded = Order #{ $order_id }: partial refund { $money } via { $gateway_type }, check it manually
-    .title = Payment refunded!
+    .title = Transaction partially refunded!
     .emoji = ⚠️
 ntf-transaction-fulfilled-manually = { $actor } issued order #{ $order_id } for { $target } by hand
-    .title = Subscription issued manually!
+    .title = Order issued manually!
 ntf-paid-order-not-fulfilled = Order #{ $order_id }: { $money } via { $gateway_type } is paid, but no subscription was issued yet; check it.
-    .title = Payment processing error!
+    .title = Paid order not issued!
     .emoji = ⚠️
 ntf-broadcast-completed = Broadcast #{ $broadcast_id } finished: { $sent } delivered, { $failed } failed, { $blocked } blocked the bot.
     .title = Broadcast finished!
@@ -66,6 +79,8 @@ btn-customer-notification =
     .renew-icon = 🔄
     .buy = Buy subscription
     .buy-icon = 💳
+    .menu = Go to purchase
+    .menu-icon = 💳
     .close = Close
     .close-icon = ❌
     .connect = Connect
@@ -99,7 +114,10 @@ ntf-customer-subscription-renewed = { $duration_days ->
        *[no] Subscription renewed
     }
     .emoji = ✅
-ntf-customer-subscription-changed = Your subscription was changed. The connection stays the same, nothing to set up.
+ntf-customer-subscription-changed = { $has_plan_name ->
+        [yes] Your subscription was moved to the “{ $plan_name }” plan.
+       *[other] Your subscription was changed.
+    } The connection stays the same, nothing to set up.
     .title = { $paid ->
         [yes] Payment successful!
        *[no] Plan changed
@@ -151,13 +169,19 @@ ntf-customer-subscription-expiring = { $is_trial ->
        *[hour] { $span } h
     }. Renew it in advance to keep your access.
     }
-    .title = Subscription ending soon
+    .title = { $is_trial ->
+        [yes] Trial ending soon
+       *[no] Subscription ending soon
+    }
     .emoji = ⚠️
 ntf-customer-subscription-expired = { $is_trial ->
         [yes] Your trial has ended. Get a subscription to keep using the VPN.
        *[no] Your subscription has expired. Renew it to keep using the VPN.
     }
-    .title = Access paused — the VPN isn't working
+    .title = { $is_trial ->
+        [yes] Trial ended — the VPN isn't working
+       *[no] Subscription expired — the VPN isn't working
+    }
     .emoji = ⛔
 ntf-customer-subscription-grace-started = Your subscription has expired. { $grace_until ->
         [none] Grace access is active
@@ -185,7 +209,7 @@ ntf-customer-subscription-traffic-limited = You've used up your traffic. { $is_t
            *[NO_RESET] Renew your subscription to reset your traffic and keep using the service.
         }
     }
-    .title = Access paused — the VPN isn't working
+    .title = Traffic used up — the VPN isn't working
     .emoji = ⛔
 ntf-customer-subscription-traffic-threshold = { $percent ->
         [0] Your traffic is running low.
@@ -248,21 +272,25 @@ ntf-rescue-cli-used = { $action ->
     .title = Rescue console used!
     .emoji = ⚠️
 ntf-required-channel-check-failed = The bot can't check membership in channel { $channel_id }: { $error }. Customers are let through until it's fixed.
-    .title = Channel/group membership check failed!
+    .title = Required channel check failed!
     .emoji = ⚠️
     .hint = Customers are let through until it's fixed.
 ntf-telegram-webhook-failed = Telegram webhook error: { $error }
-    .title = Webhook error detected!
+    .title = Telegram webhook error!
+    .emoji = ⚠️
 ntf-node-connection-lost = Connection to node “{ $node_name }” lost.
     .title = Node connection lost!
+    .emoji = ⚠️
 ntf-node-connection-restored = Connection to node “{ $node_name }” restored.
     .title = Node connection restored!
 ntf-node-traffic-reached = Node “{ $node_name }” reached its traffic limit.
-    .title = Node reached its traffic limit threshold!
+    .title = Node reached its traffic limit!
+    .emoji = ⚠️
 ntf-node-billing-due = Payment for node “{ $node_name }” at { $provider } is due { $next_billing_at }.
-    .title = Node payment is coming up!
+    .title = Node payment due!
 ntf-remnawave-unavailable = Connection to Remnawave lost ({ $error }).
-    .title = Remnawave connection error!
+    .title = Connection to Remnawave lost!
+    .emoji = ⚠️
 ntf-remnawave-restored = Connection to Remnawave restored.
     .title = Remnawave connection restored!
 ntf-outbox-entry-poisoned = Event { $failed_event } (#{ $outbox_id }) failed after { $attempts } attempts: { $error }
@@ -281,6 +309,7 @@ ntf-system-health-degraded = { $kind ->
        *[event_loop_lag] The { $subject } process is responding slowly: event loop p99 is { $value } ms.
     }
     .title = Critical system state!
+    .emoji = ⚠️
 ntf-system-health-restored = { $kind ->
         [process_down] The { $subject } process is running again.
         [host_disk_full] Server disk usage is back to normal.
@@ -295,7 +324,7 @@ ntf-system-health-restored = { $kind ->
     }
     .title = System state restored!
 ntf-remnawave-version-mismatch = Remnawave { $version } is outside the supported range { $supported }.
-    .title = Possible Remnawave incompatibility!
+    .title = Unsupported Remnawave version!
     .emoji = ⚠️
 ntf-panel-started = Remnawave panel restarted.
     .title = Remnawave panel started!
@@ -304,26 +333,31 @@ ntf-bot-started = Bot @{ $username } started.
 ntf-bot-stopped = Bot stopped.
     .title = Bot stopped!
 ntf-telegram-user-registered = New customer { $user } joined via the bot.
-    .title = New user!
-ntf-cabinet-user-registered = New customer { $user } joined via the web cabinet ({ $method }).
-    .title = New user!
+    .title = Bot sign-up!
+ntf-cabinet-user-registered = New customer { $user } joined via the web cabinet, signed in with { $method ->
+        [EMAIL] email
+        [GOOGLE] Google
+        [YANDEX] Yandex
+       *[TELEGRAM] Telegram
+    }.
+    .title = Cabinet sign-up!
 ntf-telegram-registration-blocked = Registration of { $user } via the bot was blocked.
-    .title = Registration blocked!
+    .title = Bot sign-up blocked!
 ntf-cabinet-registration-blocked = Registration of { $user } via the web cabinet was blocked.
-    .title = Registration blocked!
+    .title = Cabinet sign-up blocked!
 ntf-subscription-first-connected = { $user } connected to the VPN for the first time.
-    .title = User's first connection!
+    .title = Subscription first connected!
 ntf-torrent-blocker-report = Torrent traffic from { $user } blocked on “{ $node_name }” ({ $destination }).
-    .title = BitTorrent traffic detected!
+    .title = Torrent traffic blocked!
     .emoji = ⚠️
 ntf-subscription-expired = { $user }'s subscription expired.
     .title = Subscription expired!
 ntf-subscription-traffic-limited = { $user } ran out of traffic.
-    .title = Traffic exhausted!
+    .title = Traffic limit reached!
 ntf-subscription-revoked = { $user }'s subscription link was reissued.
-    .title = User reissued their subscription!
+    .title = Subscription link reissued!
 ntf-subscription-not-connected = { $user } hasn't connected { $hours } h after subscribing.
-    .title = User hasn't connected!
+    .title = Subscription not connected!
 ntf-customer-subscription-not-connected = You subscribed { $span_unit ->
         [day] { $span ->
             [one] { $span } day
@@ -349,7 +383,10 @@ ntf-customer-subscription-expired-ago = { $is_trial ->
        *[hour] { $span } h
     } ago. Renew it to use the VPN again.
     }
-    .title = Access paused — the VPN isn't working
+    .title = { $is_trial ->
+        [yes] Trial ended — the VPN isn't working
+       *[no] Subscription expired — the VPN isn't working
+    }
     .emoji = ⛔
 ntf-customer-torrent-blocker-report = We noticed torrent traffic over the VPN. Torrents are against the service rules, so your connection is limited{ $block_unit ->
         [minute] { " " }for { $block_span ->
@@ -358,7 +395,7 @@ ntf-customer-torrent-blocker-report = We noticed torrent traffic over the VPN. T
         }
         [hour] { " " }for { $block_span } h
        *[none] {""}
-    }. Turn off your torrent client or exclude it from the VPN so it doesn't happen again. Repeated violations may restrict access for longer.
+    }. Turn off your torrent client or exclude it from the VPN so it doesn't happen again. Repeated violations may restrict access permanently.
     .title = Connection temporarily limited
     .emoji = ⛔
 ntf-customer-promocode-discount-expiring = Your { $percent }% off with promocode { $code } is valid for { $span_unit ->
@@ -554,11 +591,11 @@ ntf-telegram-traffic = { $unit ->
        *[GB] { $amount } GB
     }
 ntf-subscription-changed = { $user } changed their subscription plan.
-    .title = Subscription changed!
+    .title = Subscription plan changed!
 ntf-subscription-device-added = { $user } added a new device.
-    .title = User added a new device!
+    .title = Device added!
 ntf-subscription-device-removed = { $user } removed a device.
-    .title = User removed a device!
+    .title = Device removed!
 ntf-promocode-activated = { $user } activated a promocode.
     .title = Promocode activated!
 ntf-customer-referral-attached = Someone joined through your invite link.{ $rewarded ->

@@ -18,6 +18,8 @@ FTL = (
     "ntf-login-failed = Wrong password for { $login }\n    .title = Login failed\n"
     "ntf-suppressed = { $count } more not sent.\n"
     "ntf-sources-merged = Sources merged.\n"
+    "ntf-transaction-refunded = Refunded via { $gateway_type }\n    .title = Refund\n"
+    "gateway-name =\n    .YOOKASSA = YooKassa\n"
 )
 BLOCKED_CHAT: int = 403
 BROKEN_CHAT: int = 500
@@ -132,6 +134,25 @@ async def test_delivers_to_permitted_staff_except_the_actor(
     assert message.url == "/dashboard?bell=open"
     assert message.tag == "LoginFailedEvent"
     assert push.audiences == {SessionAudience.DASHBOARD}
+
+
+async def test_push_names_the_gateway_as_the_shop_shows_it(
+    user_repository: UserRepository, uow: UnitOfWork
+) -> None:
+    owner = await _user(user_repository, uow, "owner", Role.OWNER)
+    async with uow:
+        await user_repository.set_notification_channels(owner.id, {"money": ["push"]})
+    push = FakePush()
+    refund = DeliverNotificationDto(
+        event_type="TransactionRefundedEvent",
+        payload={"gateway_type": "YOOKASSA"},
+        actor_id=None,
+        ip_address=None,
+    )
+
+    await _use_case(user_repository, uow, push, None).system(refund)
+
+    assert [m.body for user_id, m in push.sent if user_id == owner.id] == ["Refunded via YooKassa"]
 
 
 async def test_revoked_permission_and_switched_off_channel_get_nothing(

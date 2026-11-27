@@ -78,6 +78,7 @@ export function initiatorLabel(entry: EventLogEntry, t: TFunction): string {
 const TITLE_VARIANT_FIELD = "action";
 const TITLE_VARIANT_FIELD_OVERRIDES: Readonly<Record<string, string>> = {
   CabinetUserRegisteredEvent: "method",
+  SubscriptionPurchasedEvent: "purchase_type",
 };
 
 const HOURS_PER_DAY = 24;

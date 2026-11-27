@@ -54,6 +54,7 @@ PROMOCODE_START_PREFIX: Final[str] = "promo_"
 CUSTOMER_NOTIFICATION_CLOSE_CALLBACK: Final[str] = "cn:close"
 CUSTOMER_NOTIFICATION_RENEW_PREFIX: Final[str] = "cn:renew:"
 CUSTOMER_NOTIFICATION_BUY_CALLBACK: Final[str] = "cn:buy"
+CUSTOMER_NOTIFICATION_MENU_CALLBACK: Final[str] = "cn:menu"
 CUSTOMER_NOTIFICATION_REVOKE_SESSIONS_CALLBACK: Final[str] = "cn:revoke-sessions"
 
 REDIS_KEY_PREFIX: Final[str] = "remnashop:"

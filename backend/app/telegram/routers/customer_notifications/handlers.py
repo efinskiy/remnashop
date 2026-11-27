@@ -9,6 +9,7 @@ from fluentogram import TranslatorHub
 from app.core.constants import (
     CUSTOMER_NOTIFICATION_BUY_CALLBACK,
     CUSTOMER_NOTIFICATION_CLOSE_CALLBACK,
+    CUSTOMER_NOTIFICATION_MENU_CALLBACK,
     CUSTOMER_NOTIFICATION_RENEW_PREFIX,
     CUSTOMER_NOTIFICATION_REVOKE_SESSIONS_CALLBACK,
 )
@@ -55,6 +56,12 @@ async def on_notification_renew(
 async def on_notification_buy(callback: CallbackQuery, dialog_manager: DialogManager) -> None:
     await callback.answer()
     await _open_purchase(dialog_manager, {"purchase_type": PurchaseType.NEW.value})
+
+
+@router.callback_query(F.data == CUSTOMER_NOTIFICATION_MENU_CALLBACK)
+async def on_notification_menu(callback: CallbackQuery, dialog_manager: DialogManager) -> None:
+    await callback.answer()
+    await dialog_manager.start(MainMenu.MAIN, mode=StartMode.RESET_STACK, show_mode=ShowMode.SEND)
 
 
 @router.callback_query(F.data == CUSTOMER_NOTIFICATION_REVOKE_SESSIONS_CALLBACK)

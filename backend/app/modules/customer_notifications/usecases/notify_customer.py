@@ -12,6 +12,7 @@ from app.core.config import AppConfig
 from app.core.constants import (
     CUSTOMER_NOTIFICATION_BUY_CALLBACK,
     CUSTOMER_NOTIFICATION_CLOSE_CALLBACK,
+    CUSTOMER_NOTIFICATION_MENU_CALLBACK,
     CUSTOMER_NOTIFICATION_RENEW_PREFIX,
     CUSTOMER_NOTIFICATION_REVOKE_SESSIONS_CALLBACK,
     DATE_FORMAT,
@@ -39,12 +40,13 @@ from app.core.utils.telegram_text import (
     premium_emoji_html,
 )
 from app.core.utils.time import datetime_now
+from app.modules.account_merge import AccountsMergedEvent
 from app.modules.cabinet_auth import CabinetNewDeviceSignInEvent
 from app.modules.customer_notifications.dispatch import SendCustomerTelegramDispatch
 from app.modules.customer_notifications.dto import NotifyCustomerDto
 from app.modules.customer_notifications.links import customer_url
 from app.modules.customer_notifications.metrics import CUSTOMER_NOTIFICATIONS
-from app.modules.customer_notifications.render_args import customer_render_args
+from app.modules.customer_notifications.render_args import NAMES_PLAN, customer_render_args
 from app.modules.customer_notifications.repository import CustomerNotificationRepository
 from app.modules.customer_notifications.routing import CustomerChannel, channels_for
 from app.modules.customer_notifications.waitlist import PAYMENTS_RESTORED
@@ -60,6 +62,7 @@ from app.modules.notifications import (
     telegram_card,
 )
 from app.modules.plans import PlanRepository
+from app.modules.promocodes import PromocodeDiscountExpiringEvent
 from app.modules.settings import SettingsRepository
 from app.modules.subscriptions import (
     SubscriptionChangedEvent,
@@ -112,7 +115,11 @@ _RENEWABLE: Final[frozenset[str]] = frozenset(
 )
 # the subscription page is where a customer connects a device
 _CONNECT: Final[frozenset[str]] = frozenset(
-    {SubscriptionPurchasedEvent.__name__, SubscriptionNotConnectedEvent.__name__}
+    {
+        SubscriptionPurchasedEvent.__name__,
+        SubscriptionGrantedEvent.__name__,
+        SubscriptionNotConnectedEvent.__name__,
+    }
 )
 _SUPPORT: Final[frozenset[str]] = frozenset(
     {
@@ -120,7 +127,12 @@ _SUPPORT: Final[frozenset[str]] = frozenset(
         TorrentBlockerReportEvent.__name__,
         PaidOrderNotFulfilledEvent.__name__,
         CabinetNewDeviceSignInEvent.__name__,
+        AccountsMergedEvent.__name__,
     }
+)
+# a customer with a subscription may want to renew it rather than buy another: the menu offers both
+_MENU: Final[frozenset[str]] = frozenset(
+    {PromocodeDiscountExpiringEvent.__name__, PAYMENTS_RESTORED}
 )
 # a sign-in the customer doesn't recognize is one tap from being thrown out
 _REVOKE_SESSIONS: Final[frozenset[str]] = frozenset({CabinetNewDeviceSignInEvent.__name__})
@@ -196,7 +208,7 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
             if with_subscription is None:
                 return
             data = with_subscription
-        if data.event_type == SubscriptionGrantedEvent.__name__:
+        if data.event_type in NAMES_PLAN:
             data = await self._with_plan_name(data, user.language)
         renderer = await self._renderer_factory.build()
         title, body = renderer.render(
@@ -371,7 +383,10 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
             has_logo=brand.has_logo,
             title=title,
             body=body,
-            cabinet_url=self._config.cabinet.url or None,
+            cabinet_url=_cabinet_link(
+                self._config.cabinet.url,
+                customer_url(data.event_type, data.subscription_id, data.args),
+            ),
             button=renderer.text(user.language, "ntf-customer-open-cabinet"),
         )
         await self._send_email.kiq(
@@ -416,6 +431,14 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
                     "btn-customer-notification.revoke-sessions",
                     "callback_data",
                     CUSTOMER_NOTIFICATION_REVOKE_SESSIONS_CALLBACK,
+                )
+            )
+        if data.event_type in _MENU:
+            buttons.append(
+                (
+                    "btn-customer-notification.menu",
+                    "callback_data",
+                    CUSTOMER_NOTIFICATION_MENU_CALLBACK,
                 )
             )
         if data.event_type in _CONNECT and subscription is not None and subscription.url:
@@ -481,6 +504,11 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
                 return await self._subscription_repository.get_by_id(subscription_id)
             except NotFoundError:
                 return None
+
+
+def _cabinet_link(cabinet: str, path: str) -> Optional[str]:
+    # the same place the push and the feed open
+    return f"{cabinet}{path}" if cabinet else None
 
 
 def _telegram_button(
