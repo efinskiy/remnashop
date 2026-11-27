@@ -54,6 +54,7 @@ from app.modules.subscriptions.idempotency_repository import PurchaseIdempotency
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.revoker import PanelSubscriptionRevoker
+from app.modules.subscriptions.stats_repository import SubscriptionStatsRepository
 from app.modules.subscriptions.usage import PanelTrafficUsage
 from app.modules.subscriptions.usecases import (
     AdminDeleteAllDevicesUseCase,
@@ -840,7 +841,8 @@ async def test_change_plan_keeping_expiry_carries_the_paid_credit(
     assert {segment.ends_at for segment in carried} == {old.expire_at}
     # the new row's snapshot says 0, and the customer's money still counts
     assert changed.plan_snapshot.price_paid == Decimal(0)
-    assert await subscription_repository.has_paid_subscription_before(changed.user_id)
+    live = await SubscriptionStatsRepository(subscription_repository.session).list_live()
+    assert [row.is_paid for row in live if row.user_id == changed.user_id] == [True]
 
 
 async def test_squads_are_restored_in_the_panel_when_deleted_mid_edit(
