@@ -47,6 +47,8 @@ class SubscriptionStatsRepository:
                         Subscription.expire_at >= expiring_from,
                         Subscription.expire_at < expiring_to,
                     ),
+                    # every non-trial ACTIVE row, paid or not: the status rows add up
+                    # to the total; count_paying is the paid count
                     func.count().filter(
                         status == SubscriptionStatus.ACTIVE, Subscription.is_trial.is_(False)
                     ),
