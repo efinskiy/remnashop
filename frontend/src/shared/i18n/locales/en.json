@@ -172,7 +172,7 @@
         "sub_one": "{{formatted}} event left unprocessed after 5 attempts",
         "sub_other": "{{formatted}} events left unprocessed after 5 attempts",
         "what": "Processing these events failed 5 times in a row, and the queue stopped retrying them.",
-        "why": "The event log has them, but what was meant to follow did not run: admin and customer notifications, referral rewards, loyalty discount recalculation.",
+        "why": "Until they are processed, what was meant to follow them has not run: admin and customer notifications, referral rewards, loyalty discount recalculation. Some of them may be missing from the event log too.",
         "fix": "Find the error in the worker logs (“Event handler … failed”) and update the shop once it is fixed. Then press “Retry”: the events are processed again, and notifications already sent are not sent twice.",
         "retry": "Retry",
         "retried_one": "{{formatted}} event sent for retry.",
