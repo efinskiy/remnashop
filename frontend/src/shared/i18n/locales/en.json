@@ -787,7 +787,7 @@
       "SignInMethodUnlinkedEvent": "Sign-in method unlinked",
       "SessionRevokedEvent": "Session revoked",
       "OtherSessionsRevokedEvent": "Other sessions revoked",
-      "SessionTheftDetectedEvent": "Session theft",
+      "SessionTheftDetectedEvent": "Session theft detected",
       "UserSessionRevokedByAdminEvent": "Session revoked by admin",
       "AdminChangedEvent": "Admin changed",
       "TelegramIdChangedEvent": "Telegram ID changed",
@@ -897,7 +897,7 @@
       "TorrentBlockerReportEvent": "Torrent traffic blocked",
       "NodeConnectionLostEvent": "Connection to node lost",
       "NodeConnectionRestoredEvent": "Connection to node restored",
-      "NodeTrafficReachedEvent": "Node traffic limit reached",
+      "NodeTrafficReachedEvent": "Node reached its traffic limit",
       "NodeBillingDueEvent": "Node payment due",
       "PanelStartedEvent": "Remnawave started",
       "PanelLoginFailedEvent": "Remnawave sign-in failed",
@@ -926,6 +926,10 @@
     },
     "eventVariants": {
       "trialActivated": "Trial activated",
+      "SubscriptionPurchasedEvent": {
+        "RENEW": "Subscription renewed",
+        "CHANGE": "Subscription plan changed"
+      },
       "CabinetUserRegisteredEvent": {
         "EMAIL": "Cabinet sign-up (Email)",
         "GOOGLE": "Cabinet sign-up (Google)",

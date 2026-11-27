@@ -31,7 +31,7 @@ from app.modules.users import UserDto
 _TRANSLATIONS = Path(__file__).parents[3] / "assets" / "translations"
 _BUILD = BuildConfig(tag="v0.8.0", time="10.11.2026 18:00", commit="31bdd42abc", branch="remake")
 # kept as the sentence: what was done is the whole message
-_SENTENCE_ONLY = {"RescueCliUsedEvent"}
+_SENTENCE_ONLY = {"RescueCliUsedEvent", "SystemHealthDegradedEvent", "SystemHealthRestoredEvent"}
 
 
 class _StrictRenderer(NotificationRenderer):
@@ -194,7 +194,7 @@ def test_purchase_card_shows_payment_subscription_plan_and_user() -> None:
 
     assert card == (
         "#SubscriptionPurchasedEvent\n\n"
-        "<b>🔅 Событие: Покупка подписки!</b>\n\n"
+        "<b>🔅 Событие: Подписка куплена!</b>\n\n"
         "👤 <b>Пользователь</b>:\n<blockquote>• <b>ID</b>: <code>1042</code>\n"
         "• <b>Имя</b>: Иван\n• <b>Telegram ID</b>: <code>5</code>\n"
         "• <b>Username</b>: @ivan</blockquote>\n\n"
@@ -275,8 +275,12 @@ def test_merged_events_share_a_hashtag_and_the_difference_is_a_row() -> None:
     password = _card(renderer, Locale.RU, "LoginFailedEvent")
     passkey = _card(renderer, Locale.RU, "PasskeyLoginFailedEvent")
 
-    assert password.startswith("#LoginFailedEvent\n\n<b>⚠️ Событие: Неудачная попытка входа!</b>")
-    assert passkey.startswith("#LoginFailedEvent\n\n<b>⚠️ Событие: Неудачная попытка входа!</b>")
+    assert password.startswith(
+        "#LoginFailedEvent\n\n<b>⚠️ Событие: Неудачный вход в панель управления!</b>"
+    )
+    assert passkey.startswith(
+        "#LoginFailedEvent\n\n<b>⚠️ Событие: Неудачный вход в панель управления!</b>"
+    )
     assert "• <b>Способ</b>: Passkey" in passkey
 
 
@@ -310,6 +314,28 @@ def test_a_system_event_has_no_user_block(event_type: str) -> None:
     )
 
     assert "👤" not in card
+
+
+def test_a_health_alert_keeps_its_sentence() -> None:
+    renderer = _renderer(Locale.RU)
+    payload = {"kind": "host_disk_full", "value": 93, "subject": "api"}
+    args = notification_args(payload, None, Locale.RU)
+    title, body = renderer.render(Locale.RU, "SystemHealthDegradedEvent", args)
+
+    card = build_telegram_card(
+        renderer,
+        Locale.RU,
+        event_type="SystemHealthDegradedEvent",
+        payload=payload,
+        args=args,
+        data=_data(),
+        build=_BUILD,
+        title=title,
+        body=body,
+        notes="",
+    )
+
+    assert "<blockquote>Диск сервера заполнен на 93%.</blockquote>" in card
 
 
 def test_the_hint_closes_the_card_in_a_quote() -> None:

@@ -55,6 +55,49 @@ def test_args_format_an_amount_with_its_currency() -> None:
     assert args["money"] == "18\xa0450\xa0₽"
 
 
+def test_an_id_is_printed_without_grouping_and_a_count_with_it() -> None:
+    renderer = NotificationRenderer(
+        {Locale.RU: (_TRANSLATIONS_DIR / "ru" / "notifications.ftl").read_text()},
+        default_locale=Locale.RU,
+    )
+    payload = {"broadcast_id": 10293, "sent": 1240, "failed": 0, "blocked": 0}
+
+    _, body = renderer.render(
+        Locale.RU, "BroadcastCompletedEvent", notification_args(payload, None, Locale.RU)
+    )
+
+    assert body.startswith("Рассылка #10293 завершена: доставлено 1\xa0240,")
+
+
+@pytest.mark.parametrize(
+    ("event_type", "payload", "shown"),
+    [
+        (
+            "SubscriptionPurchasedEvent",
+            {"purchase_type": "RENEW", "user": "@ivan"},
+            "Клиент: @ivan",
+        ),
+        ("BackupFailedEvent", {"kind": "DATABASE", "error": "x"}, "копия базы данных"),
+        ("CabinetUserRegisteredEvent", {"method": "EMAIL"}, "вход через почту"),
+        ("OAuthLoginFailedEvent", {"provider": "GITHUB"}, "Вход через GitHub"),
+    ],
+)
+def test_an_enum_value_is_worded_not_printed(
+    event_type: str, payload: dict[str, str], shown: str
+) -> None:
+    renderer = NotificationRenderer(
+        {Locale.RU: (_TRANSLATIONS_DIR / "ru" / "notifications.ftl").read_text()},
+        default_locale=Locale.RU,
+    )
+
+    _, body = renderer.render(
+        Locale.RU, event_type, notification_args({"is_trial": False, **payload}, None, Locale.RU)
+    )
+
+    assert shown in body
+    assert not [v for k, v in payload.items() if k not in ("error", "user") and v in body]
+
+
 def test_render_falls_back_to_default_locale_then_to_event_type() -> None:
     renderer = NotificationRenderer({Locale.EN: FTL}, default_locale=Locale.EN)
     assert renderer.render(Locale.DE, "LoginFailedEvent", {"login": "x"}) == (
@@ -145,3 +188,33 @@ def test_telegram_card_renders_premium_emoji_markup() -> None:
         '<b><tg-emoji emoji-id="5872829476143894491">🚫</tg-emoji> Expired</b>\n\n'
         "<blockquote>Renew it</blockquote>"
     )
+
+
+@pytest.mark.parametrize("locale", SEEDED_LOCALES)
+@pytest.mark.parametrize(
+    "event_type",
+    [
+        "NodeConnectionLostEvent",
+        "NodeTrafficReachedEvent",
+        "RemnawaveUnavailableEvent",
+        "SystemHealthDegradedEvent",
+        "TelegramWebhookFailedEvent",
+    ],
+)
+def test_an_outage_is_marked_as_a_warning(locale: Locale, event_type: str) -> None:
+    text = (_TRANSLATIONS_DIR / locale.value / "notifications.ftl").read_text()
+    renderer = NotificationRenderer({locale: text}, default_locale=locale)
+
+    assert renderer.emoji(locale, event_type) == "⚠️"
+
+
+def test_a_renewal_names_the_customer_and_the_term_without_a_gendered_verb() -> None:
+    renderer = NotificationRenderer(
+        {Locale.RU: (_TRANSLATIONS_DIR / "ru" / "notifications.ftl").read_text()},
+        default_locale=Locale.RU,
+    )
+    args = notification_args({"user": "@ivan", "duration_days": 30}, None, Locale.RU)
+
+    _, body = renderer.render(Locale.RU, "SubscriptionRenewedEvent", args)
+
+    assert body == "Клиент: @ivan, на 30 дней"

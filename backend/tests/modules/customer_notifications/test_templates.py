@@ -228,7 +228,7 @@ def test_changed_template_renders(locale: Locale, event_type: str) -> None:
             "Мы заметили торрент-трафик через VPN. Торренты запрещены правилами сервиса, "
             "поэтому подключение ограничено на 30 минут. Отключите торрент-клиент или исключите "
             "его из VPN, чтобы это не повторялось. При повторных нарушениях доступ может быть "
-            "ограничен надолго.",
+            "ограничен навсегда.",
         ),
         (
             Locale.RU,
@@ -310,3 +310,66 @@ def test_a_grant_names_its_plan_when_it_knows_it(
     locale: Locale, args: dict[str, Union[str, int]], expected: str
 ) -> None:
     assert _render(locale, "SubscriptionGrantedEvent", args) == expected
+
+
+@pytest.mark.parametrize(
+    ("locale", "args", "expected"),
+    [
+        (
+            Locale.RU,
+            {"paid": "yes", "plan_name": "Про"},
+            "Ваша подписка переведена на тариф «Про». Подключение остаётся прежним, "
+            "ничего настраивать не нужно.",
+        ),
+        # a feed row stored before the name was
+        (
+            Locale.RU,
+            {"paid": "no"},
+            "Ваша подписка изменена. Подключение остаётся прежним, ничего настраивать не нужно.",
+        ),
+        (
+            Locale.EN,
+            {"paid": "yes", "plan_name": "Pro"},
+            "Your subscription was moved to the “Pro” plan. The connection stays the same, "
+            "nothing to set up.",
+        ),
+    ],
+)
+def test_a_plan_change_names_the_new_plan_when_it_knows_it(
+    locale: Locale, args: dict[str, Union[str, int]], expected: str
+) -> None:
+    assert _render(locale, "SubscriptionChangedEvent", args) == expected
+
+
+@pytest.mark.parametrize(
+    ("locale", "is_trial", "expected"),
+    [
+        (Locale.RU, "yes", "Пробный период скоро закончится"),
+        (Locale.RU, "no", "Подписка скоро закончится"),
+        (Locale.EN, "yes", "Trial ending soon"),
+    ],
+)
+def test_an_ending_trial_is_titled_as_a_trial(locale: Locale, is_trial: str, expected: str) -> None:
+    args = customer_render_args({"hours": 12, "is_trial": is_trial}, locale)
+    title, errors = _bundle(locale).format("ntf-customer-subscription-expiring.title", args)
+
+    assert errors == []
+    assert title == expected
+
+
+@pytest.mark.parametrize(
+    ("event_type", "is_trial", "expected"),
+    [
+        ("SubscriptionExpiredEvent", "no", "Подписка истекла — VPN не работает"),
+        ("SubscriptionExpiredAgoEvent", "yes", "Пробный период закончился — VPN не работает"),
+        ("SubscriptionTrafficLimitedEvent", "no", "Трафик закончился — VPN не работает"),
+    ],
+)
+def test_a_paused_access_title_names_the_reason(
+    event_type: str, is_trial: str, expected: str
+) -> None:
+    args = customer_render_args({"hours": 72, "is_trial": is_trial}, Locale.RU)
+    title, errors = _bundle(Locale.RU).format(f"{message_id(f'Customer{event_type}')}.title", args)
+
+    assert errors == []
+    assert title == expected

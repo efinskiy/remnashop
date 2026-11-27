@@ -859,7 +859,7 @@
       "SignInMethodUnlinkedEvent": "Способ входа отвязан",
       "SessionRevokedEvent": "Сессия отозвана",
       "OtherSessionsRevokedEvent": "Другие сессии отозваны",
-      "SessionTheftDetectedEvent": "Кража сессии",
+      "SessionTheftDetectedEvent": "Обнаружена кража сессии",
       "UserSessionRevokedByAdminEvent": "Сессия отозвана администратором",
       "AdminChangedEvent": "Администратор изменён",
       "TelegramIdChangedEvent": "Telegram ID изменён",
@@ -969,7 +969,7 @@
       "TorrentBlockerReportEvent": "Торрент-трафик заблокирован",
       "NodeConnectionLostEvent": "Соединение с узлом потеряно",
       "NodeConnectionRestoredEvent": "Соединение с узлом восстановлено",
-      "NodeTrafficReachedEvent": "Лимит трафика узла исчерпан",
+      "NodeTrafficReachedEvent": "Узел достиг лимита трафика",
       "NodeBillingDueEvent": "Подходит срок оплаты узла",
       "PanelStartedEvent": "Панель Remnawave запущена",
       "PanelLoginFailedEvent": "Неудачный вход в панель Remnawave",
@@ -998,6 +998,10 @@
     },
     "eventVariants": {
       "trialActivated": "Пробная подписка активирована",
+      "SubscriptionPurchasedEvent": {
+        "RENEW": "Подписка продлена",
+        "CHANGE": "План подписки изменён"
+      },
       "CabinetUserRegisteredEvent": {
         "EMAIL": "Регистрация в кабинете (Email)",
         "GOOGLE": "Регистрация в кабинете (Google)",
