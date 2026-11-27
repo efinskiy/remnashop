@@ -1,12 +1,17 @@
 from typing import Any, Optional
 
+from loguru import logger
+
 from app.core.actor import Actor
+from app.core.db.models import EventOutboxEntry
 from app.core.db.uow import UnitOfWork
 from app.core.event_bus import EventBus
 from app.core.events import StoredEvent
+from app.core.ports import EventPublisher
 from app.core.usecase import UseCase
 from app.modules.event_log.dto import EventLogEntryDto
-from app.modules.event_log.outbox_repository import EventOutboxRepository
+from app.modules.event_log.events import OutboxEntryPoisonedEvent
+from app.modules.event_log.outbox_repository import MAX_ATTEMPTS, EventOutboxRepository
 from app.modules.event_log.repository import EventLogRepository
 from app.modules.users import UserDeletedEvent
 
@@ -35,11 +40,13 @@ class ProcessOutboxEntryUseCase(UseCase[int, None]):
         event_log_repository: EventLogRepository,
         bus: EventBus,
         uow: UnitOfWork,
+        event_publisher: EventPublisher,
     ) -> None:
         self._outbox_repository = outbox_repository
         self._event_log_repository = event_log_repository
         self._bus = bus
         self._uow = uow
+        self._event_publisher = event_publisher
 
     async def _execute(self, actor: Actor, data: int) -> None:
         try:
@@ -87,12 +94,26 @@ class ProcessOutboxEntryUseCase(UseCase[int, None]):
                     # Handler failed. The audit row above still commits (idempotent
                     # on retry via outbox_id). Leave the row unprocessed so the next
                     # sweep re-dispatches; the attempts cap eventually stops it.
-                    await self._outbox_repository.record_failure(row.id, error=error_message)
+                    await self._record_failure(row.id, error_message)
                 else:
                     await self._outbox_repository.mark_processed(row.id)
         except Exception as error:
             # dispatch_stored never raises, so this is a DB error that broke the
             # transaction; the failure is recorded in a fresh one so attempts
             # still counts toward the cap
+            logger.exception(f"Failed to process outbox entry '{data}'")
             async with self._uow:
-                await self._outbox_repository.record_failure(data, error=str(error))
+                await self._record_failure(data, str(error))
+
+    async def _record_failure(self, entry_id: int, error: str) -> None:
+        row = await self._outbox_repository.record_failure(entry_id, error=error)
+        if row is not None and _just_poisoned(row):
+            await self._event_publisher.publish(
+                OutboxEntryPoisonedEvent(outbox_id=row.id, failed_event=row.event_type, error=error)
+            )
+
+
+def _just_poisoned(row: EventOutboxEntry) -> bool:
+    # once: a redelivered task can fail a row past the cap again. Not for its own kind,
+    # or a broken notification subscriber would poison one alert after another
+    return row.attempts == MAX_ATTEMPTS and row.event_type != OutboxEntryPoisonedEvent.__name__

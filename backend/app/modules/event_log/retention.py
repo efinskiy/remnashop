@@ -41,6 +41,7 @@ SHORT_RETENTION_EVENT_TYPES: Final[frozenset[str]] = frozenset(
         "NodeConnectionLostEvent",
         "NodeConnectionRestoredEvent",
         "NodeTrafficReachedEvent",
+        "OutboxEntryPoisonedEvent",
         "PanelStartedEvent",
         "RemnawaveRestoredEvent",
         "RemnawaveUnavailableEvent",

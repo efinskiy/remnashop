@@ -173,7 +173,7 @@
         "sub_other": "{{formatted}} events left unprocessed after 5 attempts",
         "what": "Processing these events failed 5 times in a row, and the queue stopped retrying them.",
         "why": "Until they are processed, what was meant to follow them has not run: admin and customer notifications, referral rewards, loyalty discount recalculation. Some of them may be missing from the event log too.",
-        "fix": "Find the error in the worker logs (“Event handler … failed”) and report it to the developers. These events are not retried, so what they missed will not happen: grant a missed reward or subscription by hand. Hide the item once handled; it comes back if more events fail."
+        "fix": "Find the error in the worker logs by the event type from the notification (“Event handler … failed” or “Failed to process outbox entry”) and report it to the developers. These events are not retried, so what they missed will not happen: grant a missed reward or subscription by hand. Hide the item once handled; it comes back if more events fail."
       },
       "panelUnavailable": {
         "title": "Connection to Remnawave lost",
@@ -923,6 +923,7 @@
       "RemnawaveVersionMismatchEvent": "Unsupported Remnawave version",
       "SystemHealthDegradedEvent": "Critical system state",
       "SystemHealthRestoredEvent": "System state restored",
+      "OutboxEntryPoisonedEvent": "Event failed to process",
       "BotStartedEvent": "Bot started",
       "BotStoppedEvent": "Bot stopped",
       "TelegramWebhookFailedEvent": "Telegram webhook error",

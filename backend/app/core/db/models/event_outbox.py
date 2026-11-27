@@ -40,4 +40,3 @@ class EventOutboxEntry(BaseSql):
     processed_at: Mapped[Optional[datetime]]
     attempts: Mapped[int] = mapped_column(default=0)
     last_error: Mapped[Optional[str]] = mapped_column(String())
-    last_failed_at: Mapped[Optional[datetime]]

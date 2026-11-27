@@ -32,6 +32,8 @@ COALESCED_EVENT_TYPES: Final[frozenset[str]] = frozenset(
         "OAuthLoginFailedEvent",
         "PanelLoginFailedEvent",
         "TorrentBlockerReportEvent",
+        # a broken subscriber poisons a burst of entries at once
+        "OutboxEntryPoisonedEvent",
     }
 )
 COALESCE_WINDOW_S: Final[int] = 300
@@ -74,6 +76,7 @@ NOTIFICATION_GROUPS: Final[dict[NotificationGroup, frozenset[str]]] = {
             "BotStoppedEvent",
             "SystemHealthDegradedEvent",
             "SystemHealthRestoredEvent",
+            "OutboxEntryPoisonedEvent",
         }
     ),
     NotificationGroup.BROADCASTS: frozenset({"BroadcastCompletedEvent", "BroadcastFailedEvent"}),

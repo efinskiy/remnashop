@@ -69,7 +69,6 @@ async def test_record_failure_increments_attempts_and_stores_error(session) -> N
     assert row is not None
     assert row.attempts == 1
     assert row.last_error == "boom"
-    assert row.last_failed_at is not None
 
 
 async def test_get_unprocessed_by_id_skips_a_row_locked_by_another_transaction(
@@ -181,26 +180,6 @@ async def test_poisoned_stats_count_only_unprocessed_rows_at_the_attempt_cap(
 
     assert stats.unprocessed_count == 2
     assert stats.oldest_occurred_at == oldest
-
-
-async def test_count_poisoned_since_counts_rows_that_last_failed_in_the_window(
-    session: AsyncSession,
-) -> None:
-    repo = EventOutboxRepository(session)
-    now = datetime.now(timezone.utc)
-    since = now - timedelta(days=1)
-    session.add_all(
-        [
-            _make_entry(attempts=5, last_failed_at=now - timedelta(hours=1)),
-            _make_entry(attempts=5, last_failed_at=now - timedelta(days=2)),
-            _make_entry(attempts=5),
-            _make_entry(attempts=5, last_failed_at=now, processed_at=now),
-            _make_entry(attempts=2, last_failed_at=now),
-        ]
-    )
-    await session.flush()
-
-    assert await repo.count_poisoned_since(since) == 1
 
 
 async def test_get_lag_stats_returns_zero_and_none_when_empty(session) -> None:

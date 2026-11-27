@@ -274,12 +274,14 @@ ntf-remnawave-unavailable = Соединение с Remnawave потеряно (
     .title = Ошибка при подключении к Remnawave!
 ntf-remnawave-restored = Соединение с Remnawave восстановлено.
     .title = Соединение с Remnawave восстановлено!
+ntf-outbox-entry-poisoned = Событие { $failed_event } (#{ $outbox_id }) не обработано за 5 попыток: { $error }
+    .title = Событие не обработано!
+    .emoji = ⚠️
 ntf-system-health-degraded = { $kind ->
         [process_down] Процесс { $subject } не отвечает.
         [host_disk_full] Диск сервера заполнен на { $value }%.
         [host_memory_high] Память сервера занята на { $value }%.
         [outbox_stuck] Очередь событий не обрабатывается: дольше 5 минут ждут { $value }.
-        [outbox_poisoned] События не обработаны после 5 попыток: { $value } за последние сутки.
         [gateway_failures] Платежи через { $subject } не проходят: ошибок за час — { $value }.
         [smtp_failed] Почта не отправляется: { $subject ->
             [bulk] SMTP для рассылок
@@ -293,7 +295,6 @@ ntf-system-health-restored = { $kind ->
         [host_disk_full] Заполненность диска сервера вернулась к норме.
         [host_memory_high] Использование памяти сервера вернулось к норме.
         [outbox_stuck] Очередь событий снова обрабатывается.
-        [outbox_poisoned] Новых необработанных событий за сутки не было.
         [gateway_failures] Платежи через { $subject } снова проходят.
         [smtp_failed] Почта снова отправляется: { $subject ->
             [bulk] SMTP для рассылок

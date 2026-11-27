@@ -8,7 +8,12 @@ from app.core.db.uow import UnitOfWork
 from app.core.event_bus import EventBus
 from app.core.events import EventCategory
 from app.modules.auth.events import LoginFailedEvent
-from app.modules.event_log.outbox_repository import EventOutboxRepository, OutboxLagStats
+from app.modules.event_log.events import OutboxEntryPoisonedEvent
+from app.modules.event_log.outbox_repository import (
+    MAX_ATTEMPTS,
+    EventOutboxRepository,
+    OutboxLagStats,
+)
 from app.modules.event_log.repository import EventLogRepository
 from app.modules.event_log.tasks import (
     OUTBOX_OLDEST_AGE,
@@ -19,6 +24,7 @@ from app.modules.event_log.tasks import (
 from app.modules.event_log.usecases import ProcessOutboxEntryUseCase
 from app.modules.users.dto import CreateUserDto
 from app.modules.users.repository import UserRepository
+from tests.fakes.events import RecordingEventPublisher
 
 
 @pytest.fixture
@@ -45,9 +51,9 @@ async def test_process_outbox_entry_persists_and_marks_processed(
     await session.flush()
     bus = EventBus()
 
-    await ProcessOutboxEntryUseCase(outbox_repository, event_log_repository, bus, uow).system(
-        entry.id
-    )
+    await ProcessOutboxEntryUseCase(
+        outbox_repository, event_log_repository, bus, uow, RecordingEventPublisher()
+    ).system(entry.id)
 
     items, total = await event_log_repository.list()
     assert total == 1
@@ -79,9 +85,9 @@ async def test_process_outbox_entry_records_failure_when_a_handler_raises(
 
     bus.subscribe(LoginFailedEvent, failing_handler)
 
-    await ProcessOutboxEntryUseCase(outbox_repository, event_log_repository, bus, uow).system(
-        entry.id
-    )
+    await ProcessOutboxEntryUseCase(
+        outbox_repository, event_log_repository, bus, uow, RecordingEventPublisher()
+    ).system(entry.id)
 
     row = await outbox_repository.find_unprocessed_by_id(entry.id)
     assert row is not None  # NOT marked processed
@@ -113,9 +119,9 @@ async def test_process_outbox_entry_is_a_noop_when_already_processed(
     await outbox_repository.mark_processed(entry.id)
     bus = EventBus()
 
-    await ProcessOutboxEntryUseCase(outbox_repository, event_log_repository, bus, uow).system(
-        entry.id
-    )
+    await ProcessOutboxEntryUseCase(
+        outbox_repository, event_log_repository, bus, uow, RecordingEventPublisher()
+    ).system(entry.id)
 
     items, _ = await event_log_repository.list()
     assert items == []  # find_unprocessed_by_id returned None, nothing persisted
@@ -154,9 +160,9 @@ async def test_sweep_processes_good_rows_even_when_a_sibling_row_fails(
     bus.subscribe(LoginFailedEvent, failing_handler)
 
     for entry_id in (good_id, bad_id):
-        await ProcessOutboxEntryUseCase(outbox_repository, event_log_repository, bus, uow).system(
-            entry_id
-        )
+        await ProcessOutboxEntryUseCase(
+            outbox_repository, event_log_repository, bus, uow, RecordingEventPublisher()
+        ).system(entry_id)
 
     good_row = await session.get(EventOutboxEntry, good_id)
     bad_row = await session.get(EventOutboxEntry, bad_id)
@@ -195,9 +201,9 @@ async def test_process_outbox_entry_records_failure_when_persist_raises_a_db_err
     monkeypatch.setattr(event_log_repository, "create", boom)
     bus = EventBus()
 
-    await ProcessOutboxEntryUseCase(outbox_repository, event_log_repository, bus, uow).system(
-        entry_id
-    )
+    await ProcessOutboxEntryUseCase(
+        outbox_repository, event_log_repository, bus, uow, RecordingEventPublisher()
+    ).system(entry_id)
 
     row = await session.get(EventOutboxEntry, entry_id)
     await session.refresh(row)
@@ -232,16 +238,16 @@ async def test_process_outbox_entry_retry_succeeds_without_doubling_the_audit_ro
 
     bus.subscribe(LoginFailedEvent, flaky_handler)
 
-    await ProcessOutboxEntryUseCase(outbox_repository, event_log_repository, bus, uow).system(
-        entry.id
-    )
+    await ProcessOutboxEntryUseCase(
+        outbox_repository, event_log_repository, bus, uow, RecordingEventPublisher()
+    ).system(entry.id)
     row = await outbox_repository.find_unprocessed_by_id(entry.id)
     assert row is not None
     assert row.attempts == 1
 
-    await ProcessOutboxEntryUseCase(outbox_repository, event_log_repository, bus, uow).system(
-        entry.id
-    )
+    await ProcessOutboxEntryUseCase(
+        outbox_repository, event_log_repository, bus, uow, RecordingEventPublisher()
+    ).system(entry.id)
 
     _, total = await event_log_repository.list()
     assert total == 1  # idempotent on outbox_id, the retry doesn't double it
@@ -268,3 +274,47 @@ def test_record_outbox_lag_metrics_zeroes_age_when_nothing_is_unprocessed() -> N
 
     assert OUTBOX_UNPROCESSED._value.get() == 0
     assert OUTBOX_OLDEST_AGE._value.get() == 0
+
+
+@pytest.mark.parametrize(
+    ("event_type", "alerted"),
+    [("LoginFailedEvent", True), ("OutboxEntryPoisonedEvent", False)],
+)
+async def test_an_entry_reaching_the_attempt_cap_is_reported_once(
+    event_log_repository: EventLogRepository,
+    outbox_repository: EventOutboxRepository,
+    session,
+    uow: UnitOfWork,
+    event_type: str,
+    alerted: bool,
+) -> None:
+    entry = EventOutboxEntry(
+        category=EventCategory.AUTH,
+        event_type=event_type,
+        occurred_at=datetime.now(timezone.utc),
+        payload={"login": "x", "outbox_id": 1, "failed_event": "X", "error": "e"},
+        attempts=MAX_ATTEMPTS - 2,
+    )
+    session.add(entry)
+    await session.flush()
+    bus = EventBus()
+
+    async def failing_handler(entry: object) -> None:
+        raise RuntimeError("boom")
+
+    bus.subscribe_stored(event_type, failing_handler)
+    publisher = RecordingEventPublisher()
+    use_case = ProcessOutboxEntryUseCase(
+        outbox_repository, event_log_repository, bus, uow, publisher
+    )
+
+    # one short of the cap, the cap, then a redelivered task past it
+    for _ in range(3):
+        await use_case.system(entry.id)
+
+    events = [e for e in publisher.events if isinstance(e, OutboxEntryPoisonedEvent)]
+    if not alerted:
+        assert events == []
+        return
+    [event] = events
+    assert (event.outbox_id, event.failed_event, event.error) == (entry.id, event_type, "boom")

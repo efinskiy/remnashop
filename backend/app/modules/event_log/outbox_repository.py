@@ -8,7 +8,7 @@ from app.core.db.models import EventOutboxEntry
 from app.core.utils.time import datetime_now
 from app.modules.event_log.retention import anonymize_snapshots
 
-_MAX_ATTEMPTS: Final[int] = 5
+MAX_ATTEMPTS: Final[int] = 5
 
 
 class OutboxLagStats(NamedTuple):
@@ -21,7 +21,7 @@ class EventOutboxRepository:
         self.session = session
 
     async def find_unprocessed_by_id(self, entry_id: int) -> Optional[EventOutboxEntry]:
-        # no _MAX_ATTEMPTS cap: the fast path fires once per publish, never retries
+        # no MAX_ATTEMPTS cap: the fast path fires once per publish, never retries
         stmt = (
             select(EventOutboxEntry)
             .where(EventOutboxEntry.id == entry_id, EventOutboxEntry.processed_at.is_(None))
@@ -36,7 +36,7 @@ class EventOutboxRepository:
             select(EventOutboxEntry.id)
             .where(
                 EventOutboxEntry.processed_at.is_(None),
-                EventOutboxEntry.attempts < _MAX_ATTEMPTS,
+                EventOutboxEntry.attempts < MAX_ATTEMPTS,
             )
             .order_by(EventOutboxEntry.id)
             .limit(limit)
@@ -72,43 +72,31 @@ class EventOutboxRepository:
     async def get_poisoned_stats(self) -> OutboxLagStats:
         stmt = select(func.count(), func.min(EventOutboxEntry.occurred_at)).where(
             EventOutboxEntry.processed_at.is_(None),
-            EventOutboxEntry.attempts >= _MAX_ATTEMPTS,
+            EventOutboxEntry.attempts >= MAX_ATTEMPTS,
         )
         count, oldest = (await self.session.execute(stmt)).one()
         return OutboxLagStats(unprocessed_count=count, oldest_occurred_at=oldest)
-
-    async def count_poisoned_since(self, since: datetime) -> int:
-        stmt = (
-            select(func.count())
-            .select_from(EventOutboxEntry)
-            .where(
-                EventOutboxEntry.processed_at.is_(None),
-                EventOutboxEntry.attempts >= _MAX_ATTEMPTS,
-                EventOutboxEntry.last_failed_at >= since,
-            )
-        )
-        return await self.session.scalar(stmt) or 0
 
     async def get_stuck_stats(self, before: datetime) -> OutboxLagStats:
         # poisoned rows are left out: the sweep no longer retries them
         stmt = select(func.count(), func.min(EventOutboxEntry.occurred_at)).where(
             EventOutboxEntry.processed_at.is_(None),
-            EventOutboxEntry.attempts < _MAX_ATTEMPTS,
+            EventOutboxEntry.attempts < MAX_ATTEMPTS,
             EventOutboxEntry.occurred_at < before,
         )
         count, oldest = (await self.session.execute(stmt)).one()
         return OutboxLagStats(unprocessed_count=count, oldest_occurred_at=oldest)
 
-    async def record_failure(self, entry_id: int, *, error: str) -> None:
+    async def record_failure(self, entry_id: int, *, error: str) -> Optional[EventOutboxEntry]:
         row = await self.session.get(EventOutboxEntry, entry_id)
         if row is not None:
             row.attempts += 1
             row.last_error = error
-            row.last_failed_at = datetime_now()
             await self.session.flush()
+        return row
 
     async def get_lag_stats(self) -> OutboxLagStats:
-        # poisoned rows (past _MAX_ATTEMPTS) included: the operator wants the
+        # poisoned rows (past MAX_ATTEMPTS) included: the operator wants the
         # whole backlog; get_poisoned_stats() gives the breakdown
         stmt = select(func.count(), func.min(EventOutboxEntry.occurred_at)).where(
             EventOutboxEntry.processed_at.is_(None)
