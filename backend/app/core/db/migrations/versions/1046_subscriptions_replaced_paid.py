@@ -34,7 +34,12 @@ flagged AS (
           )
       )
     UNION
-    SELECT c.new_id FROM changes c JOIN flagged f ON c.old_id = f.new_id
+    -- as at runtime: a trial in between isn't paid, so it passes nothing on
+    SELECT c.new_id
+    FROM changes c
+    JOIN flagged f ON c.old_id = f.new_id
+    JOIN subscriptions s ON s.id = f.new_id
+    WHERE NOT s.is_trial
 )
 UPDATE subscriptions SET replaced_paid = true WHERE id IN (SELECT new_id FROM flagged)
 """
