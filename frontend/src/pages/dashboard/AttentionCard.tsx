@@ -34,15 +34,12 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import type { BackupKind } from "@entities/backups/api";
-import { retryPoisonedOutbox } from "@entities/event-log/api";
 import { getAttention } from "@entities/overview/api";
 import { UNFULFILLED_STATUS } from "@entities/transactions/api";
 import type { AttentionItem, AttentionKind } from "@entities/overview/api";
 import { usePermissions } from "@entities/user/use-current-user";
-import { getErrorMessage } from "@shared/api/http";
 import { formatDateTime } from "@shared/lib/relative-time";
 import { readStorage, writeStorage } from "@shared/lib/safe-storage";
-import { toast } from "@shared/lib/toast";
 import { useAsyncResource } from "@shared/lib/use-async-resource";
 import type { Permission } from "@shared/types/rbac";
 import { Button } from "@shared/ui/Button";
@@ -373,37 +370,11 @@ function ExplainBlock({ icon, title, text }: { icon: ComponentType<{ className?:
   );
 }
 
-function AttentionDialog({
-  item,
-  onClose,
-  onChanged,
-}: {
-  item: AttentionItem;
-  onClose: () => void;
-  onChanged: () => void;
-}) {
+function AttentionDialog({ item, onClose }: { item: AttentionItem; onClose: () => void }) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const permissions = usePermissions();
   const link = KIND_LINK[item.kind];
-  const canRetry = item.kind === "outbox_poisoned" && permissions.includes("OUTBOX_RETRY");
-  const [isRetrying, setIsRetrying] = useState(false);
-
-  const retry = async () => {
-    setIsRetrying(true);
-    try {
-      const { retried } = await retryPoisonedOutbox();
-      toast.success(
-        t("dashboard.attention.outboxPoisoned.retried", { count: retried, formatted: retried.toLocaleString(i18n.language) }),
-      );
-      onClose();
-      onChanged();
-    } catch (err) {
-      toast.error(getErrorMessage(err, t("common.errors.generic")));
-    } finally {
-      setIsRetrying(false);
-    }
-  };
   const { title, sub } = itemText(item, t, i18n.language);
   const key = `dashboard.attention.${KIND_KEY[item.kind]}`;
   const why =
@@ -435,13 +406,6 @@ function AttentionDialog({
           </Button>
         </div>
       )}
-      {canRetry && (
-        <div className={`${GLASS_DIALOG_FOOTER_CLASS} shrink-0`}>
-          <Button variant="glassAccent" className="flex-1" isLoading={isRetrying} onClick={() => void retry()}>
-            {t("dashboard.attention.outboxPoisoned.retry")}
-          </Button>
-        </div>
-      )}
     </Modal>
   );
 }
@@ -458,15 +422,7 @@ function readDismissed(): Record<string, number> {
   }
 }
 
-function AttentionRow({
-  item,
-  onDismiss,
-  onChanged,
-}: {
-  item: AttentionItem;
-  onDismiss: () => void;
-  onChanged: () => void;
-}) {
+function AttentionRow({ item, onDismiss }: { item: AttentionItem; onDismiss: () => void }) {
   const { t, i18n } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const { title, sub } = itemText(item, t, i18n.language);
@@ -483,14 +439,14 @@ function AttentionRow({
           <X className="size-4" />
         </IconButton>
       </div>
-      {isOpen && <AttentionDialog item={item} onClose={() => setIsOpen(false)} onChanged={onChanged} />}
+      {isOpen && <AttentionDialog item={item} onClose={() => setIsOpen(false)} />}
     </>
   );
 }
 
 export function AttentionCard({ refreshKey }: { refreshKey: number }) {
   const { t, i18n } = useTranslation();
-  const [state, reload] = useAsyncResource(getAttention, { deps: [refreshKey], keepData: true });
+  const [state] = useAsyncResource(getAttention, { deps: [refreshKey], keepData: true });
 
   const [dismissed, setDismissed] = useState(readDismissed);
 
@@ -538,12 +494,7 @@ export function AttentionCard({ refreshKey }: { refreshKey: number }) {
       {state.kind === "ready" && (
         <div className={`${LIST_BODY_CLASS} pt-4`}>
           {items.map((item, index) => (
-            <AttentionRow
-              key={`${item.kind}-${item.subject ?? index}`}
-              item={item}
-              onDismiss={() => dismiss(item)}
-              onChanged={reload}
-            />
+            <AttentionRow key={`${item.kind}-${item.subject ?? index}`} item={item} onDismiss={() => dismiss(item)} />
           ))}
         </div>
       )}

@@ -270,7 +270,7 @@ ntf-system-health-degraded = { $kind ->
         [host_disk_full] The server disk is { $value }% full.
         [host_memory_high] Server memory is { $value }% used.
         [outbox_stuck] The event queue is not being processed: { $value } waiting over 5 minutes.
-        [outbox_poisoned] Events failed after 5 attempts: { $value }. Retry them under “Needs attention”.
+        [outbox_poisoned] Events failed after 5 attempts: { $value }. Events younger than 3 days are processed again when a new version of the shop starts.
         [gateway_failures] Payments through { $subject } are failing: { $value } failures in the last hour.
         [smtp_failed] Email is not being sent: the { $subject ->
             [bulk] broadcast SMTP

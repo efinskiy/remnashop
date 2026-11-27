@@ -13,6 +13,7 @@ from taskiq.cli.worker.args import WorkerArgs
 
 import app.modules
 from app.core.config import AppConfig
+from app.modules.event_log import RetryPoisonedOutboxUseCase
 from app.worker.container import create_worker_container
 
 _ENTRYPOINT: Final[Path] = Path(__file__).parents[3] / "docker-entrypoint.sh"
@@ -84,4 +85,11 @@ async def test_worker_container_resolves_every_task_dependency(
         for task in tasks:
             for dependency in _injected_types(task):
                 await request_container.get(dependency)
+    await container.close()
+
+
+async def test_worker_container_resolves_the_startup_outbox_retry(config: AppConfig) -> None:
+    container = create_worker_container(config)
+    async with container(scope=Scope.REQUEST) as request_container:
+        await request_container.get(RetryPoisonedOutboxUseCase)
     await container.close()

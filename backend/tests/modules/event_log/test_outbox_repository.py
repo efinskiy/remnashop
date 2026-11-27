@@ -182,25 +182,43 @@ async def test_poisoned_stats_count_only_unprocessed_rows_at_the_attempt_cap(
     assert stats.oldest_occurred_at == oldest
 
 
-async def test_reset_poisoned_gives_only_poisoned_rows_back_to_the_sweep(
+async def test_reset_poisoned_gives_only_recent_poisoned_rows_back_to_the_sweep(
     session: AsyncSession,
 ) -> None:
     repo = EventOutboxRepository(session)
-    poisoned = _make_entry(attempts=5)
-    processed = _make_entry(attempts=5, processed_at=datetime.now(timezone.utc))
+    now = datetime.now(timezone.utc)
+    recent = _make_entry(attempts=5, occurred_at=now - timedelta(days=1))
+    old = _make_entry(attempts=5, occurred_at=now - timedelta(days=4))
+    processed = _make_entry(attempts=5, processed_at=now)
     failing = _make_entry(attempts=2)
-    session.add_all([poisoned, processed, failing])
+    session.add_all([recent, old, processed, failing])
     await session.flush()
 
-    assert await repo.reset_poisoned() == [poisoned.id]
+    assert await repo.reset_poisoned(occurred_after=now - timedelta(days=3)) == 1
 
-    assert await repo.list_unprocessed_ids(limit=10) == sorted([poisoned.id, failing.id])
+    assert await repo.list_unprocessed_ids(limit=10) == sorted([recent.id, failing.id])
     rows = await session.scalars(
         select(EventOutboxEntry.attempts)
-        .where(EventOutboxEntry.id.in_([processed.id, failing.id]))
+        .where(EventOutboxEntry.id.in_([old.id, processed.id, failing.id]))
         .order_by(EventOutboxEntry.id)
     )
-    assert list(rows) == [5, 2]
+    assert list(rows) == [5, 5, 2]
+
+
+async def test_delete_poisoned_before_drops_only_old_poisoned_rows(session: AsyncSession) -> None:
+    repo = EventOutboxRepository(session)
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=14)
+    old = _make_entry(attempts=5, occurred_at=now - timedelta(days=15))
+    recent = _make_entry(attempts=5, occurred_at=now - timedelta(days=13))
+    old_failing = _make_entry(attempts=2, occurred_at=now - timedelta(days=15))
+    session.add_all([old, recent, old_failing])
+    await session.flush()
+
+    assert await repo.delete_poisoned_before(cutoff) == 1
+
+    left = await session.scalars(select(EventOutboxEntry.id).order_by(EventOutboxEntry.id))
+    assert list(left) == sorted([recent.id, old_failing.id])
 
 
 async def test_get_lag_stats_returns_zero_and_none_when_empty(session) -> None:

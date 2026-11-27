@@ -2,7 +2,7 @@ import asyncio
 import contextlib
 from typing import Optional
 
-from dishka import AsyncContainer
+from dishka import AsyncContainer, Scope
 from dishka.integrations.taskiq import setup_dishka
 from loguru import logger
 from prometheus_client import GCCollector, PlatformCollector, ProcessCollector, start_http_server
@@ -17,6 +17,7 @@ from app.core.event_bus import EventBus
 from app.core.logger import setup_logger
 from app.core.metrics import WORKER_METRICS_REGISTRY, register_db_pool_metrics
 from app.core.runtime_heartbeat import poll_runtime_heartbeat
+from app.modules.event_log import RetryPoisonedOutboxUseCase
 from app.worker.container import create_worker_container
 from app.worker.metrics import poll_worker_gauges
 from app.worker.subscribers import register_all_subscribers
@@ -53,6 +54,16 @@ async def _setup_worker_container(state: TaskiqState) -> None:
     state.runtime_heartbeat_task = asyncio.create_task(
         poll_runtime_heartbeat(redis, "worker", config.instance_name)
     )
+    await _retry_poisoned_outbox(container)
+
+
+async def _retry_poisoned_outbox(container: AsyncContainer) -> None:
+    # a failure here must not keep the worker down; the next build tries again
+    try:
+        async with container(scope=Scope.REQUEST) as request_container:
+            await (await request_container.get(RetryPoisonedOutboxUseCase)).system()
+    except Exception:
+        logger.exception("Failed to retry poisoned outbox entries on start")
 
 
 def _start_metrics_server(port: int) -> bool:

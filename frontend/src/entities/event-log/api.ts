@@ -69,7 +69,3 @@ export function markNotificationsRead(): Promise<void> {
 export function clearNotifications(): Promise<void> {
   return apiPost<void, Record<string, never>>("/events/notifications/actions/clear", {});
 }
-
-export function retryPoisonedOutbox(): Promise<ApiSchema<"OutboxRetryResponse">> {
-  return apiPost<ApiSchema<"OutboxRetryResponse">, Record<string, never>>("/events/outbox/actions/retry", {});
-}

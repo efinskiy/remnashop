@@ -240,7 +240,6 @@ const EVENT_ICONS: Record<string, LucideIcon> = {
   RemnawaveVersionMismatchEvent: TriangleAlert,
   SystemHealthDegradedEvent: HeartPulse,
   SystemHealthRestoredEvent: Activity,
-  OutboxRetriedEvent: RotateCcw,
   BotStartedEvent: Bot,
   BotStoppedEvent: BotOff,
   TelegramWebhookFailedEvent: TriangleAlert,

@@ -173,10 +173,7 @@
         "sub_other": "{{formatted}} events left unprocessed after 5 attempts",
         "what": "Processing these events failed 5 times in a row, and the queue stopped retrying them.",
         "why": "Until they are processed, what was meant to follow them has not run: admin and customer notifications, referral rewards, loyalty discount recalculation. Some of them may be missing from the event log too.",
-        "fix": "Find the error in the worker logs (“Event handler … failed”) and update the shop once it is fixed. Then press “Retry”: the events are processed again, and notifications already sent are not sent twice.",
-        "retry": "Retry",
-        "retried_one": "{{formatted}} event sent for retry.",
-        "retried_other": "{{formatted}} events sent for retry."
+        "fix": "Find the error in the worker logs (“Event handler … failed”) and update the shop once it is fixed. When the updated worker starts, events younger than 3 days are processed again on their own, and notifications already sent are not sent twice. Customers get the rest late; older events are not retried and are deleted after 14 days."
       },
       "panelUnavailable": {
         "title": "Connection to Remnawave lost",
@@ -926,7 +923,6 @@
       "RemnawaveVersionMismatchEvent": "Unsupported Remnawave version",
       "SystemHealthDegradedEvent": "Critical system state",
       "SystemHealthRestoredEvent": "System state restored",
-      "OutboxRetriedEvent": "Failed events retried",
       "BotStartedEvent": "Bot started",
       "BotStoppedEvent": "Bot stopped",
       "TelegramWebhookFailedEvent": "Telegram webhook error",
@@ -2367,7 +2363,6 @@
     "API_TOKENS_MANAGE": "Manage API tokens",
     "EVENT_LOG_VIEW": "View event log",
     "EVENT_LOG_DETAIL_VIEW": "View event log entry",
-    "OUTBOX_RETRY": "Retry failed events",
     "USERS_VIEW": "View users",
     "USERS_DETAIL_VIEW": "View user details",
     "USERS_REGISTRATION_VIEW": "View how a user signed up",

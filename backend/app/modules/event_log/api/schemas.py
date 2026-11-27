@@ -26,7 +26,3 @@ class NotificationsResponse(ResponseModel):
     items: list[EventLogEntryResponse]
     total: int
     unread_count: int
-
-
-class OutboxRetryResponse(ResponseModel):
-    retried: int

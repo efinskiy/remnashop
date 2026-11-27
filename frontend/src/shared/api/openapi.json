@@ -10627,19 +10627,6 @@
         "title": "OnlineChartResponse",
         "type": "object"
       },
-      "OutboxRetryResponse": {
-        "properties": {
-          "retried": {
-            "title": "Retried",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "retried"
-        ],
-        "title": "OutboxRetryResponse",
-        "type": "object"
-      },
       "OverviewPeriodDays": {
         "enum": [
           0,
@@ -11910,7 +11897,6 @@
           "API_TOKENS_MANAGE",
           "EVENT_LOG_VIEW",
           "EVENT_LOG_DETAIL_VIEW",
-          "OUTBOX_RETRY",
           "NOTIFICATIONS_VIEW",
           "NOTIFICATION_SETTINGS_VIEW",
           "NOTIFICATION_SETTINGS_MANAGE",
