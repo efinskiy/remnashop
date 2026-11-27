@@ -16,7 +16,7 @@ from app.core.enums import (
 )
 from app.core.utils.time import datetime_now
 from app.modules.broadcasts.audience import audience_predicate
-from app.modules.broadcasts.dto import BroadcastAudienceDto
+from app.modules.broadcasts.dto import BroadcastAudienceDto, BroadcastRecipientError
 from app.modules.broadcasts.dto import BroadcastSubscriptionFilter as F
 from app.modules.users.repository import UserRepository
 from tests.modules.broadcasts.factories import add_paid_transaction, add_subscription, make_customer
@@ -249,3 +249,17 @@ async def test_a_pasted_id_list_longer_than_asyncpg_takes_parameters(
     ids = [people["none"], *range(10_000_000, 10_040_000)]
 
     assert await _match(session, BroadcastAudienceDto(user_ids=ids)) == {people["none"]}
+
+
+def test_recipient_error_values_stay_as_stored() -> None:
+    # stored in broadcast_recipients.error: rows written before a rename keep the old text
+    assert {e.name: e.value for e in BroadcastRecipientError} == {
+        "NO_TELEGRAM": "no telegram",
+        "NO_EMAIL": "no email",
+        "UNDELIVERABLE": "undeliverable",
+        "OPTED_OUT": "opted out",
+        "BLOCKED": "blocked",
+        "BOT_BLOCKED": "bot blocked",
+        "USER_GONE": "user gone",
+        "RECALL_FAILED": "recall failed",
+    }

@@ -20,19 +20,16 @@ from app.core.enums import (
 )
 from app.core.utils.time import range_end_utc, range_start_utc
 from app.modules.broadcasts.channels import sends_telegram
-from app.modules.broadcasts.dto import BroadcastAudienceDto, BroadcastSubscriptionFilter
+from app.modules.broadcasts.dto import (
+    BroadcastAudienceDto,
+    BroadcastRecipientError,
+    BroadcastSubscriptionFilter,
+)
 
 _LIVE: Final[tuple[SubscriptionStatus, ...]] = (
     SubscriptionStatus.ACTIVE,
     SubscriptionStatus.LIMITED,
 )
-
-NO_TELEGRAM_ERROR: Final[str] = "no telegram"
-NO_EMAIL_ERROR: Final[str] = "no email"
-UNDELIVERABLE_ERROR: Final[str] = "undeliverable"
-OPTED_OUT_ERROR: Final[str] = "opted out"
-BLOCKED_ERROR: Final[str] = "blocked"
-BOT_BLOCKED_ERROR: Final[str] = "bot blocked"
 
 
 def _has_subscription(*conditions: ColumnElement[bool]) -> ColumnElement[bool]:
@@ -203,7 +200,7 @@ def audience_predicate(
     return and_(*conditions)
 
 
-_Drop = tuple[BroadcastRecipientStatus, ColumnElement[bool], str]
+_Drop = tuple[BroadcastRecipientStatus, ColumnElement[bool], BroadcastRecipientError]
 
 
 def send_time_drops(channel: BroadcastChannel, marketing: bool) -> list[_Drop]:
@@ -211,16 +208,28 @@ def send_time_drops(channel: BroadcastChannel, marketing: bool) -> list[_Drop]:
     audience was built at materialization, a block or opt-out since then still wins."""
     canceled = BroadcastRecipientStatus.CANCELED
     failed = BroadcastRecipientStatus.FAILED
-    drops: list[_Drop] = [(canceled, User.is_blocked.is_(True), BLOCKED_ERROR)]
+    drops: list[_Drop] = [(canceled, User.is_blocked.is_(True), BroadcastRecipientError.BLOCKED)]
     if marketing:
-        drops.append((canceled, User.marketing_opt_out.is_(True), OPTED_OUT_ERROR))
+        drops.append(
+            (canceled, User.marketing_opt_out.is_(True), BroadcastRecipientError.OPTED_OUT)
+        )
     if channel is BroadcastChannel.TELEGRAM:
         # a user who lost their telegram_id since materialization can never be reached
-        drops.append((failed, User.telegram_id.is_(None), NO_TELEGRAM_ERROR))
+        drops.append((failed, User.telegram_id.is_(None), BroadcastRecipientError.NO_TELEGRAM))
         drops.append(
-            (BroadcastRecipientStatus.BLOCKED, User.is_bot_blocked.is_(True), BOT_BLOCKED_ERROR)
+            (
+                BroadcastRecipientStatus.BLOCKED,
+                User.is_bot_blocked.is_(True),
+                BroadcastRecipientError.BOT_BLOCKED,
+            )
         )
     else:
-        drops.append((failed, User.email.is_(None), NO_EMAIL_ERROR))
-        drops.append((failed, User.email_undeliverable_at.is_not(None), UNDELIVERABLE_ERROR))
+        drops.append((failed, User.email.is_(None), BroadcastRecipientError.NO_EMAIL))
+        drops.append(
+            (
+                failed,
+                User.email_undeliverable_at.is_not(None),
+                BroadcastRecipientError.UNDELIVERABLE,
+            )
+        )
     return drops
