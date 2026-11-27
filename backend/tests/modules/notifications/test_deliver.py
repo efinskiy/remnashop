@@ -113,9 +113,9 @@ async def test_delivers_to_permitted_staff_except_the_actor(
 ) -> None:
     owner = await _user(user_repository, uow, "owner", Role.OWNER)
     actor = await _staff(user_repository, uow, "actor")
-    plain_admin = await _user(user_repository, uow, "plain", Role.ADMIN)
-    granted_admin = await _user(
-        user_repository, uow, "granted", Role.ADMIN, permission_grants=["NOTIFICATIONS_VIEW"]
+    admin = await _user(user_repository, uow, "admin", Role.ADMIN)
+    revoked_admin = await _user(
+        user_repository, uow, "revoked", Role.ADMIN, permission_revokes=["NOTIFICATIONS_VIEW"]
     )
     customer = await _user(user_repository, uow, "cust", Role.USER)
     push = FakePush()
@@ -125,8 +125,8 @@ async def test_delivers_to_permitted_staff_except_the_actor(
     )
 
     recipients = {user_id for user_id, _ in push.sent}
-    assert {owner.id, granted_admin.id} <= recipients
-    assert recipients.isdisjoint({actor.id, plain_admin.id, customer.id})
+    assert {owner.id, admin.id} <= recipients
+    assert recipients.isdisjoint({actor.id, revoked_admin.id, customer.id})
     message = next(m for user_id, m in push.sent if user_id == owner.id)
     assert (message.title, message.body) == ("Login failed", "Wrong password for x")
     assert message.url == "/dashboard?bell=open"
