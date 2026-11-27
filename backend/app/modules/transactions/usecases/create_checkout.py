@@ -428,7 +428,7 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
                 )
             if gateway_flags(gateway_type, gateway_settings).get(
                 REQUIRE_PAID_PURCHASE_FIELD_KEY, False
-            ) and not await self._transaction_repository.has_paid_purchase(user_id):
+            ) and not await self._transaction_repository.has_paid_order_outside_stars(user_id):
                 raise ValidationError(
                     "Telegram Stars needs a paid purchase first",
                     code=ErrorCode.GATEWAY_NOT_AVAILABLE,
