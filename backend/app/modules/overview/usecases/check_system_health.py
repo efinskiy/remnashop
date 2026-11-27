@@ -61,7 +61,9 @@ class CheckSystemHealthUseCase(UseCase[None, None]):
         ]
         for key in transition.restored:
             kind, _, subject = key.partition(":")
-            events.append(SystemHealthRestoredEvent(kind=AttentionKind(kind), subject=subject))
+            # a kind dropped by a release while its alert was active
+            if kind in AttentionKind:
+                events.append(SystemHealthRestoredEvent(kind=AttentionKind(kind), subject=subject))
         for event in events:
             await self._deliver(event)
         async with self._uow:

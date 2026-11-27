@@ -101,7 +101,7 @@ async def _on_renewed(event: SubscriptionRenewedEvent, entry: StoredEvent) -> No
 async def _on_addon(event: SubscriptionAddOnGrantedEvent, entry: StoredEvent) -> None:
     await _notify(
         entry,
-        event.user.id,
+        event.target.id,
         {"addon_type": event.addon_type, "amount": event.amount},
         subscription_id=event.subscription_id,
     )

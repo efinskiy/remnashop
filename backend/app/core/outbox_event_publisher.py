@@ -41,8 +41,8 @@ def _actor_fields(
 def _ip_address(event: BaseEvent) -> Optional[str]:
     if event.ip_address is not None:
         return event.ip_address
-    # an admin's write from the api: the request's address, unless the system acted
-    if isinstance(event, ActorEvent) and not event.actor.is_system:
+    # a staff write from the api: the request's address, unless the system acted
+    if isinstance(event, ActorEvent) and event.actor.is_privileged and not event.actor.is_system:
         return REQUEST_CLIENT_IP.get()
     return None
 

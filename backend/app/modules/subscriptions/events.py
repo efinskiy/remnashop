@@ -71,7 +71,7 @@ class SubscriptionChangedEvent(UserEvent):
 
 
 @dataclass(frozen=True, kw_only=True)
-class SubscriptionAddOnGrantedEvent(UserEvent):
+class SubscriptionAddOnGrantedEvent(ActorTargetEvent):
     category: ClassVar[EventCategory] = EventCategory.SUBSCRIPTION
     subscription_id: int
     addon_id: int

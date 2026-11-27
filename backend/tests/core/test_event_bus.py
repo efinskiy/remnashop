@@ -132,7 +132,8 @@ _REGISTERED_EVENTS: dict[str, BaseEvent] = {
         SubscriptionTrafficThresholdEvent(user=_USER, subscription_id=1),
         CabinetNewDeviceSignInEvent(user=_USER, browser="Firefox on Linux"),
         SubscriptionAddOnGrantedEvent(
-            user=_USER,
+            actor=_USER,
+            target=_TARGET,
             subscription_id=1,
             addon_id=1,
             addon_type=AddOnType.TRAFFIC,

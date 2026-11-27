@@ -94,7 +94,8 @@ async def _dispatch(event: BaseEvent) -> AsyncMock:
         ),
         (
             SubscriptionAddOnGrantedEvent(
-                user=_user(7),
+                actor=_SYSTEM,
+                target=_user(7),
                 addon_id=1,
                 addon_type=AddOnType.DEVICES,
                 amount=2,
@@ -297,7 +298,8 @@ async def test_lapsing_subscription_is_named_for_its_renew_button(event: BaseEve
         ),
         SubscriptionRenewedEvent(user=_user(7), duration_days=30, **_SUB),
         SubscriptionAddOnGrantedEvent(
-            user=_user(9),
+            actor=_SYSTEM,
+            target=_user(9),
             addon_id=1,
             addon_type=AddOnType.TRAFFIC,
             amount=10,

@@ -45,6 +45,12 @@ _ACTION_RENAMES: Final[tuple[tuple[str, str, str], ...]] = (
     ("BannerChangedEvent", "reset_default", "reset"),
 )
 
+# event type -> (old payload key, new payload key)
+_KEY_RENAMES: Final[tuple[tuple[str, str, str], ...]] = (
+    ("SubscriptionAddOnGrantedEvent", "user", "actor"),
+    ("LegalDocumentChangedEvent", "changed", "changed_fields"),
+)
+
 
 def _rename(table: str, old: str, new: str, action: Optional[str]) -> None:
     if action is None:
@@ -85,6 +91,17 @@ def _set_action(table: str, event_type: str, old: str, new: str) -> None:
     )
 
 
+def _move_key(table: str, event_type: str, old: str, new: str) -> None:
+    op.execute(
+        sa.text(
+            f"UPDATE {table} "
+            "SET payload = (payload - CAST(:old AS text)) "
+            "|| jsonb_build_object(CAST(:new AS text), payload -> CAST(:old AS text)) "
+            "WHERE event_type = :event_type AND payload ? CAST(:old AS text)"
+        ).bindparams(event_type=event_type, old=old, new=new)
+    )
+
+
 def _set_category(table: str, event_type: str, category: str) -> None:
     op.execute(
         sa.text(
@@ -99,12 +116,16 @@ def upgrade() -> None:
             _rename(table, old, new, action)
         for event_type, old_action, new_action in _ACTION_RENAMES:
             _set_action(table, event_type, old_action, new_action)
+        for event_type, old_key, new_key in _KEY_RENAMES:
+            _move_key(table, event_type, old_key, new_key)
         _set_category(table, "CabinetNewDeviceSignInEvent", "AUTH")
 
 
 def downgrade() -> None:
     for table in _TABLES:
         _set_category(table, "CabinetNewDeviceSignInEvent", "USER")
+        for event_type, old_key, new_key in _KEY_RENAMES:
+            _move_key(table, event_type, new_key, old_key)
         for event_type, old_action, new_action in _ACTION_RENAMES:
             _set_action(table, event_type, new_action, old_action)
         for old, (new, action) in _RENAMES.items():

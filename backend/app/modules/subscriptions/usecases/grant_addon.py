@@ -81,7 +81,8 @@ class GrantAddOnUseCase(UseCase[GrantAddOnDto, SubscriptionDto]):
                 if owner is not None:
                     await self._event_publisher.publish(
                         SubscriptionAddOnGrantedEvent(
-                            user=owner,
+                            actor=actor,
+                            target=owner,
                             subscription_id=subscription.id,
                             addon_id=addon.id,
                             addon_type=addon.type,

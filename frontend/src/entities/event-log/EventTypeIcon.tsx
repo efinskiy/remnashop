@@ -251,10 +251,7 @@ const EVENT_ICONS: Record<string, LucideIcon> = {
 const ACTION_ICONS: Record<string, Record<string, LucideIcon>> = {
   AdminChangedEvent: { create: UserPlus, promote: ShieldPlus, permissions: UserCog, demote: ShieldMinus, delete: UserMinus },
   TelegramIdChangedEvent: { link: Link, unlink: Unlink },
-  LocaleChangedEvent: { activate: Languages, deactivate: Languages, set_default: Languages },
-  ApiTokenChangedEvent: { create: KeyRound, delete: KeyRound },
   BlacklistEntryChangedEvent: { create: ListPlus, delete: ListMinus },
-  PasskeyChangedEvent: { create: Fingerprint, delete: Fingerprint, rename: Fingerprint },
   UserBlockChangedEvent: { block: Lock, unblock: LockOpen },
   BroadcastChangedEvent: { schedule: CalendarClock, cancel: Ban, recall: Undo2 },
 };
