@@ -229,7 +229,7 @@ export function DebugBar() {
       ];
 
   return (
-    // desktop only, there's no way to open it on mobile anyway.
+    // desktop only: nothing opens it on mobile
     // borderRadius inline, not rounded-full: motion corrects layout distortion only for style values.
     <motion.div
       layout

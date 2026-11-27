@@ -52,4 +52,3 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_table("grace_settings")
-    # ### end Alembic commands ###
