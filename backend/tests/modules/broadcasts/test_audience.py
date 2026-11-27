@@ -263,4 +263,5 @@ def test_recipient_error_values_stay_as_stored() -> None:
         "USER_GONE": "user gone",
         "RECALL_FAILED": "recall failed",
         "STOPPED": "stopped",
+        "NO_DETAILS": "no details",
     }

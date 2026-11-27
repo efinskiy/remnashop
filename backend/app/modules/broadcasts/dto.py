@@ -40,6 +40,8 @@ class BroadcastRecipientError(StrEnum):
     USER_GONE = "user gone"
     RECALL_FAILED = "recall failed"
     STOPPED = "stopped"
+    # a failure that came without any text
+    NO_DETAILS = "no details"
 
 
 class BroadcastSubscriptionFilter(UpperStrEnum):

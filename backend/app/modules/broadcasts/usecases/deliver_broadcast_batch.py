@@ -326,7 +326,7 @@ class DeliverBroadcastBatchUseCase(UseCase[int, None]):
             )
         else:
             await self._recipient_repository.bump_attempt(
-                recipient.id, MAX_ATTEMPTS, result.error or "retry"
+                recipient.id, MAX_ATTEMPTS, result.error or BroadcastRecipientError.NO_DETAILS
             )
 
     async def _still_sending(self, broadcast_id: int) -> bool:

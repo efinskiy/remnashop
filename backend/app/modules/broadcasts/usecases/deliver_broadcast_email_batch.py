@@ -343,7 +343,7 @@ class DeliverBroadcastEmailBatchUseCase(UseCase[int, None]):
             await self._user_repository.set_email_undeliverable(recipient.user_id, datetime_now())
             return "undeliverable"
         await self._recipient_repository.bump_attempt(
-            recipient.id, MAX_ATTEMPTS, result.error or "retry"
+            recipient.id, MAX_ATTEMPTS, result.error or BroadcastRecipientError.NO_DETAILS
         )
         # counted once, by the bump that gives up on the row
         return "failed" if recipient.attempts + 1 >= MAX_ATTEMPTS else None

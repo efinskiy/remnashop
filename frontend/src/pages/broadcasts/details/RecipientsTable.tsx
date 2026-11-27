@@ -32,6 +32,7 @@ const REASON_KEYS: Record<string, ParseKeys> = {
   undeliverable: "broadcasts.details.reasons.undeliverable",
   "bot blocked": "broadcasts.details.reasons.botBlocked",
   "user gone": "broadcasts.details.reasons.userGone",
+  "no details": "broadcasts.details.reasons.noDetails",
 };
 const RECALL_FAILED_PREFIX = "recall failed: ";
 
@@ -126,7 +127,9 @@ export function RecipientsTable({ broadcast, refreshKey }: RecipientsTableProps)
       const key = REASON_KEYS[r.error];
       if (key) return t(key);
       if (r.error.startsWith(RECALL_FAILED_PREFIX)) {
-        return t("broadcasts.details.reasons.recallFailed", { reason: r.error.slice(RECALL_FAILED_PREFIX.length) });
+        const reason = r.error.slice(RECALL_FAILED_PREFIX.length);
+        const reasonKey = REASON_KEYS[reason];
+        return t("broadcasts.details.reasons.recallFailed", { reason: reasonKey ? t(reasonKey) : reason });
       }
       return r.error;
     }

@@ -11,7 +11,7 @@ from app.core.telegram_api import BotApi
 from app.core.usecase import UseCase
 from app.core.utils.time import datetime_now
 from app.modules.broadcasts.dispatch import RecallBroadcastDispatch
-from app.modules.broadcasts.dto import SentRecipientDto
+from app.modules.broadcasts.dto import BroadcastRecipientError, SentRecipientDto
 from app.modules.broadcasts.pacing import BATCH_SIZE, GROUP_PAUSE_S, GROUP_SIZE, MAX_RETRY_AFTER_S
 from app.modules.broadcasts.recipient_repository import BroadcastRecipientRepository
 from app.modules.broadcasts.repository import BroadcastRepository
@@ -71,7 +71,7 @@ class RecallBroadcastBatchUseCase(UseCase[int, None]):
                         )
                     else:
                         await self._recipient_repository.mark_recall_failed(
-                            r.id, result.error or result.outcome
+                            r.id, result.error or BroadcastRecipientError.NO_DETAILS
                         )
             if any(r.outcome is SendOutcome.UNAUTHORIZED for r in results):
                 return False
