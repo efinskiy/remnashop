@@ -1,16 +1,13 @@
-from typing import Final
-
 from loguru import logger
 
 from app.core.enums import BroadcastStatus
 from app.core.exceptions import NotFoundError
 from app.core.ports import EventPublisher
 from app.core.utils.time import datetime_now
+from app.modules.broadcasts.dto import BroadcastRecipientError
 from app.modules.broadcasts.events import BroadcastCompletedEvent, BroadcastFailedEvent
 from app.modules.broadcasts.recipient_repository import BroadcastRecipientRepository
 from app.modules.broadcasts.repository import BroadcastRepository
-
-_STOPPED: Final[str] = "stopped"
 
 
 async def complete_broadcast(
@@ -45,7 +42,7 @@ async def fail_broadcast(
         return
     await repository.finish(broadcast_id, BroadcastStatus.FAILED, datetime_now())
     # FAILED, not CANCELED: a retry after fixing the cause resends them
-    await recipients.fail_pending(broadcast_id, _STOPPED)
+    await recipients.fail_pending(broadcast_id, BroadcastRecipientError.STOPPED)
     await repository.refresh_counts(broadcast_id)
     await publisher.publish(BroadcastFailedEvent(broadcast_id=broadcast_id, error=error))
     logger.warning(f"Broadcast '{broadcast_id}' failed: {error}")

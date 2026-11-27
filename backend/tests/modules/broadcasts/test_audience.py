@@ -262,4 +262,5 @@ def test_recipient_error_values_stay_as_stored() -> None:
         "BOT_BLOCKED": "bot blocked",
         "USER_GONE": "user gone",
         "RECALL_FAILED": "recall failed",
+        "STOPPED": "stopped",
     }

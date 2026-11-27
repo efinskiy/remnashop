@@ -39,6 +39,7 @@ class BroadcastRecipientError(StrEnum):
     BOT_BLOCKED = "bot blocked"
     USER_GONE = "user gone"
     RECALL_FAILED = "recall failed"
+    STOPPED = "stopped"
 
 
 class BroadcastSubscriptionFilter(UpperStrEnum):
