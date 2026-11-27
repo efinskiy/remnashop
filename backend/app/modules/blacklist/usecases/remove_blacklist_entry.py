@@ -6,7 +6,7 @@ from app.core.ports import EventPublisher
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.modules.blacklist.dto import BlacklistDto, BlacklistEntryInputDto
-from app.modules.blacklist.events import BlacklistEntryRemovedEvent
+from app.modules.blacklist.events import BlacklistEntryChangedEvent
 from app.modules.blacklist.normalize import removal_key
 from app.modules.blacklist.repository import BlacklistRepository
 
@@ -30,7 +30,9 @@ class RemoveBlacklistEntryUseCase(UseCase[BlacklistEntryInputDto, BlacklistDto])
             async with self._uow:
                 if await self._blacklist_repository.remove_entry(data.kind, data.value):
                     await self._event_publisher.publish(
-                        BlacklistEntryRemovedEvent(actor=actor, kind=data.kind, value=normalized)
+                        BlacklistEntryChangedEvent(
+                            actor=actor, action="delete", kind=data.kind, value=normalized
+                        )
                     )
 
         async with self._uow:

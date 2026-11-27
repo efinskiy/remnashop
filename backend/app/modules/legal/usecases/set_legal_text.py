@@ -71,7 +71,7 @@ class SetLegalTextUseCase(UseCase[SetLegalTextDto, LegalRevisionDto]):
                     kind=data.kind,
                     locale=data.locale,
                     channel=data.channel,
-                    changed=(
+                    changed_fields=(
                         ["title", "body", "requires_reacceptance"]
                         if data.requires_reacceptance
                         else ["title", "body"]

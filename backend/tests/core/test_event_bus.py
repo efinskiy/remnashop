@@ -27,8 +27,8 @@ from app.modules.customer_notifications.tasks import (
 from app.modules.loyalty.tasks import recalculate_loyalty_discounts_task
 from app.modules.notifications.tasks import deliver_notification_task
 from app.modules.oauth.events import (
-    OAuthIdentityConnectedEvent,
-    OAuthIdentityDisconnectedEvent,
+    OAuthIdentityLinkedEvent,
+    OAuthIdentityUnlinkedEvent,
     OAuthLoginFailedEvent,
     OAuthLoginSucceededEvent,
 )
@@ -86,8 +86,8 @@ _REGISTERED_EVENTS: dict[str, BaseEvent] = {
         BootstrapConflictEvent(login="someone"),
         OAuthLoginSucceededEvent(user=_USER, provider=OAuthProvider.GITHUB),
         OAuthLoginFailedEvent(provider=OAuthProvider.GITHUB),
-        OAuthIdentityConnectedEvent(user=_USER, provider=OAuthProvider.GITHUB),
-        OAuthIdentityDisconnectedEvent(user=_USER, provider=OAuthProvider.GITHUB),
+        OAuthIdentityLinkedEvent(user=_USER, provider=OAuthProvider.GITHUB),
+        OAuthIdentityUnlinkedEvent(user=_USER, provider=OAuthProvider.GITHUB),
         SessionTheftDetectedEvent(user_id=1, session_id=1),
         SessionRevokedEvent(user=_USER, session_id=1),
         UserSessionRevokedByAdminEvent(actor=_USER, target=_TARGET, session_id=1),
@@ -133,7 +133,6 @@ _REGISTERED_EVENTS: dict[str, BaseEvent] = {
         CabinetNewDeviceSignInEvent(user=_USER, browser="Firefox on Linux"),
         SubscriptionAddOnGrantedEvent(
             user=_USER,
-            target=_TARGET,
             subscription_id=1,
             addon_id=1,
             addon_type=AddOnType.TRAFFIC,

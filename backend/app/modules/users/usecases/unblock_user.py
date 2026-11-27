@@ -7,7 +7,7 @@ from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.modules.blacklist import BlacklistKind, BlacklistRepository
 from app.modules.users.dto import UnblockUserDto, UserListItemDto
-from app.modules.users.events import UserUnblockedEvent
+from app.modules.users.events import UserBlockChangedEvent
 from app.modules.users.listing import detail_roles
 from app.modules.users.repository import UserRepository
 from app.modules.users.visibility import assert_manageable, get_visible_target
@@ -45,6 +45,8 @@ class UnblockUserUseCase(UseCase[UnblockUserDto, UserListItemDto]):
             if target.email is not None:
                 await self._blacklist_repository.remove_entry(BlacklistKind.EMAIL, target.email)
             await self._event_publisher.publish(
-                UserUnblockedEvent(actor=actor, target=updated, ip_address=data.client_ip)
+                UserBlockChangedEvent(
+                    actor=actor, action="unblock", target=updated, ip_address=data.client_ip
+                )
             )
             return await self._user_repository.get_list_item(updated.id, detail_roles(actor))

@@ -15,9 +15,7 @@ from app.core.exceptions import (
 from app.core.ports import EventPublisher
 from app.modules.settings.repository import SettingsRepository
 from app.modules.translations.events import (
-    DefaultLocaleChangedEvent,
-    LocaleActivatedEvent,
-    LocaleDeactivatedEvent,
+    LocaleChangedEvent,
 )
 from app.modules.translations.repository import TranslationRepository
 from app.modules.translations.usecases import (
@@ -135,7 +133,8 @@ async def test_add_locale_publishes_locale_activated_event(
     row = (
         await session.scalars(
             select(EventOutboxEntry).where(
-                EventOutboxEntry.event_type == LocaleActivatedEvent.__name__
+                EventOutboxEntry.event_type == LocaleChangedEvent.__name__,
+                EventOutboxEntry.payload["action"].astext == "activate",
             )
         )
     ).one()
@@ -186,7 +185,8 @@ async def test_remove_locale_publishes_locale_deactivated_event(
     row = (
         await session.scalars(
             select(EventOutboxEntry).where(
-                EventOutboxEntry.event_type == LocaleDeactivatedEvent.__name__
+                EventOutboxEntry.event_type == LocaleChangedEvent.__name__,
+                EventOutboxEntry.payload["action"].astext == "deactivate",
             )
         )
     ).one()
@@ -278,7 +278,8 @@ async def test_set_default_locale_moves_the_removal_guard(
     row = (
         await session.scalars(
             select(EventOutboxEntry).where(
-                EventOutboxEntry.event_type == DefaultLocaleChangedEvent.__name__
+                EventOutboxEntry.event_type == LocaleChangedEvent.__name__,
+                EventOutboxEntry.payload["action"].astext == "set_default",
             )
         )
     ).one()

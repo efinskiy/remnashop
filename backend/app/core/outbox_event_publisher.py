@@ -8,6 +8,7 @@ from app.core.db.models import EventOutboxEntry
 from app.core.db.uow import UnitOfWork
 from app.core.events import EVENT_ROW_FIELDS, ActorEvent, ActorSnapshot, BaseEvent, UserEvent
 from app.core.ports import OutboxEntryDispatch
+from app.core.request_ip import REQUEST_CLIENT_IP
 
 
 def _sanitize_user(user: Actor) -> dict[str, Any]:
@@ -37,6 +38,15 @@ def _actor_fields(
     return actor_id, actor.login, actor.name, actor.email
 
 
+def _ip_address(event: BaseEvent) -> Optional[str]:
+    if event.ip_address is not None:
+        return event.ip_address
+    # an admin's write from the api: the request's address, unless the system acted
+    if isinstance(event, ActorEvent) and not event.actor.is_system:
+        return REQUEST_CLIENT_IP.get()
+    return None
+
+
 class OutboxEventPublisher:
     def __init__(self, uow: UnitOfWork, dispatch: OutboxEntryDispatch) -> None:
         self._uow = uow
@@ -52,7 +62,7 @@ class OutboxEventPublisher:
             actor_login=actor_login,
             actor_name=actor_name,
             actor_email=actor_email,
-            ip_address=event.ip_address,
+            ip_address=_ip_address(event),
             payload=_build_payload(event),
         )
         self._uow.session.add(entry)

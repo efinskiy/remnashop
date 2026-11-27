@@ -8,7 +8,7 @@ from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.modules.blacklist import BlacklistRepository
 from app.modules.oauth.dto import CreateOAuthIdentityDto, OAuthCallbackDto, OAuthIdentityDto
-from app.modules.oauth.events import OAuthIdentityConnectedEvent
+from app.modules.oauth.events import OAuthIdentityLinkedEvent
 from app.modules.oauth.providers.base import OAUTH_EXCHANGE_ERRORS, build_redirect_uri
 from app.modules.oauth.providers.registry import get_oauth_client
 from app.modules.oauth.providers.state_store import OAuthFlowPurpose, OAuthStateStore
@@ -81,7 +81,7 @@ class OAuthConnectCallbackUseCase(UseCase[OAuthCallbackDto, OAuthIdentityDto, Us
                         )
                     await self._user_repository.set_telegram_id(actor.id, telegram_id)
                     await self._event_publisher.publish(
-                        OAuthIdentityConnectedEvent(
+                        OAuthIdentityLinkedEvent(
                             user=actor,
                             provider=data.provider,
                             ip_address=data.client_ip,
@@ -122,7 +122,7 @@ class OAuthConnectCallbackUseCase(UseCase[OAuthCallbackDto, OAuthIdentityDto, Us
                 )
             )
             await self._event_publisher.publish(
-                OAuthIdentityConnectedEvent(
+                OAuthIdentityLinkedEvent(
                     user=actor,
                     provider=data.provider,
                     ip_address=data.client_ip,

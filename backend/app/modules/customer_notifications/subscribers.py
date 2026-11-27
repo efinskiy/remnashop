@@ -99,10 +99,9 @@ async def _on_renewed(event: SubscriptionRenewedEvent, entry: StoredEvent) -> No
 
 
 async def _on_addon(event: SubscriptionAddOnGrantedEvent, entry: StoredEvent) -> None:
-    # the owner is `target`; `user` is the system actor on the promocode path
     await _notify(
         entry,
-        (event.target or event.user).id,
+        event.user.id,
         {"addon_type": event.addon_type, "amount": event.amount},
         subscription_id=event.subscription_id,
     )

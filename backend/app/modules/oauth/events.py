@@ -18,7 +18,7 @@ class OAuthLoginFailedEvent(BaseEvent):
 
 
 @dataclass(frozen=True, kw_only=True)
-class OAuthIdentityConnectedEvent(UserEvent):
+class OAuthIdentityLinkedEvent(UserEvent):
     category: ClassVar[EventCategory] = EventCategory.AUTH
     provider: OAuthProvider
     # Telegram replaces users.telegram_id: the one it unbound
@@ -26,6 +26,6 @@ class OAuthIdentityConnectedEvent(UserEvent):
 
 
 @dataclass(frozen=True, kw_only=True)
-class OAuthIdentityDisconnectedEvent(UserEvent):
+class OAuthIdentityUnlinkedEvent(UserEvent):
     category: ClassVar[EventCategory] = EventCategory.AUTH
     provider: OAuthProvider

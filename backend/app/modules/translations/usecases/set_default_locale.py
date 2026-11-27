@@ -7,7 +7,7 @@ from app.core.ports import BotSignals, EventPublisher
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.modules.translations.dto import ActiveLocalesDto
-from app.modules.translations.events import DefaultLocaleChangedEvent
+from app.modules.translations.events import LocaleChangedEvent
 from app.modules.translations.ports import BotCommandsSync, DefaultBannerSeed
 from app.modules.translations.repository import TranslationRepository
 
@@ -45,7 +45,9 @@ class SetDefaultLocaleUseCase(UseCase[Locale, ActiveLocalesDto]):
             # display falls back to the default locale's banner, so it must exist
             await self._default_banner.ensure(data)
             locales = await self._translation_repository.get_locales()
-            await self._event_publisher.publish(DefaultLocaleChangedEvent(actor=actor, locale=data))
+            await self._event_publisher.publish(
+                LocaleChangedEvent(actor=actor, action="set_default", locale=data)
+            )
         # the default locale's names also serve clients whose language has none
         await self._bot_commands.push()
         # the bot reads its root locale once at startup

@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import ClassVar, Literal, Optional
 
 from app.core.enums import LegalDocumentKind, Locale, PurchaseChannel
@@ -12,4 +12,4 @@ class LegalDocumentChangedEvent(ActorEvent):
     kind: LegalDocumentKind
     locale: Optional[Locale] = None
     channel: Optional[PurchaseChannel] = None
-    changed: list[str]
+    changed_fields: list[str] = field(default_factory=list)

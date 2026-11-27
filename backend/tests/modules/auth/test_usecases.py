@@ -46,8 +46,8 @@ from app.modules.auth.usecases import (
     RevokeUserSessionUseCase,
 )
 from app.modules.oauth.events import (
-    OAuthIdentityConnectedEvent,
-    OAuthIdentityDisconnectedEvent,
+    OAuthIdentityLinkedEvent,
+    OAuthIdentityUnlinkedEvent,
     OAuthLoginFailedEvent,
     OAuthLoginSucceededEvent,
 )
@@ -447,8 +447,8 @@ def test_all_auth_events_declare_auth_category() -> None:
         BootstrapConflictEvent,
         OAuthLoginSucceededEvent,
         OAuthLoginFailedEvent,
-        OAuthIdentityConnectedEvent,
-        OAuthIdentityDisconnectedEvent,
+        OAuthIdentityLinkedEvent,
+        OAuthIdentityUnlinkedEvent,
     ]
 
     for event_class in event_classes:

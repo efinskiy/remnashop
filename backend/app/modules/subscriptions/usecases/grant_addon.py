@@ -77,17 +77,17 @@ class GrantAddOnUseCase(UseCase[GrantAddOnDto, SubscriptionDto]):
             if addon.type != AddOnType.TRAFFIC or subscription.grace_until is None:
                 await self._remnawave_sdk.users.update_user(request)
             if not repeat:
-                recipient = await self._user_repository.find_by_id(subscription.user_id)
-                await self._event_publisher.publish(
-                    SubscriptionAddOnGrantedEvent(
-                        user=actor,
-                        target=recipient,
-                        subscription_id=subscription.id,
-                        addon_id=addon.id,
-                        addon_type=addon.type,
-                        amount=addon.amount,
+                owner = await self._user_repository.find_by_id(subscription.user_id)
+                if owner is not None:
+                    await self._event_publisher.publish(
+                        SubscriptionAddOnGrantedEvent(
+                            user=owner,
+                            subscription_id=subscription.id,
+                            addon_id=addon.id,
+                            addon_type=addon.type,
+                            amount=addon.amount,
+                        )
                     )
-                )
 
         logger.info(
             f"Granted addon '{addon.id}' ({addon.amount} {addon.type.value}) "

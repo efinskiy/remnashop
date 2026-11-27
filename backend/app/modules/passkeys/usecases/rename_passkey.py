@@ -5,7 +5,7 @@ from app.core.ports import EventPublisher
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.modules.passkeys.dto import PasskeyCredentialDto, RenamePasskeyDto
-from app.modules.passkeys.events import PasskeyRenamedEvent
+from app.modules.passkeys.events import PasskeyChangedEvent
 from app.modules.passkeys.repository import PasskeyRepository
 from app.modules.users import UserDto
 
@@ -31,8 +31,11 @@ class RenamePasskeyUseCase(UseCase[RenamePasskeyDto, PasskeyCredentialDto, UserD
 
             renamed = await self._passkey_repository.update_name(data.id, data.name)
             await self._event_publisher.publish(
-                PasskeyRenamedEvent(
-                    user=actor, credential_name=renamed.name, ip_address=data.client_ip
+                PasskeyChangedEvent(
+                    user=actor,
+                    action="rename",
+                    credential_name=renamed.name,
+                    ip_address=data.client_ip,
                 )
             )
             return renamed

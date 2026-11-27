@@ -161,7 +161,7 @@ async def test_system_can_grant_addon_and_push_limit_to_panel(
     assert panel_payload["hwidDeviceLimit"] == 3  # unchanged, base plan value
 
 
-async def test_grant_addon_event_records_subscription_owner_as_target(
+async def test_grant_addon_event_records_subscription_owner(
     plan_repository: PlanRepository,
     subscription_repository: SubscriptionRepository,
     addon_repository: AddOnRepository,
@@ -204,8 +204,8 @@ async def test_grant_addon_event_records_subscription_owner_as_target(
             )
         )
     ).one()
-    assert row.payload["target"]["id"] == buyer.id
-    assert row.payload["target"]["telegram_id"] == 436
+    assert row.actor_id == buyer.id
+    assert row.payload["user"]["telegram_id"] == 436
     assert row.payload["addon_type"] == addon.type
 
 

@@ -13,6 +13,7 @@ from app.core.usecase import UseCase
 from app.core.utils.time import datetime_now
 from app.modules.event_log import EventOutboxRepository
 from app.modules.notifications import DeliverNotificationDto, DeliverNotificationUseCase
+from app.modules.overview.dto import AttentionKind
 from app.modules.overview.events import SystemHealthDegradedEvent, SystemHealthRestoredEvent
 from app.modules.overview.system_health import (
     HealthState,
@@ -55,14 +56,12 @@ class CheckSystemHealthUseCase(UseCase[None, None]):
             )
         transition = advance(state, drop_worker_consequences(state, problems))
         events: list[SystemEvent] = [
-            SystemHealthDegradedEvent(
-                kind=p.kind.value, subject=p.subject or "", value=p.value or 0
-            )
+            SystemHealthDegradedEvent(kind=p.kind, subject=p.subject or "", value=p.value or 0)
             for p in transition.degraded
         ]
         for key in transition.restored:
             kind, _, subject = key.partition(":")
-            events.append(SystemHealthRestoredEvent(kind=kind, subject=subject))
+            events.append(SystemHealthRestoredEvent(kind=AttentionKind(kind), subject=subject))
         for event in events:
             await self._deliver(event)
         async with self._uow:

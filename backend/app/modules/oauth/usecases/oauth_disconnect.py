@@ -5,7 +5,7 @@ from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.modules.auth import SignInMethodGuard
 from app.modules.oauth.dto import OAuthDisconnectDto
-from app.modules.oauth.events import OAuthIdentityDisconnectedEvent
+from app.modules.oauth.events import OAuthIdentityUnlinkedEvent
 from app.modules.oauth.repository import OAuthIdentityRepository
 from app.modules.users import UserDto, UserRepository
 
@@ -44,7 +44,7 @@ class OAuthDisconnectUseCase(UseCase[OAuthDisconnectDto, None, UserDto]):
                     actor, without_provider=data.provider
                 )
                 await self._event_publisher.publish(
-                    OAuthIdentityDisconnectedEvent(
+                    OAuthIdentityUnlinkedEvent(
                         user=actor, provider=data.provider, ip_address=data.client_ip
                     )
                 )

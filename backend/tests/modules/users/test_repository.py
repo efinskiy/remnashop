@@ -233,7 +233,7 @@ async def test_delete_user_nulls_out_actor_id_on_their_own_event_log_entries(
         entry = await event_log_repository.create(
             EventLogEntryDto(
                 category=EventCategory.ADMIN_MANAGEMENT,
-                event_type="AdminCreatedEvent",
+                event_type="AdminChangedEvent",
                 occurred_at=datetime_now(),
                 actor_id=actor.id,
                 actor_login=actor.login,

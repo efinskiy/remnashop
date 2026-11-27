@@ -9,36 +9,22 @@ class BroadcastChangedEvent(ActorEvent):
     category: ClassVar[EventCategory] = EventCategory.BROADCAST
     action: Literal[
         "add_email_image",
+        "cancel",
         "create",
         "delete",
         "delete_media",
         "duplicate",
+        "recall",
         "retry",
+        "schedule",
         "set_media",
         "update",
     ]
     broadcast_id: int
     # set on a duplicate: the broadcast it was copied from
     source_broadcast_id: Optional[int] = None
-
-
-@dataclass(frozen=True, kw_only=True)
-class BroadcastScheduledEvent(ActorEvent):
-    category: ClassVar[EventCategory] = EventCategory.BROADCAST
-    broadcast_id: int
-    scheduled_at: str
-
-
-@dataclass(frozen=True, kw_only=True)
-class BroadcastCanceledEvent(ActorEvent):
-    category: ClassVar[EventCategory] = EventCategory.BROADCAST
-    broadcast_id: int
-
-
-@dataclass(frozen=True, kw_only=True)
-class BroadcastRecalledEvent(ActorEvent):
-    category: ClassVar[EventCategory] = EventCategory.BROADCAST
-    broadcast_id: int
+    # set on a schedule, ISO 8601
+    scheduled_at: Optional[str] = None
 
 
 @dataclass(frozen=True, kw_only=True)

@@ -60,6 +60,5 @@ class RescueCliUsedEvent(SystemEvent):
     """A break-glass action run from `python -m app.cli` on the server."""
 
     category: ClassVar[EventCategory] = EventCategory.AUTH
-    # reset_owner_access | enable_password_login | restore_backup | reset_encrypted_secrets
     action: RescueCliAction
     user_id: Optional[int] = None

@@ -10,7 +10,7 @@ from app.core.security import generate_password, hash_password
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.modules.users.dto import AdminWithPasswordDto, PromoteAdminDto, PromoteToAdminDto, UserDto
-from app.modules.users.events import AdminPromotedEvent
+from app.modules.users.events import AdminChangedEvent
 from app.modules.users.repository import UserRepository
 
 
@@ -68,7 +68,9 @@ class PromoteToAdminUseCase(UseCase[PromoteToAdminDto, AdminWithPasswordDto]):
             )
             assert updated is not None
             await self._event_publisher.publish(
-                AdminPromotedEvent(actor=actor, target=updated, ip_address=data.client_ip)
+                AdminChangedEvent(
+                    actor=actor, action="promote", target=updated, ip_address=data.client_ip
+                )
             )
 
         return AdminWithPasswordDto(admin=updated, password=password)

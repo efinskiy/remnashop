@@ -6,7 +6,7 @@ from app.core.ports import EventPublisher
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.modules.api_tokens.dto import RevokeApiTokenDto
-from app.modules.api_tokens.events import ApiTokenRevokedEvent
+from app.modules.api_tokens.events import ApiTokenChangedEvent
 from app.modules.api_tokens.repository import ApiTokenRepository
 
 
@@ -29,5 +29,7 @@ class RevokeApiTokenUseCase(UseCase[RevokeApiTokenDto, None]):
             if revoked is None:
                 raise NotFoundError("API token not found", code=ErrorCode.API_TOKEN_NOT_FOUND)
             await self._event_publisher.publish(
-                ApiTokenRevokedEvent(actor=actor, token_id=data.token_id, ip_address=data.client_ip)
+                ApiTokenChangedEvent(
+                    actor=actor, action="delete", token_id=data.token_id, ip_address=data.client_ip
+                )
             )

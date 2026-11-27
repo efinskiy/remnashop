@@ -15,7 +15,7 @@ from app.modules.passkeys.dto import (
     PasskeyCredentialDto,
     VerifyPasskeyRegistrationDto,
 )
-from app.modules.passkeys.events import PasskeyRegisteredEvent
+from app.modules.passkeys.events import PasskeyChangedEvent
 from app.modules.passkeys.repository import PasskeyRepository
 from app.modules.settings import SettingsRepository
 from app.modules.users import UserDto
@@ -101,8 +101,11 @@ class VerifyPasskeyRegistrationUseCase(
                 )
             )
             await self._event_publisher.publish(
-                PasskeyRegisteredEvent(
-                    user=actor, credential_name=credential.name, ip_address=data.client_ip
+                PasskeyChangedEvent(
+                    user=actor,
+                    action="create",
+                    credential_name=credential.name,
+                    ip_address=data.client_ip,
                 )
             )
         return credential

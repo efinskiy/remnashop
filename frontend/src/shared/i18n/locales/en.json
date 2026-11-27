@@ -781,41 +781,31 @@
       "OAuthLoginSucceededEvent": "Dashboard sign-in (OAuth)",
       "OAuthLoginFailedEvent": "Dashboard sign-in failed (OAuth)",
       "EmailCodeAttemptsExhaustedEvent": "Email code attempts exhausted",
-      "OAuthIdentityConnectedEvent": "OAuth account linked",
-      "OAuthIdentityDisconnectedEvent": "OAuth account unlinked",
+      "OAuthIdentityLinkedEvent": "OAuth account linked",
+      "OAuthIdentityUnlinkedEvent": "OAuth account unlinked",
       "SignInMethodLinkedEvent": "Sign-in method linked",
       "SignInMethodUnlinkedEvent": "Sign-in method unlinked",
       "SessionRevokedEvent": "Session revoked",
       "OtherSessionsRevokedEvent": "Other sessions revoked",
       "SessionTheftDetectedEvent": "Session theft",
       "UserSessionRevokedByAdminEvent": "Session revoked by admin",
-      "AdminCreatedEvent": "Admin created",
-      "AdminPromotedEvent": "Admin appointed",
-      "AdminPermissionsUpdatedEvent": "Admin permissions changed",
-      "AdminDemotedEvent": "Admin demoted",
-      "AdminDeletedEvent": "Admin deleted",
-      "TelegramIdBoundEvent": "Telegram ID linked",
-      "TelegramIdUnboundEvent": "Telegram ID unlinked",
+      "AdminChangedEvent": "Admin changed",
+      "TelegramIdChangedEvent": "Telegram ID changed",
       "UserDeletedEvent": "User deleted",
       "CabinetUserRegisteredEvent": "Cabinet sign-up",
       "TelegramUserRegisteredEvent": "Bot sign-up",
-      "LocaleActivatedEvent": "Language added",
-      "LocaleDeactivatedEvent": "Language removed",
-      "DefaultLocaleChangedEvent": "Default language changed",
+      "LocaleChangedEvent": "Language changed",
       "AnchorSwitchedEvent": "Anchor currency changed",
       "UnratedAnchorAmountsRatedEvent": "Old payments converted at current rates",
       "BasePricesAdjustedEvent": "Base prices changed",
-      "ApiTokenCreatedEvent": "API token created",
-      "ApiTokenRevokedEvent": "API token revoked",
-      "BlacklistEntryAddedEvent": "Blacklist entry added",
-      "BlacklistEntryRemovedEvent": "Blacklist entry removed",
+      "ApiTokenChangedEvent": "API token changed",
+      "BlacklistEntryChangedEvent": "Blacklist entry changed",
       "BlacklistReconciledEvent": "Blacklist auto-block",
       "CurrencyRateChangedEvent": "Currency rate changed",
       "OidcIssuerChangedEvent": "OIDC issuer changed",
       "PasskeyLoginFailedEvent": "Dashboard sign-in failed (passkey)",
       "PasskeyLoginSucceededEvent": "Dashboard sign-in (passkey)",
-      "PasskeyRegisteredEvent": "Passkey added",
-      "PasskeyRemovedEvent": "Passkey removed",
+      "PasskeyChangedEvent": "Passkey changed",
       "PlanChangedEvent": "Plan changed",
       "BonusDaysRedeemedEvent": "Bonus days redeemed",
       "PromocodeActivatedEvent": "Promocode activated",
@@ -835,13 +825,12 @@
       "CabinetRegistrationBlockedEvent": "Cabinet sign-up blocked",
       "CabinetNewDeviceSignInEvent": "Cabinet sign-in from a new device",
       "AccountsMergedEvent": "Accounts merged",
-      "UserBlockedEvent": "User blocked",
+      "UserBlockChangedEvent": "User block changed",
       "UserPointsAdjustedEvent": "Points adjusted",
       "UserBonusDaysAdjustedEvent": "Bonus days adjusted",
       "UserPersonalDiscountChangedEvent": "Personal discount changed",
       "UserMarkupChangedEvent": "Markup changed",
       "UserPurchaseDiscountChangedEvent": "Purchase discount changed",
-      "UserUnblockedEvent": "User unblocked",
       "UserBotMenuResetEvent": "Customer’s bot menu reset",
       "UserEmailUndeliverableClearedEvent": "Undeliverable email mark cleared",
       "UserTrialAvailabilityChangedEvent": "Trial availability changed",
@@ -858,12 +847,9 @@
       "BackupFailedEvent": "Backup failed",
       "BonusDaysRenewalStuckEvent": "Bonus days not applied",
       "BroadcastChangedEvent": "Broadcast changed",
-      "BroadcastScheduledEvent": "Broadcast scheduled",
       "BroadcastStartedEvent": "Broadcast started",
       "BroadcastCompletedEvent": "Broadcast finished",
       "BroadcastFailedEvent": "Broadcast failed",
-      "BroadcastCanceledEvent": "Broadcast canceled",
-      "BroadcastRecalledEvent": "Broadcast recalled",
       "VapidKeysGeneratedEvent": "Push notification keys generated",
       "GatewayChangedEvent": "Payment gateway changed",
       "PricingSettingsChangedEvent": "Pricing settings changed",
@@ -933,7 +919,6 @@
       "TransactionExpiredEvent": "Unpaid order expired",
       "MarketingOptOutChangedEvent": "Marketing consent changed",
       "BotBlockedByUserEvent": "Bot blocked by user",
-      "PasskeyRenamedEvent": "Passkey renamed",
       "AdLinkAttributedEvent": "Ad link visit",
       "BackupCompletedEvent": "Backup completed",
       "DailyReportEvent": "Daily report",
@@ -970,11 +955,11 @@
       "BannerChangedEvent": {
         "upload": "Banner uploaded",
         "delete": "Banner deleted",
-        "reset_default": "Banner reset"
+        "reset": "Banner reset"
       },
       "BlacklistSourceChangedEvent": {
-        "add": "Blacklist source added",
-        "remove": "Blacklist source removed",
+        "create": "Blacklist source added",
+        "delete": "Blacklist source removed",
         "enable": "Blacklist source enabled",
         "disable": "Blacklist source disabled",
         "sync": "Blacklist synced"
@@ -987,7 +972,10 @@
         "set_media": "Broadcast media changed",
         "delete_media": "Broadcast media removed",
         "add_email_image": "Email image added",
-        "duplicate": "Broadcast copied"
+        "duplicate": "Broadcast copied",
+        "schedule": "Broadcast scheduled",
+        "cancel": "Broadcast canceled",
+        "recall": "Broadcast recalled"
       },
       "ConnectGuideChangedEvent": {
         "update": "Connect guide changed",
@@ -1087,6 +1075,39 @@
         "import": "Translations imported",
         "reset": "Translation reset",
         "reset_all": "All translations reset"
+      },
+      "LocaleChangedEvent": {
+        "activate": "Language added",
+        "deactivate": "Language removed",
+        "set_default": "Default language changed"
+      },
+      "BlacklistEntryChangedEvent": {
+        "create": "Blacklist entry added",
+        "delete": "Blacklist entry removed"
+      },
+      "AdminChangedEvent": {
+        "create": "Admin created",
+        "promote": "Admin appointed",
+        "demote": "Admin demoted",
+        "delete": "Admin deleted",
+        "permissions": "Admin permissions changed"
+      },
+      "UserBlockChangedEvent": {
+        "block": "User blocked",
+        "unblock": "User unblocked"
+      },
+      "PasskeyChangedEvent": {
+        "create": "Passkey added",
+        "delete": "Passkey removed",
+        "rename": "Passkey renamed"
+      },
+      "ApiTokenChangedEvent": {
+        "create": "API token created",
+        "delete": "API token revoked"
+      },
+      "TelegramIdChangedEvent": {
+        "link": "Telegram ID linked",
+        "unlink": "Telegram ID unlinked"
       }
     }
   },
