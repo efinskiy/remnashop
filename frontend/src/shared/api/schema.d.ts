@@ -5006,6 +5006,11 @@ export interface components {
             /** Timezone */
             timezone: string;
         };
+        /** ShopTimezoneResponse */
+        ShopTimezoneResponse: {
+            /** Timezone */
+            timezone: string;
+        };
         /** SlideResponse */
         SlideResponse: {
             /** Image Url */

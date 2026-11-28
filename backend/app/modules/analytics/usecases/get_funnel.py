@@ -1,3 +1,4 @@
+from datetime import tzinfo
 from functools import partial
 from typing import Final, Optional
 
@@ -56,14 +57,15 @@ class GetFunnelUseCase(UseCase[AnalyticsPeriodQueryDto, FunnelDto]):
         self._cache = cache
 
     async def _execute(self, actor: Actor, data: AnalyticsPeriodQueryDto) -> FunnelDto:
+        async with self._uow:
+            zone = (await self._settings_repository.get_shop_settings()).zone
         return await self._cache.get_or_compute(
-            "get_funnel", data, FunnelDto, partial(self._compute, data)
+            "get_funnel", data, FunnelDto, partial(self._compute, data, zone), zone=zone
         )
 
-    async def _compute(self, data: AnalyticsPeriodQueryDto) -> FunnelDto:
+    async def _compute(self, data: AnalyticsPeriodQueryDto, zone: tzinfo) -> FunnelDto:
         async with self._uow:
             now = datetime_now()
-            zone = (await self._settings_repository.get_shop_settings()).zone
             period = resolve_period(
                 data.period_from,
                 data.period_to,

@@ -1,6 +1,7 @@
+from datetime import datetime, tzinfo
 from typing import Final, Optional, Union
 
-from app.core.constants import GB_TO_BYTES, MB_TO_BYTES
+from app.core.constants import DATE_FORMAT, GB_TO_BYTES, MB_TO_BYTES
 from app.core.enums import Locale
 from app.core.utils.money import format_money
 from app.modules.subscriptions import (
@@ -15,6 +16,26 @@ _MB_PER_GB: Final[int] = GB_TO_BYTES // MB_TO_BYTES
 NAMES_PLAN: Final[frozenset[str]] = frozenset(
     {SubscriptionGrantedEvent.__name__, SubscriptionChangedEvent.__name__}
 )
+
+
+# args that arrive as ISO moments and are shown as the shop's date
+_DATE_ARGS: Final[tuple[str, ...]] = ("grace_until", "disable_date", "reset_date")
+
+
+def shop_dates(args: dict[str, Union[str, int]], zone: tzinfo) -> dict[str, Union[str, int]]:
+    """Date args as the shop's day; a value already written as a date (a task queued
+    before this was) or "none" stays as it is."""
+    dated = dict(args)
+    for name in _DATE_ARGS:
+        value = args.get(name)
+        if not isinstance(value, str):
+            continue
+        try:
+            moment = datetime.fromisoformat(value)
+        except ValueError:
+            continue
+        dated[name] = moment.astimezone(zone).strftime(DATE_FORMAT)
+    return dated
 
 
 def customer_render_args(

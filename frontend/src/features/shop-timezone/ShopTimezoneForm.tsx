@@ -3,6 +3,7 @@ import { useEffect, useId, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import { getShopSettings, updateShopSettings } from "@entities/settings/api";
+import { setShopTimeZone } from "@entities/settings/shop-time-zone";
 import { usePermissions } from "@entities/user/use-current-user";
 import { getErrorMessage } from "@shared/api/http";
 import { toast } from "@shared/lib/toast";
@@ -38,7 +39,9 @@ export function ShopTimezoneForm() {
     event.preventDefault();
     setIsSubmitting(true);
     try {
-      setData(await updateShopSettings({ timezone }));
+      const saved = await updateShopSettings({ timezone });
+      setShopTimeZone(saved.timezone);
+      setData(saved);
       toast.success(t("common.saved"));
     } catch (err) {
       toast.error(getErrorMessage(err, t("common.errors.generic")));

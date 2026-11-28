@@ -21,6 +21,7 @@ from app.modules.analytics.usecases.get_retention import (
     _monthly_churn,
 )
 from app.modules.pricing.repository import PricingRepository
+from app.modules.settings.repository import SettingsRepository
 from app.modules.subscriptions.dto import CreateSubscriptionDto
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.stats_repository import SubscriptionStatsRepository
@@ -50,6 +51,7 @@ def _use_case(
         pricing_repository,
         uow,
         PassThroughAnalyticsCache(),
+        SettingsRepository(session),
     )
 
 

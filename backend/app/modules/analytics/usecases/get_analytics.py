@@ -103,14 +103,15 @@ class GetAnalyticsUseCase(UseCase[AnalyticsPeriodQueryDto, AnalyticsDto]):
         self._cache = cache
 
     async def _execute(self, actor: Actor, data: AnalyticsPeriodQueryDto) -> AnalyticsDto:
+        async with self._uow:
+            zone = (await self._settings_repository.get_shop_settings()).zone
         return await self._cache.get_or_compute(
-            "get_analytics", data, AnalyticsDto, partial(self._compute, data)
+            "get_analytics", data, AnalyticsDto, partial(self._compute, data, zone), zone=zone
         )
 
-    async def _compute(self, data: AnalyticsPeriodQueryDto) -> AnalyticsDto:
+    async def _compute(self, data: AnalyticsPeriodQueryDto, zone: tzinfo) -> AnalyticsDto:
         async with self._uow:
             now = datetime_now()
-            zone = (await self._settings_repository.get_shop_settings()).zone
             period = resolve_period(
                 data.period_from,
                 data.period_to,

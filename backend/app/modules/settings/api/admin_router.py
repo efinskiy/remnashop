@@ -2,7 +2,7 @@ from dishka import FromDishka
 from dishka.integrations.fastapi import inject
 from fastapi import APIRouter, Depends, Request, Response, status
 
-from app.api.dependencies.admin import require_admin
+from app.api.dependencies.admin import require_admin, require_admin_user
 from app.api.errors import error_responses
 from app.api.uploads import MULTIPART_FILE_BODY, read_form_file
 from app.core.actor import Actor
@@ -21,6 +21,7 @@ from app.modules.settings.api.schemas import (
     OAuthSettingsResponse,
     SetBotProxyRequest,
     ShopSettingsResponse,
+    ShopTimezoneResponse,
     UpdateAccessSettingsRequest,
     UpdateAppearanceRequest,
     UpdateBotCommandsRequest,
@@ -65,6 +66,7 @@ from app.modules.settings.usecases import (
     GetGraceSettingsUseCase,
     GetOAuthSettingsUseCase,
     GetShopSettingsUseCase,
+    GetShopTimezoneUseCase,
     RemoveBotProxyUseCase,
     ResetAppearanceSettingsUseCase,
     ResetBulkEmailSettingsUseCase,
@@ -85,6 +87,7 @@ from app.modules.settings.usecases import (
     UploadAppearanceFaviconUseCase,
     UploadAppearanceLogoUseCase,
 )
+from app.modules.users import UserDto
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -331,6 +334,16 @@ async def get_shop_settings(
 ) -> ShopSettingsResponse:
     settings = await use_case(actor)
     return ShopSettingsResponse.model_validate(settings, from_attributes=True)
+
+
+@router.get("/timezone", response_model=ShopTimezoneResponse)
+@inject
+async def get_shop_timezone(
+    use_case: FromDishka[GetShopTimezoneUseCase],
+    actor: UserDto = Depends(require_admin_user),
+) -> ShopTimezoneResponse:
+    zone = await use_case(actor)
+    return ShopTimezoneResponse.model_validate(zone, from_attributes=True)
 
 
 @router.patch("/shop", response_model=ShopSettingsResponse, responses=error_responses(400))

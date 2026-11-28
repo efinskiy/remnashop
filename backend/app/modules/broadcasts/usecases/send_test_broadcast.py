@@ -59,6 +59,7 @@ class SendTestBroadcastUseCase(UseCase[int, None, UserDto]):
                     "No Telegram linked", code=ErrorCode.BROADCAST_TEST_NO_TELEGRAM
                 )
             bot = await self._settings_repository.get_bot_settings()
+            zone = (await self._settings_repository.get_shop_settings()).zone
             contexts = await self._recipient_repository.recipient_contexts([actor.id])
             code = (
                 await promocode_is_usable(self._promocode_repository, broadcast.promocode_id)
@@ -75,6 +76,7 @@ class SendTestBroadcastUseCase(UseCase[int, None, UserDto]):
         message = BroadcastRenderer(
             broadcast,
             promocode_code=code,
+            zone=zone,
             referral_bases=await referral_link_bases(
                 cabinet_allowed, bot, self._config.cabinet.url
             ),

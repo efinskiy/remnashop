@@ -1,4 +1,5 @@
 import { apiGet } from "@shared/api/http";
+import { loadShopTimeZone, shopToday } from "@entities/settings/shop-time-zone";
 import { toIsoDate } from "@shared/lib/iso-date";
 import type { Permission } from "@shared/types/rbac";
 import type { ApiSchema } from "@shared/api/schemas";
@@ -25,7 +26,7 @@ export type RevenueGranularity = ApiSchema<"RevenueGranularity">;
 
 export type Analytics = ApiSchema<"AnalyticsResponse">;
 
-export function periodParams(period: AnalyticsPeriod, today = new Date()): URLSearchParams {
+export function periodParams(period: AnalyticsPeriod, today = shopToday()): URLSearchParams {
   if (period.kind === "range") return new URLSearchParams({ period_from: period.from, period_to: period.to });
   const params = new URLSearchParams({ period_to: toIsoDate(today) });
   if (period.kind === "days") {
@@ -35,8 +36,14 @@ export function periodParams(period: AnalyticsPeriod, today = new Date()): URLSe
   return params;
 }
 
-export function getAnalytics(period: AnalyticsPeriod, signal?: AbortSignal): Promise<Analytics> {
-  return apiGet<Analytics>(`/analytics/overview?${periodParams(period).toString()}`, signal);
+// bare dates are the shop's days: "today" waits for its zone
+async function periodQuery(period: AnalyticsPeriod): Promise<string> {
+  await loadShopTimeZone();
+  return periodParams(period).toString();
+}
+
+export async function getAnalytics(period: AnalyticsPeriod, signal?: AbortSignal): Promise<Analytics> {
+  return apiGet<Analytics>(`/analytics/overview?${await periodQuery(period)}`, signal);
 }
 
 export type FunnelStep = ApiSchema<"FunnelStepResponse">;
@@ -45,8 +52,8 @@ export type FunnelSourceRow = ApiSchema<"FunnelSourceRowResponse">;
 
 export type Funnel = ApiSchema<"FunnelResponse">;
 
-export function getFunnel(period: AnalyticsPeriod, signal?: AbortSignal): Promise<Funnel> {
-  return apiGet<Funnel>(`/analytics/funnel?${periodParams(period).toString()}`, signal);
+export async function getFunnel(period: AnalyticsPeriod, signal?: AbortSignal): Promise<Funnel> {
+  return apiGet<Funnel>(`/analytics/funnel?${await periodQuery(period)}`, signal);
 }
 
 export type Cohorts = ApiSchema<"CohortsResponse">;
@@ -75,11 +82,12 @@ export type GatewayStats = ApiSchema<"GatewayStatsResponse">;
 
 export type Revenue = ApiSchema<"RevenueResponse">;
 
-export function getRevenue(
+export async function getRevenue(
   period: AnalyticsPeriod,
   granularity: RevenueGranularity,
   signal?: AbortSignal,
 ): Promise<Revenue> {
+  await loadShopTimeZone();
   const params = periodParams(period);
   params.set("granularity", granularity);
   return apiGet<Revenue>(`/analytics/revenue?${params.toString()}`, signal);
@@ -87,8 +95,8 @@ export function getRevenue(
 
 export type Trial = ApiSchema<"TrialStatsResponse">;
 
-export function getTrial(period: AnalyticsPeriod, signal?: AbortSignal): Promise<Trial> {
-  return apiGet<Trial>(`/analytics/trial?${periodParams(period).toString()}`, signal);
+export async function getTrial(period: AnalyticsPeriod, signal?: AbortSignal): Promise<Trial> {
+  return apiGet<Trial>(`/analytics/trial?${await periodQuery(period)}`, signal);
 }
 
 export type Retention = ApiSchema<"RetentionResponse">;
@@ -110,14 +118,14 @@ export type SourceRow = ApiSchema<"SourceRowResponse">;
 
 export type Sources = ApiSchema<"SourcesResponse">;
 
-export function getSources(period: AnalyticsPeriod, signal?: AbortSignal): Promise<Sources> {
-  return apiGet<Sources>(`/analytics/sources?${periodParams(period).toString()}`, signal);
+export async function getSources(period: AnalyticsPeriod, signal?: AbortSignal): Promise<Sources> {
+  return apiGet<Sources>(`/analytics/sources?${await periodQuery(period)}`, signal);
 }
 
 export type PromocodeRow = ApiSchema<"PromocodeRowResponse">;
 
 export type PromocodeStats = ApiSchema<"PromocodeStatsResponse">;
 
-export function getPromocodeStats(period: AnalyticsPeriod, signal?: AbortSignal): Promise<PromocodeStats> {
-  return apiGet<PromocodeStats>(`/analytics/promocodes?${periodParams(period).toString()}`, signal);
+export async function getPromocodeStats(period: AnalyticsPeriod, signal?: AbortSignal): Promise<PromocodeStats> {
+  return apiGet<PromocodeStats>(`/analytics/promocodes?${await periodQuery(period)}`, signal);
 }

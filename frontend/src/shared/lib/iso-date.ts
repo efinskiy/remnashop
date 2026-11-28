@@ -34,3 +34,14 @@ export function endOfDayToIso(day: string): string | null {
   const end = lastDayToIso(day);
   return end ? new Date(new Date(end).getTime() - 1).toISOString() : null;
 }
+
+/** Today's calendar day in `timeZone`, as a local-midnight Date; the browser's own day for a zone it doesn't know. */
+export function todayIn(timeZone: string, now = new Date()): Date {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric", month: "numeric", day: "numeric" }).formatToParts(now);
+    const part = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((p) => p.type === type)?.value);
+    return new Date(part("year"), part("month") - 1, part("day"));
+  } catch {
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  }
+}

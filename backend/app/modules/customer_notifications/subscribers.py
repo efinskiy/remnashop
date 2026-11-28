@@ -2,7 +2,7 @@ import math
 from datetime import datetime, timedelta
 from typing import Any, Final, Optional, Union, cast
 
-from app.core.constants import DATE_FORMAT, TTL_1D
+from app.core.constants import TTL_1D
 from app.core.event_bus import EventBus
 from app.core.events import StoredEvent
 from app.modules.account_merge import AccountsMergedEvent
@@ -167,7 +167,8 @@ async def _on_grace_started(event: SubscriptionGraceStartedEvent, entry: StoredE
         event.user.id,
         {
             # an indefinite grace has no date to name
-            "grace_until": "none" if is_unlimited_expiry(until) else until.strftime(DATE_FORMAT),
+            # a moment: the notification writes it as the shop's date
+            "grace_until": "none" if is_unlimited_expiry(until) else until.isoformat(),
             "traffic_limit_mb": event.traffic_limit_mb,
         },
         subscription_id=event.subscription_id,
@@ -180,7 +181,7 @@ async def _on_expiry_disable_warning(
     await _notify(
         entry,
         event.user.id,
-        {"disable_date": datetime.fromisoformat(event.disable_at).strftime(DATE_FORMAT)},
+        {"disable_date": event.disable_at},
         subscription_id=event.subscription_id,
     )
 

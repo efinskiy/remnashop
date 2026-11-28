@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { type AdLink, getAdLinkStats } from "@entities/advertising/api";
 import { roiClassName } from "@entities/advertising/format";
+import { loadShopTimeZone, shopToday } from "@entities/settings/shop-time-zone";
 import { usePermissions } from "@entities/user/use-current-user";
 import { AdLinkPayoutCard } from "@features/ad-link-stats/AdLinkPayoutCard";
 import { formatMoney, formatPercent } from "@shared/lib/format";
@@ -12,7 +13,7 @@ import { ErrorState } from "@shared/ui/glass/EmptyState";
 import { Spinner } from "@shared/ui/Spinner";
 import { Tooltip } from "@shared/ui/Tooltip";
 import { KpiTile } from "@shared/ui/KpiTile";
-import { DAY_MS } from "@shared/lib/period";
+import { toIsoDate } from "@shared/lib/iso-date";
 
 const CHART_FALLBACK_DAYS = 30;
 
@@ -23,15 +24,21 @@ interface AdLinkStatsPanelProps {
   createdFrom?: string;
 }
 
+// the shop's days, as the server groups them
 function lastDays(count: number): string[] {
-  const today = Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate());
-  return Array.from({ length: count }, (_, i) => new Date(today - (count - 1 - i) * DAY_MS).toISOString().slice(0, 10));
+  const today = shopToday();
+  return Array.from({ length: count }, (_, i) =>
+    toIsoDate(new Date(today.getFullYear(), today.getMonth(), today.getDate() - (count - 1 - i))),
+  );
 }
 
 export function AdLinkStatsPanel({ adLink, periodDays, createdFrom }: AdLinkStatsPanelProps) {
   const { t, i18n } = useTranslation();
   const canViewPayout = usePermissions().includes("AD_LINKS_PAYOUT_VIEW");
-  const [state] = useAsyncResource((signal) => getAdLinkStats(adLink.id, createdFrom, signal));
+  const [state] = useAsyncResource(async (signal) => {
+    await loadShopTimeZone();
+    return getAdLinkStats(adLink.id, createdFrom, signal);
+  });
 
   if (state.kind === "loading") {
     return <Spinner size="card" />;

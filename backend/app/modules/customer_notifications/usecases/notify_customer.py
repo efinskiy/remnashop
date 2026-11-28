@@ -15,7 +15,6 @@ from app.core.constants import (
     CUSTOMER_NOTIFICATION_MENU_CALLBACK,
     CUSTOMER_NOTIFICATION_RENEW_PREFIX,
     CUSTOMER_NOTIFICATION_REVOKE_SESSIONS_CALLBACK,
-    DATE_FORMAT,
     ICON_ID_KEY_SUFFIX,
     ICON_KEY_SUFFIX,
     REDIS_KEY_PREFIX,
@@ -46,7 +45,11 @@ from app.modules.customer_notifications.dispatch import SendCustomerTelegramDisp
 from app.modules.customer_notifications.dto import NotifyCustomerDto
 from app.modules.customer_notifications.links import customer_url
 from app.modules.customer_notifications.metrics import CUSTOMER_NOTIFICATIONS
-from app.modules.customer_notifications.render_args import NAMES_PLAN, customer_render_args
+from app.modules.customer_notifications.render_args import (
+    NAMES_PLAN,
+    customer_render_args,
+    shop_dates,
+)
 from app.modules.customer_notifications.repository import CustomerNotificationRepository
 from app.modules.customer_notifications.routing import CustomerChannel, channels_for
 from app.modules.customer_notifications.waitlist import PAYMENTS_RESTORED
@@ -210,6 +213,9 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
             data = with_subscription
         if data.event_type in NAMES_PLAN:
             data = await self._with_plan_name(data, user.language)
+        async with self._uow:
+            zone = (await self._settings_repository.get_shop_settings()).zone
+        data = replace(data, args=shop_dates(data.args, zone))
         renderer = await self._renderer_factory.build()
         title, body = renderer.render(
             user.language,
@@ -494,7 +500,7 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
                 except NotFoundError:
                     plan = None
         return {
-            "reset_date": reset.strftime(DATE_FORMAT) if reset is not None else "none",
+            "reset_date": reset.isoformat() if reset is not None else "none",
             "can_renew": "yes" if can_renew(subscription, plan) else "no",
         }
 

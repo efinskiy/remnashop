@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import tzinfo
 from decimal import Decimal
 from functools import partial
 
@@ -208,13 +209,14 @@ class GetRevenueUseCase(UseCase[GetRevenueDto, RevenueDto]):
         self._cache = cache
 
     async def _execute(self, actor: Actor, data: GetRevenueDto) -> RevenueDto:
-        return await self._cache.get_or_compute(
-            "get_revenue", data, RevenueDto, partial(self._compute, data)
-        )
-
-    async def _compute(self, data: GetRevenueDto) -> RevenueDto:
         async with self._uow:
             zone = (await self._settings_repository.get_shop_settings()).zone
+        return await self._cache.get_or_compute(
+            "get_revenue", data, RevenueDto, partial(self._compute, data, zone), zone=zone
+        )
+
+    async def _compute(self, data: GetRevenueDto, zone: tzinfo) -> RevenueDto:
+        async with self._uow:
             period = resolve_period(
                 data.period_from,
                 data.period_to,

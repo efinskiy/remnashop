@@ -9,6 +9,7 @@ from app.core.utils.money import round_cents
 from app.modules.advertising.dto import AdLinkStatsDto, GetAdLinkStatsDto
 from app.modules.advertising.repository import AdLinkRepository
 from app.modules.pricing import PricingRepository, convert_for_report
+from app.modules.settings import SettingsRepository
 from app.modules.transactions import TransactionRepository
 
 
@@ -21,7 +22,9 @@ class GetAdLinkStatsUseCase(UseCase[GetAdLinkStatsDto, AdLinkStatsDto]):
         transaction_repository: TransactionRepository,
         pricing_repository: PricingRepository,
         uow: UnitOfWork,
+        settings_repository: SettingsRepository,
     ) -> None:
+        self._settings_repository = settings_repository
         self._ad_link_repository = ad_link_repository
         self._transaction_repository = transaction_repository
         self._pricing_repository = pricing_repository
@@ -73,7 +76,10 @@ class GetAdLinkStatsUseCase(UseCase[GetAdLinkStatsDto, AdLinkStatsDto]):
             )
 
             daily = await self._ad_link_repository.daily_attribution_counts(
-                data.ad_link_id, created_from=data.created_from, created_to=data.created_to
+                data.ad_link_id,
+                created_from=data.created_from,
+                created_to=data.created_to,
+                zone=(await self._settings_repository.get_shop_settings()).zone,
             )
 
             return AdLinkStatsDto(

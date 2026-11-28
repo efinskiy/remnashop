@@ -1,5 +1,6 @@
 from typing import Union
 from unittest.mock import AsyncMock, patch
+from zoneinfo import ZoneInfo
 
 import pytest
 from fluent_compiler.bundle import FluentBundle
@@ -8,7 +9,7 @@ from app.core.constants import ASSETS_DIR
 from app.core.enums import Locale, Role
 from app.core.event_bus import EventBus
 from app.modules.customer_notifications.links import customer_url
-from app.modules.customer_notifications.render_args import customer_render_args
+from app.modules.customer_notifications.render_args import customer_render_args, shop_dates
 from app.modules.customer_notifications.routing import ALWAYS_BOTH
 from app.modules.customer_notifications.subscribers import register_subscribers
 from app.modules.subscriptions import SubscriptionGraceStartedEvent
@@ -39,7 +40,19 @@ async def test_subscriber_carries_the_date_and_traffic() -> None:
     kwargs = await _kiq_kwargs(_event("2026-12-05T00:00:00+00:00", 2048))
 
     assert kwargs["subscription_id"] == 3
-    assert kwargs["args"] == {"grace_until": "05.12.2026", "traffic_limit_mb": 2048}
+    # a moment: NotifyCustomerUseCase writes it as the shop's date
+    assert kwargs["args"] == {"grace_until": "2026-12-05T00:00:00+00:00", "traffic_limit_mb": 2048}
+
+
+def test_date_args_are_written_as_the_shops_day() -> None:
+    moscow = ZoneInfo("Europe/Moscow")
+    # 22:00 UTC on the 4th is already the 5th in Moscow
+    args = {"grace_until": "2026-12-04T22:00:00+00:00", "traffic_limit_mb": 2048}
+
+    assert shop_dates(args, moscow) == {"grace_until": "05.12.2026", "traffic_limit_mb": 2048}
+    # a task queued before dates were moments, and an indefinite grace, stay as they are
+    assert shop_dates({"grace_until": "05.12.2026"}, moscow) == {"grace_until": "05.12.2026"}
+    assert shop_dates({"grace_until": "none"}, moscow) == {"grace_until": "none"}
 
 
 async def test_an_indefinite_grace_has_no_date() -> None:

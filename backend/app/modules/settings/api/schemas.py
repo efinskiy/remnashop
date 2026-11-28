@@ -77,6 +77,10 @@ class ShopSettingsResponse(ResponseModel):
     timezone: str
 
 
+class ShopTimezoneResponse(ResponseModel):
+    timezone: str
+
+
 class UpdateShopSettingsRequest(BaseModel):
     max_active_subscriptions: Optional[int] = Field(
         default=None, ge=1, le=MAX_ACTIVE_SUBSCRIPTIONS_LIMIT

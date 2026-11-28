@@ -16269,6 +16269,19 @@
         "title": "ShopSettingsResponse",
         "type": "object"
       },
+      "ShopTimezoneResponse": {
+        "properties": {
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "timezone"
+        ],
+        "title": "ShopTimezoneResponse",
+        "type": "object"
+      },
       "SlideResponse": {
         "properties": {
           "image_url": {

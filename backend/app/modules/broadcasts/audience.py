@@ -1,9 +1,10 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, tzinfo
 from typing import Final, Optional
 
 from sqlalchemy import ColumnElement, and_, exists, false, or_, select
 from sqlalchemy.orm import aliased
 
+from app.core.constants import TIMEZONE
 from app.core.db.filters import expired_subscription, in_ids
 from app.core.db.models.ad_link_attribution import AdLinkAttribution
 from app.core.db.models.referral import Referral
@@ -131,14 +132,15 @@ def _subscription_conditions(
     return [or_(*parts)]
 
 
-def _profile_conditions(audience: BroadcastAudienceDto) -> list[ColumnElement[bool]]:
+def _profile_conditions(audience: BroadcastAudienceDto, zone: tzinfo) -> list[ColumnElement[bool]]:
     conditions: list[ColumnElement[bool]] = []
     if audience.paid is not None:
         conditions.append(_flag(_PAID, audience.paid))
     if audience.locales:
         conditions.append(User.language.in_(audience.locales))
-    registered_from = range_start_utc(audience.registered_from)
-    registered_to = range_end_utc(audience.registered_to)
+    # picked dates are the shop's days
+    registered_from = range_start_utc(audience.registered_from, zone)
+    registered_to = range_end_utc(audience.registered_to, zone)
     if registered_from is not None:
         conditions.append(User.created_at >= registered_from)
     if registered_to is not None:
@@ -183,7 +185,10 @@ def channel_condition(
 
 
 def audience_predicate(
-    audience: BroadcastAudienceDto, category: BroadcastCategory, now: datetime
+    audience: BroadcastAudienceDto,
+    category: BroadcastCategory,
+    now: datetime,
+    zone: tzinfo = TIMEZONE,
 ) -> ColumnElement[bool]:
     conditions: list[ColumnElement[bool]] = [
         User.deleted_at.is_(None),
@@ -196,7 +201,7 @@ def audience_predicate(
         return and_(*conditions, in_ids(User.id, audience.user_ids))
 
     conditions += _subscription_conditions(audience, now)
-    conditions += _profile_conditions(audience)
+    conditions += _profile_conditions(audience, zone)
     return and_(*conditions)
 
 

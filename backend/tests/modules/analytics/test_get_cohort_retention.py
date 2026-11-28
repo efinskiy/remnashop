@@ -20,6 +20,7 @@ from app.core.enums import (
 from app.core.exceptions import PermissionDeniedError
 from app.core.utils.time import datetime_now
 from app.modules.analytics.usecases import GetCohortRetentionUseCase
+from app.modules.settings.repository import SettingsRepository
 from app.modules.transactions.dto import CreateTransactionDto
 from app.modules.transactions.repository import TransactionRepository
 from app.modules.users.dto import CreateUserDto, UserDto
@@ -60,7 +61,12 @@ async def test_actor_without_analytics_view_is_denied(
     uow: UnitOfWork,
 ) -> None:
     actor = OWNER.model_copy(update={"role": Role.USER})
-    use_case = GetCohortRetentionUseCase(transaction_repository, uow, PassThroughAnalyticsCache())
+    use_case = GetCohortRetentionUseCase(
+        transaction_repository,
+        uow,
+        PassThroughAnalyticsCache(),
+        SettingsRepository(transaction_repository.session),
+    )
 
     with pytest.raises(PermissionDeniedError):
         await use_case(actor)
@@ -108,7 +114,10 @@ async def test_cohort_counts_paid_coverage_per_month(
     await pay(829_103, [(cohort_day, 20)], status=TransactionStatus.REFUNDED)
 
     result = await GetCohortRetentionUseCase(
-        transaction_repository, uow, PassThroughAnalyticsCache()
+        transaction_repository,
+        uow,
+        PassThroughAnalyticsCache(),
+        SettingsRepository(transaction_repository.session),
     )(OWNER)
 
     row = next(r for r in result.cohorts if r.cohort == cohort_day.strftime("%Y-%m"))
@@ -127,7 +136,12 @@ async def test_cohort_since_is_timezone_aware(
         return await original(since)
 
     transaction_repository.first_paid_at_since = _spy  # type: ignore[method-assign]
-    await GetCohortRetentionUseCase(transaction_repository, uow, PassThroughAnalyticsCache())(OWNER)
+    await GetCohortRetentionUseCase(
+        transaction_repository,
+        uow,
+        PassThroughAnalyticsCache(),
+        SettingsRepository(transaction_repository.session),
+    )(OWNER)
 
     assert captured["since"].tzinfo is not None
 
@@ -168,7 +182,10 @@ async def test_cohort_month_is_measured_at_the_payment_anniversary(
         )
 
     result = await GetCohortRetentionUseCase(
-        transaction_repository, uow, PassThroughAnalyticsCache()
+        transaction_repository,
+        uow,
+        PassThroughAnalyticsCache(),
+        SettingsRepository(transaction_repository.session),
     )(OWNER)
 
     row = next(r for r in result.cohorts if r.cohort == first_paid_at.strftime("%Y-%m"))

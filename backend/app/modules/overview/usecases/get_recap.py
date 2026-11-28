@@ -7,10 +7,11 @@ from app.core.enums import Role
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.core.utils.money import round_cents
-from app.core.utils.time import datetime_now
+from app.core.utils.time import datetime_now, day_start
 from app.modules.overview.dto import RecapDto
 from app.modules.overview.usecases.get_nodes_overview import GetNodesOverviewUseCase
 from app.modules.pricing import PricingRepository
+from app.modules.settings import SettingsRepository
 from app.modules.subscriptions import SubscriptionStatsRepository
 from app.modules.transactions import TransactionStatsRepository
 from app.modules.users import UserStatsRepository
@@ -30,7 +31,9 @@ class GetRecapUseCase(UseCase[None, RecapDto]):
         pricing_repository: PricingRepository,
         get_nodes_overview_use_case: GetNodesOverviewUseCase,
         uow: UnitOfWork,
+        settings_repository: SettingsRepository,
     ) -> None:
+        self._settings_repository = settings_repository
         self._user_stats = user_stats
         self._subscription_stats = subscription_stats
         self._transaction_stats = transaction_stats
@@ -40,11 +43,12 @@ class GetRecapUseCase(UseCase[None, RecapDto]):
 
     async def _execute(self, actor: Actor, data: None) -> RecapDto:
         now = datetime_now()
-        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         async with self._uow:
+            zone = (await self._settings_repository.get_shop_settings()).zone
+            month_start = day_start(now, zone).replace(day=1)
             report_currency = (await self._pricing_repository.get_rate_table()).anchor
             users = await self._user_stats.count_total_and_new(Role.USER, month_start)
-            since = await self._user_stats.earliest_registration(Role.USER)
+            since = await self._user_stats.earliest_registration(Role.USER, zone)
             subscriptions = await self._subscription_stats.overview_counts(now, now)
             all_time = await self._transaction_stats.paid_totals(_ALL_TIME_START, now)
             month = await self._transaction_stats.paid_totals(month_start, now)
@@ -65,5 +69,5 @@ class GetRecapUseCase(UseCase[None, RecapDto]):
             new_payers=len(new_payers),
             nodes=len(live_nodes) if nodes.available else None,
             countries=len({node.country_code for node in live_nodes}) if nodes.available else None,
-            since=since or now.date(),
+            since=since or month_start.date(),
         )

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, tzinfo
 from decimal import Decimal
 from functools import partial
 from typing import Final
@@ -23,6 +23,7 @@ from app.modules.analytics.dto import (
 )
 from app.modules.analytics.expiring import expiring_window
 from app.modules.pricing import CurrencyRateTable, PricingRepository
+from app.modules.settings import SettingsRepository
 from app.modules.subscriptions import LiveSubscriptionDto, SubscriptionStatsRepository
 from app.modules.transactions import TransactionStatsRepository
 from app.modules.users import UserRepository
@@ -128,7 +129,9 @@ class GetRetentionUseCase(UseCase[None, RetentionDto]):
         pricing_repository: PricingRepository,
         uow: UnitOfWork,
         cache: AnalyticsCache,
+        settings_repository: SettingsRepository,
     ) -> None:
+        self._settings_repository = settings_repository
         self._subscription_stats = subscription_stats
         self._transaction_stats = transaction_stats
         self._user_repository = user_repository
@@ -157,16 +160,19 @@ class GetRetentionUseCase(UseCase[None, RetentionDto]):
         return days / payers / float(_DAYS_PER_MONTH) if payers else 0.0
 
     async def _execute(self, actor: Actor, data: None) -> RetentionDto:
+        async with self._uow:
+            zone = (await self._settings_repository.get_shop_settings()).zone
         return await self._cache.get_or_compute(
-            "get_retention", data, RetentionDto, partial(self._compute, data)
+            "get_retention", data, RetentionDto, partial(self._compute, data, zone), zone=zone
         )
 
-    async def _compute(self, data: None) -> RetentionDto:
+    async def _compute(self, data: None, zone: tzinfo) -> RetentionDto:
         async with self._uow:
             now = datetime_now()
             rates = await self._pricing_repository.get_rate_table()
             first_paid = await self._transaction_stats.first_paid_at(now)
-            months = _last_month_starts(now, _CHURN_MONTHS)
+            # the shop's calendar months
+            months = _last_month_starts(now.astimezone(zone), _CHURN_MONTHS)
             covered = await self._transaction_stats.users_covered_at(
                 {point for start in months for point in (start, _churn_probe(start, now))}, now
             )

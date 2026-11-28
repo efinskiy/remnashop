@@ -7,6 +7,7 @@ from app.telegram.middlewares.command_gate import CommandGateMiddleware
 from app.telegram.middlewares.error import ErrorMiddleware
 from app.telegram.middlewares.garbage import GarbageMiddleware
 from app.telegram.middlewares.requirements import RequirementsMiddleware
+from app.telegram.middlewares.shop_zone import ShopZoneMiddleware
 from app.telegram.middlewares.user import DialogUserMiddleware, UserMiddleware
 
 __all__ = [
@@ -17,6 +18,7 @@ __all__ = [
 def setup_middlewares(router: Router) -> None:
     outer_middlewares: list[EventTypedMiddleware] = [
         ErrorMiddleware(),
+        ShopZoneMiddleware(),
         UserMiddleware(),
         DialogUserMiddleware(),
         BlacklistMiddleware(),

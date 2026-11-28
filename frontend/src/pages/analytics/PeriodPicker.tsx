@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { ParseKeys } from "i18next";
 
 import { periodParams } from "@entities/analytics/api";
+import { shopToday } from "@entities/settings/shop-time-zone";
 import type { AnalyticsPeriod } from "@entities/analytics/api";
 import { parseIsoDate, toIsoDate } from "@shared/lib/iso-date";
 import { useClickOutside } from "@shared/lib/use-click-outside";
@@ -111,7 +112,7 @@ export function PeriodPicker({ period, onChange: setPeriod }: { period: Analytic
       >
         <div className="grid gap-3 sm:grid-cols-[150px_minmax(0,1fr)]">
           <div className="grid grid-cols-2 gap-0.5 sm:flex sm:flex-col">
-            {presetDrafts(new Date()).map((preset) => (
+            {presetDrafts(shopToday()).map((preset) => (
               <Pressable
                 key={preset.key}
                 type="button"

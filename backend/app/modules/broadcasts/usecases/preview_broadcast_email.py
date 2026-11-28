@@ -98,6 +98,7 @@ class PreviewBroadcastEmailUseCase(UseCase[PreviewBroadcastEmailDto, RenderedEma
                 if i.id in referenced
             ]
             brand = await load_email_brand(self._settings_repository)
+            zone = (await self._settings_repository.get_shop_settings()).zone
 
         if referenced - {i.id for i in image_rows}:
             raise ValidationError(
@@ -113,6 +114,7 @@ class PreviewBroadcastEmailUseCase(UseCase[PreviewBroadcastEmailDto, RenderedEma
         renderer = BroadcastEmailRenderer(
             broadcast,
             promocode_code=code or _SAMPLE_PROMOCODE,
+            zone=zone,
             brand=brand,
             unsubscribe=(
                 unsubscribe_links(cabinet_url, self._config.crypt_key.get_secret_value())

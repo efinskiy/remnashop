@@ -195,8 +195,8 @@ async def get_ad_link_payout(
         actor,
         GetAdLinkPayoutDto(
             ad_link_id=ad_link_id,
-            paid_from=range_start_utc(paid_from),
-            paid_to=range_end_utc(paid_to),
+            paid_from=paid_from,
+            paid_to=paid_to,
         ),
     )
     return AdLinkPayoutResponse.model_validate(payout, from_attributes=True)

@@ -1,5 +1,5 @@
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, tzinfo
 from decimal import Decimal
 from functools import partial
 from typing import Final, Optional
@@ -150,14 +150,15 @@ class GetSourcesUseCase(UseCase[AnalyticsPeriodQueryDto, SourcesDto]):
         return cohort, channels, ad_links
 
     async def _execute(self, actor: Actor, data: AnalyticsPeriodQueryDto) -> SourcesDto:
+        async with self._uow:
+            zone = (await self._settings_repository.get_shop_settings()).zone
         return await self._cache.get_or_compute(
-            "get_sources", data, SourcesDto, partial(self._compute, data)
+            "get_sources", data, SourcesDto, partial(self._compute, data, zone), zone=zone
         )
 
-    async def _compute(self, data: AnalyticsPeriodQueryDto) -> SourcesDto:
+    async def _compute(self, data: AnalyticsPeriodQueryDto, zone: tzinfo) -> SourcesDto:
         async with self._uow:
             now = datetime_now()
-            zone = (await self._settings_repository.get_shop_settings()).zone
             period = resolve_period(
                 data.period_from,
                 data.period_to,

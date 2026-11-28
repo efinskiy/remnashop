@@ -7,6 +7,7 @@ from app.modules.broadcasts.dto import AudiencePreviewDto, PreviewAudienceDto
 from app.modules.broadcasts.recipient_repository import BroadcastRecipientRepository
 from app.modules.broadcasts.repository import BroadcastRepository
 from app.modules.broadcasts.validation import validate_audience
+from app.modules.settings import SettingsRepository
 
 
 class PreviewBroadcastAudienceUseCase(UseCase[PreviewAudienceDto, AudiencePreviewDto]):
@@ -17,7 +18,9 @@ class PreviewBroadcastAudienceUseCase(UseCase[PreviewAudienceDto, AudiencePrevie
         broadcast_repository: BroadcastRepository,
         recipient_repository: BroadcastRecipientRepository,
         uow: UnitOfWork,
+        settings_repository: SettingsRepository,
     ) -> None:
+        self._settings_repository = settings_repository
         self._broadcast_repository = broadcast_repository
         self._recipient_repository = recipient_repository
         self._uow = uow
@@ -25,6 +28,12 @@ class PreviewBroadcastAudienceUseCase(UseCase[PreviewAudienceDto, AudiencePrevie
     async def _execute(self, actor: Actor, data: PreviewAudienceDto) -> AudiencePreviewDto:
         validate_audience(data.audience)
         async with self._uow:
+            zone = (await self._settings_repository.get_shop_settings()).zone
             return await self._recipient_repository.count_audience(
-                data.audience, data.category, data.delivery, data.email_fallback, datetime_now()
+                data.audience,
+                data.category,
+                data.delivery,
+                data.email_fallback,
+                datetime_now(),
+                zone,
             )

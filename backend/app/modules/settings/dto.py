@@ -108,6 +108,11 @@ class ShopSettingsDto(BaseDto, TimestampMixin):
         return self.support_url
 
 
+@dataclass(frozen=True, kw_only=True)
+class ShopTimezoneDto:
+    timezone: str
+
+
 class GraceSettingsDto(BaseDto, TimestampMixin):
     enabled: bool = False
     internal_squads: list[UUID] = Field(default_factory=list)
