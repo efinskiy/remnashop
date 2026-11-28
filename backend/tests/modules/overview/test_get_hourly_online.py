@@ -2,6 +2,7 @@ from datetime import timedelta
 
 from redis.asyncio import Redis
 
+from app.core.constants import TIMEZONE
 from app.core.enums import Locale, Role
 from app.core.utils.time import datetime_now
 from app.modules.overview.online import record_online_sample
@@ -19,8 +20,8 @@ _KEYS = (
 async def test_returns_24_hours_ending_with_the_current_one(redis: Redis) -> None:
     await redis.delete(*_KEYS)
     now = datetime_now()
-    await record_online_sample(redis, now - timedelta(hours=2), 40)
-    await record_online_sample(redis, now, 15)
+    await record_online_sample(redis, now - timedelta(hours=2), 40, TIMEZONE)
+    await record_online_sample(redis, now, 15, TIMEZONE)
 
     result = await GetHourlyOnlineUseCase(redis)(OWNER)
 

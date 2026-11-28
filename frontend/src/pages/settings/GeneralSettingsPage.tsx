@@ -6,6 +6,7 @@ import { GraceSettingsSection } from "@features/grace-settings/GraceSettingsSect
 import { LegalDocumentsEditor } from "@features/legal-documents-editor/LegalDocumentsEditor";
 import { OAuthSettingsForm } from "@features/oauth-settings/OAuthSettingsForm";
 import { ShopSettingsForm } from "@features/shop-settings/ShopSettingsForm";
+import { ShopTimezoneForm } from "@features/shop-timezone/ShopTimezoneForm";
 import { SupportSettingsForm } from "@features/support-settings/SupportSettingsForm";
 import { WebPushSettingsForm } from "@features/web-push-settings/WebPushSettingsForm";
 
@@ -20,6 +21,7 @@ export function GeneralSettingsPage() {
       {permissions.includes("GRACE_SETTINGS_VIEW") && <ExpiryDisableSettingsSection />}
       {permissions.includes("SHOP_SETTINGS_VIEW") && <SupportSettingsForm />}
       {permissions.includes("NOTIFICATION_SETTINGS_VIEW") && <WebPushSettingsForm />}
+      {permissions.includes("SHOP_SETTINGS_VIEW") && <ShopTimezoneForm />}
       {permissions.includes("NOTIFICATION_SETTINGS_VIEW") && <DailyReportSettingsForm />}
       {permissions.includes("LEGAL_DOCUMENTS_VIEW") && <LegalDocumentsEditor />}
     </div>

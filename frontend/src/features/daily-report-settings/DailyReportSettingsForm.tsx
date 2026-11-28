@@ -1,4 +1,4 @@
-import { ChartColumn, Clock, Globe } from "lucide-react";
+import { ChartColumn, Clock } from "lucide-react";
 import { useEffect, useId, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -14,10 +14,6 @@ import { SaveFooter } from "@shared/ui/SaveFooter";
 import { SelectDropdown } from "@shared/ui/SelectDropdown";
 import { Spinner } from "@shared/ui/Spinner";
 
-const TIME_ZONES = ["UTC", ...Intl.supportedValuesOf("timeZone").filter((zone) => zone !== "UTC")].map((zone) => ({
-  value: zone,
-  label: zone,
-}));
 const HOURS = Array.from({ length: 24 }, (_, hour) => ({
   value: String(hour),
   label: `${String(hour).padStart(2, "0")}:00`,
@@ -28,26 +24,23 @@ export function DailyReportSettingsForm() {
   const { t } = useTranslation();
   const canManage = usePermissions().includes("NOTIFICATION_SETTINGS_MANAGE");
   const [state, , setData] = useAsyncResource(getNotificationSettings);
-  const [timezone, setTimezone] = useState("UTC");
   const [hour, setHour] = useState("0");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const id = useId();
 
   useEffect(() => {
     if (state.kind !== "ready") return;
-    setTimezone(state.data.report_timezone);
     setHour(String(state.data.daily_report_hour));
   }, [state]);
 
   const saved = state.kind === "ready" ? state.data : null;
-  const dirty =
-    saved !== null && (timezone !== saved.report_timezone || hour !== String(saved.daily_report_hour));
+  const dirty = saved !== null && hour !== String(saved.daily_report_hour);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setIsSubmitting(true);
     try {
-      setData(await updateNotificationSettings({ report_timezone: timezone, daily_report_hour: Number(hour) }));
+      setData(await updateNotificationSettings({ daily_report_hour: Number(hour) }));
       toast.success(t("common.saved"));
     } catch (err) {
       toast.error(getErrorMessage(err, t("common.errors.generic")));
@@ -68,18 +61,6 @@ export function DailyReportSettingsForm() {
         {state.kind === "error" && <ErrorState text={t("common.loadError")} />}
         {state.kind === "ready" && (
           <SectionFields>
-            <Field label={t("settings.dailyReport.timezone")} htmlFor={`${id}-timezone`}>
-              <SelectDropdown
-                variant="well"
-                id={`${id}-timezone`}
-                disabled={!canManage}
-                value={timezone}
-                onChange={setTimezone}
-                icon={Globe}
-                placeholder={timezone}
-                options={TIME_ZONES}
-              />
-            </Field>
             <Field label={t("settings.dailyReport.hour")} htmlFor={`${id}-hour`}>
               <SelectDropdown
                 variant="well"

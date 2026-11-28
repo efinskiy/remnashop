@@ -44,3 +44,6 @@ class ShopSettings(BaseSql, TimestampMixin):
 
     # sent to every gateway instead of the customer's own email; set, nobody is asked for one
     payment_email: Mapped[Optional[str]] = mapped_column(String(320))
+
+    # IANA zone the shop's days are counted in: the overview, analytics, the daily report
+    timezone: Mapped[str] = mapped_column(String(64), default="UTC", server_default="UTC")

@@ -9,7 +9,7 @@ from app.core.enums import PaymentGatewayType, PurchaseType, Role, TransactionSt
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.core.utils.money import round_cents
-from app.core.utils.time import datetime_now, time_zone
+from app.core.utils.time import datetime_now
 from app.modules.analytics.aggregates import (
     RevenueGranularity,
     bucket_index,
@@ -28,6 +28,7 @@ from app.modules.analytics.dto import (
 )
 from app.modules.analytics.period import AnalyticsPeriod, resolve_period
 from app.modules.pricing import CurrencyRateTable, PricingRepository
+from app.modules.settings import SettingsRepository
 from app.modules.transactions import (
     PaidTransactionDto,
     PaymentAttemptDto,
@@ -197,7 +198,9 @@ class GetRevenueUseCase(UseCase[GetRevenueDto, RevenueDto]):
         pricing_repository: PricingRepository,
         uow: UnitOfWork,
         cache: AnalyticsCache,
+        settings_repository: SettingsRepository,
     ) -> None:
+        self._settings_repository = settings_repository
         self._user_stats = user_stats
         self._transaction_stats = transaction_stats
         self._pricing_repository = pricing_repository
@@ -210,8 +213,8 @@ class GetRevenueUseCase(UseCase[GetRevenueDto, RevenueDto]):
         )
 
     async def _compute(self, data: GetRevenueDto) -> RevenueDto:
-        zone = time_zone(data.tz)
         async with self._uow:
+            zone = (await self._settings_repository.get_shop_settings()).zone
             period = resolve_period(
                 data.period_from,
                 data.period_to,

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import tzinfo
 from enum import StrEnum, auto
 from typing import Optional
 from uuid import UUID
@@ -14,6 +15,7 @@ from app.core.constants import (
 )
 from app.core.dto import BaseDto, TimestampMixin
 from app.core.enums import AccessMode, CaptchaProvider, OAuthProvider, SmtpSecurity, UpperStrEnum
+from app.core.utils.time import time_zone
 
 
 class AppearanceTarget(StrEnum):
@@ -93,6 +95,11 @@ class ShopSettingsDto(BaseDto, TimestampMixin):
     payment_email: Optional[str] = None
     plan_change_credit_enabled: bool = True
     plan_change_traffic_cap_enabled: bool = True
+    timezone: str = "UTC"
+
+    @property
+    def zone(self) -> tzinfo:
+        return time_zone(self.timezone)
 
     @property
     def support_link(self) -> Optional[str]:
@@ -151,6 +158,7 @@ class UpdateShopSettingsDto:
     payment_email: Optional[str] = None
     plan_change_credit_enabled: Optional[bool] = None
     plan_change_traffic_cap_enabled: Optional[bool] = None
+    timezone: Optional[str] = None
     fields_set: frozenset[str] = frozenset()
 
 

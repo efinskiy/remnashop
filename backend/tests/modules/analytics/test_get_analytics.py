@@ -25,6 +25,7 @@ from app.core.utils.time import datetime_now
 from app.modules.analytics.dto import AnalyticsPeriodQueryDto
 from app.modules.analytics.usecases import GetAnalyticsUseCase
 from app.modules.pricing.repository import PricingRepository
+from app.modules.settings.repository import SettingsRepository
 from app.modules.subscriptions.dto import CreateSubscriptionDto
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.stats_repository import SubscriptionStatsRepository
@@ -84,6 +85,7 @@ def _use_case(
         pricing_repository,
         uow,
         PassThroughAnalyticsCache(),
+        SettingsRepository(session),
     )
 
 

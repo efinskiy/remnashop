@@ -9,7 +9,7 @@ from app.core.enums import Role, SubscriptionStatus
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.core.utils.money import round_cents
-from app.core.utils.time import datetime_now, time_zone
+from app.core.utils.time import datetime_now
 from app.modules.analytics.aggregates import monthly_value, report_amount
 from app.modules.analytics.cache import AnalyticsCache
 from app.modules.analytics.dto import (
@@ -21,6 +21,7 @@ from app.modules.analytics.dto import (
 )
 from app.modules.analytics.period import CONVERSION_WINDOW_DAYS, AnalyticsPeriod, resolve_period
 from app.modules.pricing import PricingRepository
+from app.modules.settings import SettingsRepository
 from app.modules.subscriptions import SubscriptionStatsRepository
 from app.modules.transactions import PaidTotalsDto, TransactionStatsRepository
 from app.modules.users import UserStatsRepository
@@ -91,7 +92,9 @@ class GetAnalyticsUseCase(UseCase[AnalyticsPeriodQueryDto, AnalyticsDto]):
         pricing_repository: PricingRepository,
         uow: UnitOfWork,
         cache: AnalyticsCache,
+        settings_repository: SettingsRepository,
     ) -> None:
+        self._settings_repository = settings_repository
         self._user_stats = user_stats
         self._subscription_stats = subscription_stats
         self._transaction_stats = transaction_stats
@@ -105,9 +108,9 @@ class GetAnalyticsUseCase(UseCase[AnalyticsPeriodQueryDto, AnalyticsDto]):
         )
 
     async def _compute(self, data: AnalyticsPeriodQueryDto) -> AnalyticsDto:
-        zone = time_zone(data.tz)
         async with self._uow:
             now = datetime_now()
+            zone = (await self._settings_repository.get_shop_settings()).zone
             period = resolve_period(
                 data.period_from,
                 data.period_to,

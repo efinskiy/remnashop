@@ -11,14 +11,13 @@ def datetime_now() -> datetime:
 
 
 def time_zone(name: Optional[str]) -> tzinfo:
-    """The viewer's IANA zone their dashboard counts days in; UTC when none was sent."""
+    """An IANA zone by name; UTC when it's empty or this server doesn't know it."""
     if not name:
         return TIMEZONE
     try:
         return ZoneInfo(name)
     except (ZoneInfoNotFoundError, ValueError):
-        # a browser may report "Etc/Unknown" or a zone newer than the image's tzdata;
-        # UTC days beat a dashboard that won't load
+        # a zone newer than the image's tzdata: UTC days beat a dashboard that won't load
         return TIMEZONE
 
 
@@ -38,7 +37,7 @@ def range_start_utc(value: datetime, zone: tzinfo = TIMEZONE) -> datetime: ...
 def range_start_utc(value: None, zone: tzinfo = TIMEZONE) -> None: ...
 def range_start_utc(value: Optional[datetime], zone: tzinfo = TIMEZONE) -> Optional[datetime]:
     # a bare "YYYY-MM-DD" parses naive; asyncpg would read that as server
-    # local time, so it's pinned to `zone` (UTC unless the viewer sent theirs)
+    # local time, so it's pinned to `zone` (UTC unless the caller passes the shop's)
     if value is None or value.tzinfo is not None:
         return value
     return value.replace(tzinfo=zone)

@@ -315,8 +315,6 @@ class RetentionDto(BaseModel):
 class AnalyticsPeriodQueryDto:
     period_from: Optional[datetime] = None
     period_to: Optional[datetime] = None
-    # the viewer's IANA zone bare dates and day buckets are read in
-    tz: Optional[str] = None
 
 
 @dataclass(frozen=True, kw_only=True)

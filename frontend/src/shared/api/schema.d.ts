@@ -3145,8 +3145,6 @@ export interface components {
             daily_report_hour: number;
             /** Is Push Configured */
             is_push_configured: boolean;
-            /** Report Timezone */
-            report_timezone: string;
             /** Vapid Contact */
             vapid_contact: string | null;
             /** Vapid Public Key */
@@ -5005,6 +5003,8 @@ export interface components {
             support_telegram: string | null;
             /** Support Url */
             support_url: string | null;
+            /** Timezone */
+            timezone: string;
         };
         /** SlideResponse */
         SlideResponse: {
@@ -5915,8 +5915,6 @@ export interface components {
         UpdateNotificationSettingsRequest: {
             /** Daily Report Hour */
             daily_report_hour?: number | null;
-            /** Report Timezone */
-            report_timezone?: string | null;
             /** Vapid Contact */
             vapid_contact?: string | null;
         };
@@ -6101,6 +6099,8 @@ export interface components {
             support_telegram?: string | null;
             /** Support Url */
             support_url?: string | null;
+            /** Timezone */
+            timezone?: string | null;
         };
         /** UpdateSourceRequest */
         UpdateSourceRequest: {

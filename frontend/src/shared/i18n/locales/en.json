@@ -1868,10 +1868,14 @@
       "confirm": "Push subscriptions will be deleted for everyone, both admins and customers. This can’t be undone. Until someone turns push back on on their device, they won’t get push notifications there. Emails and Telegram messages keep arriving as usual.",
       "generated": "Keys generated."
     },
+    "shopTimezone": {
+      "title": "Shop time zone",
+      "description": "Days on the overview, in analytics and in the daily report are counted in it",
+      "timezone": "Time zone"
+    },
     "dailyReport": {
       "title": "Daily report",
       "description": "Sent to admins who turned on “Reports” in their profile",
-      "timezone": "Time zone",
       "hour": "Send at"
     },
     "access": {

@@ -31,7 +31,6 @@ class Period:
     today: date
     since: datetime
     granularity: Granularity
-    dense: bool
 
     def days(self) -> list[date]:
         return [
@@ -51,8 +50,7 @@ class Period:
                 key = day.replace(day=1)
                 acc[key] = op(acc[key], value)
             return sorted(acc.items())
-        if not self.dense:
-            return rows
+        # every day, empty ones too: only the server knows the shop's days
         acc = dict.fromkeys(self.days(), zero)
         for day, value in rows:
             acc[day] = op(acc[day], value)
@@ -72,10 +70,8 @@ async def resolve_period(user_stats: UserStatsRepository, days: int, zone: tzinf
         today_start=today_start,
         start_date=start_date,
         today=today,
-        # calendar days in the viewer's zone, like the frontend's fillDailySeries;
-        # a rolling cutoff would add a partial first day and
+        # calendar days in the shop's zone; a rolling cutoff would add a partial first day and
         # the daily series wouldn't sum to the card totals
         since=today_start - timedelta(days=span_days - 1),
         granularity="month" if span_days > _MONTHLY_THRESHOLD_DAYS else "day",
-        dense=days == 0,
     )

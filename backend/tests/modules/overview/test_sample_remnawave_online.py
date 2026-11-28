@@ -9,6 +9,7 @@ from app.core.db.models import EventOutboxEntry
 from app.core.db.uow import UnitOfWork
 from app.core.ports import EventPublisher
 from app.modules.overview.usecases import SampleRemnawaveOnlineUseCase
+from app.modules.settings.repository import SettingsRepository
 
 
 class _System:
@@ -40,7 +41,13 @@ async def test_outage_publishes_once_and_recovery_once(
     session: AsyncSession, redis: Redis, uow: UnitOfWork, event_publisher: EventPublisher
 ) -> None:
     sdk = _Sdk()
-    use_case = SampleRemnawaveOnlineUseCase(sdk, redis, uow, event_publisher)  # type: ignore[arg-type]
+    use_case = SampleRemnawaveOnlineUseCase(
+        sdk,  # type: ignore[arg-type]
+        redis,
+        uow,
+        event_publisher,
+        SettingsRepository(session),
+    )
 
     sdk.system.fail = True
     for _ in range(3):
@@ -58,7 +65,13 @@ async def test_unsupported_version_warns_once_per_version(
 ) -> None:
     sdk = _Sdk()
     sdk.system.version = "2.9.0"
-    use_case = SampleRemnawaveOnlineUseCase(sdk, redis, uow, event_publisher)  # type: ignore[arg-type]
+    use_case = SampleRemnawaveOnlineUseCase(
+        sdk,  # type: ignore[arg-type]
+        redis,
+        uow,
+        event_publisher,
+        SettingsRepository(session),
+    )
 
     await use_case.system()
     await use_case.system()
@@ -70,7 +83,13 @@ async def test_a_single_failed_sample_publishes_nothing(
     session: AsyncSession, redis: Redis, uow: UnitOfWork, event_publisher: EventPublisher
 ) -> None:
     sdk = _Sdk()
-    use_case = SampleRemnawaveOnlineUseCase(sdk, redis, uow, event_publisher)  # type: ignore[arg-type]
+    use_case = SampleRemnawaveOnlineUseCase(
+        sdk,  # type: ignore[arg-type]
+        redis,
+        uow,
+        event_publisher,
+        SettingsRepository(session),
+    )
 
     sdk.system.fail = True
     with pytest.raises(ConnectionError):
@@ -90,7 +109,13 @@ async def test_metadata_failure_does_not_mark_the_panel_down(
         raise ConnectionError("metadata down")
 
     sdk.system.get_metadata = broken_metadata  # type: ignore[method-assign]
-    use_case = SampleRemnawaveOnlineUseCase(sdk, redis, uow, event_publisher)  # type: ignore[arg-type]
+    use_case = SampleRemnawaveOnlineUseCase(
+        sdk,  # type: ignore[arg-type]
+        redis,
+        uow,
+        event_publisher,
+        SettingsRepository(session),
+    )
 
     for _ in range(3):
         await use_case.system()
@@ -115,7 +140,13 @@ async def test_a_lost_outage_event_is_published_on_the_next_sample(
 ) -> None:
     sdk = _Sdk()
     publisher = _FlakyPublisher(event_publisher)
-    use_case = SampleRemnawaveOnlineUseCase(sdk, redis, uow, publisher)  # type: ignore[arg-type]
+    use_case = SampleRemnawaveOnlineUseCase(
+        sdk,  # type: ignore[arg-type]
+        redis,
+        uow,
+        publisher,  # type: ignore[arg-type]
+        SettingsRepository(session),
+    )
 
     sdk.system.fail = True
     with pytest.raises(ConnectionError):
@@ -135,10 +166,16 @@ async def test_a_lost_outage_event_is_published_on_the_next_sample(
 
 
 async def test_the_down_flag_expires(
-    redis: Redis, uow: UnitOfWork, event_publisher: EventPublisher
+    session: AsyncSession, redis: Redis, uow: UnitOfWork, event_publisher: EventPublisher
 ) -> None:
     sdk = _Sdk()
-    use_case = SampleRemnawaveOnlineUseCase(sdk, redis, uow, event_publisher)  # type: ignore[arg-type]
+    use_case = SampleRemnawaveOnlineUseCase(
+        sdk,  # type: ignore[arg-type]
+        redis,
+        uow,
+        event_publisher,
+        SettingsRepository(session),
+    )
 
     sdk.system.fail = True
     for _ in range(2):

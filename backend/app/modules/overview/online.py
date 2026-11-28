@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, tzinfo
 from typing import Final, Optional
 
 from redis.asyncio import Redis
@@ -22,10 +22,13 @@ def _hour_member(moment: datetime) -> str:
     return moment.astimezone(TIMEZONE).strftime("%Y-%m-%dT%H")
 
 
-async def record_online_sample(redis: Redis, moment: datetime, online_now: int) -> None:
+async def record_online_sample(
+    redis: Redis, moment: datetime, online_now: int, zone: tzinfo
+) -> None:
     await redis.set(_LATEST_KEY, online_now, ex=_LATEST_TTL_S)
+    # the shop's day; days sampled before a zone change keep the old zone's dates
     await redis.zadd(
-        _DAILY_PEAK_KEY, {moment.astimezone(TIMEZONE).date().isoformat(): online_now}, gt=True
+        _DAILY_PEAK_KEY, {moment.astimezone(zone).date().isoformat(): online_now}, gt=True
     )
     await redis.zadd(_HOURLY_PEAK_KEY, {_hour_member(moment): online_now}, gt=True)
     # every member past the window, not just the one hour: a sampler outage
