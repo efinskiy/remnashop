@@ -22,6 +22,7 @@ from app.core.exceptions import PermissionDeniedError, RemnawavePanelUnavailable
 from app.core.utils.time import datetime_now
 from app.modules.overview.usecases import GetNodesOverviewUseCase, GetRecapUseCase
 from app.modules.pricing.repository import PricingRepository
+from app.modules.settings.repository import SettingsRepository
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.stats_repository import SubscriptionStatsRepository
 from app.modules.transactions.dto import CreateTransactionDto
@@ -55,6 +56,7 @@ def _use_case(
         pricing_repository,
         GetNodesOverviewUseCase(sdk),
         uow,
+        SettingsRepository(session),
     )
 
 

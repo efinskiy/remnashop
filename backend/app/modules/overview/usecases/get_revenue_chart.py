@@ -7,10 +7,10 @@ from app.core.db.uow import UnitOfWork
 from app.core.exceptions import PermissionDeniedError
 from app.core.security.permissions import Permission, PermissionPolicy
 from app.core.usecase import UseCase
-from app.core.utils.time import time_zone
 from app.modules.overview.dto import DailyAmountDto, GetOverviewChartDto, RevenueChartDto
 from app.modules.overview.period import resolve_period
 from app.modules.pricing import PricingRepository
+from app.modules.settings import SettingsRepository
 from app.modules.transactions import TransactionRepository
 from app.modules.users import UserStatsRepository
 
@@ -25,7 +25,9 @@ class GetRevenueChartUseCase(UseCase[GetOverviewChartDto, RevenueChartDto]):
         transaction_repository: TransactionRepository,
         pricing_repository: PricingRepository,
         uow: UnitOfWork,
+        settings_repository: SettingsRepository,
     ) -> None:
+        self._settings_repository = settings_repository
         self._user_stats = user_stats
         self._transaction_repository = transaction_repository
         self._pricing_repository = pricing_repository
@@ -34,8 +36,8 @@ class GetRevenueChartUseCase(UseCase[GetOverviewChartDto, RevenueChartDto]):
     async def _execute(self, actor: Actor, data: GetOverviewChartDto) -> RevenueChartDto:
         if Permission.TRANSACTIONS_VIEW not in PermissionPolicy.effective_permissions(actor):
             raise PermissionDeniedError
-        zone = time_zone(data.tz)
         async with self._uow:
+            zone = (await self._settings_repository.get_shop_settings()).zone
             period = await resolve_period(self._user_stats, data.days, zone)
             rate_table = await self._pricing_repository.get_rate_table()
             report_currency = rate_table.anchor

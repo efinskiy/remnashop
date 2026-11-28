@@ -1,6 +1,7 @@
 import dataclasses
 import json
 from collections.abc import Awaitable, Callable
+from datetime import tzinfo
 from typing import Final, Optional, TypeVar
 
 from loguru import logger
@@ -26,8 +27,10 @@ class AnalyticsCache:
         params: Optional[object],
         model: type[ReportT],
         compute: Callable[[], Awaitable[ReportT]],
+        zone: Optional[tzinfo] = None,
     ) -> ReportT:
-        key = f"{REDIS_KEY_PREFIX}analytics:{report}:{_params_key(params)}"
+        # the shop's zone is part of the key: changing it must not serve the old zone's days
+        key = f"{REDIS_KEY_PREFIX}analytics:{report}:{zone}:{_params_key(params)}"
         try:
             cached = await self._redis.get(key)
         except RedisError as error:

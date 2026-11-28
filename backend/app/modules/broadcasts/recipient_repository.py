@@ -1,5 +1,5 @@
 import builtins
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, tzinfo
 from typing import Any, Optional
 from typing import cast as typing_cast
 
@@ -21,6 +21,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 
+from app.core.constants import TIMEZONE
 from app.core.db.filters import in_ids
 from app.core.db.models.active_locale import ActiveLocale
 from app.core.db.models.broadcast import Broadcast, BroadcastRecipient
@@ -75,8 +76,9 @@ class BroadcastRecipientRepository:
         delivery: BroadcastDelivery,
         email_fallback: bool,
         now: datetime,
+        zone: tzinfo = TIMEZONE,
     ) -> AudiencePreviewDto:
-        predicate = audience_predicate(audience, category, now)
+        predicate = audience_predicate(audience, category, now, zone)
         channels = _channel_conditions(delivery, email_fallback)
         by_channel: dict[BroadcastChannel, int] = {}
         for channel, condition in channels.items():
@@ -100,8 +102,9 @@ class BroadcastRecipientRepository:
         delivery: BroadcastDelivery,
         email_fallback: bool,
         now: datetime,
+        zone: tzinfo = TIMEZONE,
     ) -> int:
-        predicate = audience_predicate(audience, category, now)
+        predicate = audience_predicate(audience, category, now, zone)
         for channel, condition in _channel_conditions(delivery, email_fallback).items():
             source = (
                 select(

@@ -27,6 +27,7 @@ from app.modules.analytics.usecases import GetPromocodeStatsUseCase
 from app.modules.pricing.repository import PricingRepository
 from app.modules.promocodes.dto import CreatePromocodeDto, PromocodeStatus
 from app.modules.promocodes.repository import PromocodeRepository
+from app.modules.settings.repository import SettingsRepository
 from app.modules.transactions.dto import CreateTransactionDto
 from app.modules.transactions.repository import TransactionRepository
 from app.modules.transactions.stats_repository import TransactionStatsRepository
@@ -52,6 +53,7 @@ def _use_case(
         pricing,
         uow,
         PassThroughAnalyticsCache(),
+        SettingsRepository(session),
     )
 
 

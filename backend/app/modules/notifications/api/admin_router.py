@@ -179,7 +179,6 @@ async def update_notification_settings(
         actor,
         UpdateNotificationSettingsDto(
             vapid_contact=body.vapid_contact,
-            report_timezone=body.report_timezone,
             daily_report_hour=body.daily_report_hour,
         ),
     )

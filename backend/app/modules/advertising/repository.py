@@ -1,10 +1,11 @@
-from datetime import date, datetime
+from datetime import date, datetime, tzinfo
 from typing import Optional
 
 from sqlalchemy import ColumnElement, and_, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.constants import TIMEZONE
 from app.core.db.errors import constraint_name
 from app.core.db.filters import in_ids, visible_rows
 from app.core.db.models.ad_link import AdLink
@@ -237,8 +238,9 @@ class AdLinkRepository:
         *,
         created_from: Optional[datetime] = None,
         created_to: Optional[datetime] = None,
+        zone: tzinfo = TIMEZONE,
     ) -> list[DailyAttributionCountDto]:
-        day_col = func.date(func.timezone("UTC", AdLinkAttribution.created_at))
+        day_col = func.date(func.timezone(str(zone), AdLinkAttribution.created_at))
         stmt = (
             select(day_col, AdLinkAttribution.channel, func.count())
             .where(AdLinkAttribution.ad_link_id == ad_link_id, *_in_range(created_from, created_to))

@@ -1,4 +1,5 @@
 from collections.abc import Awaitable, Callable
+from datetime import tzinfo
 from typing import Optional
 
 from app.modules.analytics.cache import AnalyticsCache, ReportT
@@ -16,5 +17,6 @@ class PassThroughAnalyticsCache(AnalyticsCache):
         params: Optional[object],
         model: type[ReportT],
         compute: Callable[[], Awaitable[ReportT]],
+        zone: Optional[tzinfo] = None,
     ) -> ReportT:
         return await compute()

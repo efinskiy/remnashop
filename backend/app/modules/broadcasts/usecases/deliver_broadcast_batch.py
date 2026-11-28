@@ -132,6 +132,7 @@ class DeliverBroadcastBatchUseCase(UseCase[int, None]):
                     )
                 return False
             bot = await self._settings_repository.get_bot_settings()
+            zone = (await self._settings_repository.get_shop_settings()).zone
             contexts = await self._recipient_repository.recipient_contexts(
                 [p.user_id for p in pending]
             )
@@ -151,6 +152,7 @@ class DeliverBroadcastBatchUseCase(UseCase[int, None]):
         renderer = BroadcastRenderer(
             broadcast,
             promocode_code=code,
+            zone=zone,
             referral_bases=await referral_link_bases(
                 cabinet_allowed, bot, self._config.cabinet.url
             ),

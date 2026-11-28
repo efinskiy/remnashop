@@ -33,6 +33,7 @@ from app.modules.overview.usecases.send_daily_report import (
 )
 from app.modules.pricing.repository import PricingRepository
 from app.modules.referrals.repository import ReferralRepository
+from app.modules.settings.repository import SettingsRepository
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.stats_repository import SubscriptionStatsRepository
 from app.modules.transactions.dto import CreateTransactionDto
@@ -116,7 +117,7 @@ async def test_report_counts_the_day_once(
     monkeypatch.setattr(send_daily_report, "datetime_now", lambda: tomorrow)
     async with uow:
         await notification_repository.update_settings(
-            UpdateNotificationSettingsDto(report_timezone="UTC", daily_report_hour=tomorrow.hour)
+            UpdateNotificationSettingsDto(daily_report_hour=tomorrow.hour)
         )
     session = user_repository.session
     publisher = RecordingEventPublisher()
@@ -130,6 +131,7 @@ async def test_report_counts_the_day_once(
         publisher,
         redis,
         uow,
+        SettingsRepository(session),
     )
 
     await use_case.system()

@@ -176,6 +176,7 @@ class DeliverBroadcastEmailBatchUseCase(UseCase[int, None]):
                 broadcast, self._referral_repository, self._settings_repository
             )
             bot = await self._settings_repository.get_bot_settings()
+            zone = (await self._settings_repository.get_shop_settings()).zone
             labels = await load_unsubscribe_labels(
                 self._translation_repository,
                 sorted({c.language for c in contexts.values()} | {broadcast.default_locale}),
@@ -206,6 +207,7 @@ class DeliverBroadcastEmailBatchUseCase(UseCase[int, None]):
         renderer = BroadcastEmailRenderer(
             broadcast,
             promocode_code=code,
+            zone=zone,
             brand=brand,
             unsubscribe=(
                 unsubscribe_links(cabinet_url, self._config.crypt_key.get_secret_value())

@@ -20,7 +20,7 @@ def test_default_is_last_30_days_including_today() -> None:
     assert period.days == 30
 
 
-def test_bare_dates_are_the_viewers_days() -> None:
+def test_bare_dates_are_the_shops_days() -> None:
     moscow = ZoneInfo("Europe/Moscow")
     # 22:30 UTC on the 4th is already the 5th in Moscow
     late = datetime(2026, 10, 4, 22, 30, tzinfo=TIMEZONE)

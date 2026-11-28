@@ -49,9 +49,8 @@ router = APIRouter(prefix="/analytics", tags=["analytics"])
 def _period_query(
     period_from: Optional[datetime] = None,
     period_to: Optional[datetime] = None,
-    tz: Optional[str] = Query(None, max_length=64),
 ) -> AnalyticsPeriodQueryDto:
-    return AnalyticsPeriodQueryDto(period_from=period_from, period_to=period_to, tz=tz)
+    return AnalyticsPeriodQueryDto(period_from=period_from, period_to=period_to)
 
 
 @router.get("/overview", response_model=AnalyticsResponse, responses=error_responses(400))
@@ -116,7 +115,6 @@ async def get_analytics_revenue(
         GetRevenueDto(
             period_from=query.period_from,
             period_to=query.period_to,
-            tz=query.tz,
             granularity=granularity,
         ),
     )

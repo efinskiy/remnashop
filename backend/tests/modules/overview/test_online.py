@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from app.modules.overview.online import (
     read_daily_online_peaks,
@@ -19,12 +20,24 @@ async def test_record_online_sample_roundtrips_latest_and_daily_peak(redis) -> N
     day = date(2026, 1, 1)
     moment = datetime(2026, 1, 1, 12, tzinfo=timezone.utc)
 
-    await record_online_sample(redis, moment, 10)
-    await record_online_sample(redis, moment, 25)
-    await record_online_sample(redis, moment, 15)
+    await record_online_sample(redis, moment, 10, timezone.utc)
+    await record_online_sample(redis, moment, 25, timezone.utc)
+    await record_online_sample(redis, moment, 15, timezone.utc)
 
     assert await read_latest_online(redis) == 15
     assert await read_daily_online_peaks(redis, [day]) == [(day, 25)]
+
+    await redis.delete(*_KEYS)
+
+
+async def test_daily_peak_is_kept_under_the_shops_day(redis) -> None:
+    await redis.delete(*_KEYS)
+    # 22:30 UTC on the 1st is already the 2nd in Moscow
+    late = datetime(2026, 1, 1, 22, 30, tzinfo=timezone.utc)
+
+    await record_online_sample(redis, late, 40, ZoneInfo("Europe/Moscow"))
+
+    assert await read_daily_online_peaks(redis, [date(2026, 1, 2)]) == [(date(2026, 1, 2), 40)]
 
     await redis.delete(*_KEYS)
 
@@ -34,7 +47,9 @@ async def test_read_daily_online_peaks_skips_days_with_no_sample(redis) -> None:
     day = date(2026, 1, 1)
     other_day = date(2026, 1, 2)
 
-    await record_online_sample(redis, datetime(2026, 1, 1, 12, tzinfo=timezone.utc), 5)
+    await record_online_sample(
+        redis, datetime(2026, 1, 1, 12, tzinfo=timezone.utc), 5, timezone.utc
+    )
 
     assert await read_daily_online_peaks(redis, [day, other_day]) == [(day, 5)]
 
@@ -51,8 +66,8 @@ async def test_hourly_peak_keeps_the_max_per_hour_and_none_for_gaps(redis) -> No
     await redis.delete(*_KEYS)
     hour = datetime(2026, 1, 1, 12, tzinfo=timezone.utc)
 
-    await record_online_sample(redis, hour + timedelta(minutes=5), 120)
-    await record_online_sample(redis, hour + timedelta(minutes=35), 90)
+    await record_online_sample(redis, hour + timedelta(minutes=5), 120, timezone.utc)
+    await record_online_sample(redis, hour + timedelta(minutes=35), 90, timezone.utc)
 
     assert await read_hourly_online_peaks(redis, [hour, hour + timedelta(hours=1)]) == [120, None]
 
@@ -64,9 +79,9 @@ async def test_record_online_sample_prunes_hours_older_than_48h(redis) -> None:
     now = datetime(2026, 1, 5, 12, tzinfo=timezone.utc)
     old = now - timedelta(hours=48)
 
-    await record_online_sample(redis, old, 7)
+    await record_online_sample(redis, old, 7, timezone.utc)
     assert await read_hourly_online_peaks(redis, [old]) == [7]
-    await record_online_sample(redis, now, 1)
+    await record_online_sample(redis, now, 1, timezone.utc)
 
     assert await read_hourly_online_peaks(redis, [old]) == [None]
 
@@ -78,8 +93,8 @@ async def test_hours_the_sampler_missed_are_pruned_too(redis) -> None:
     now = datetime(2026, 1, 5, 12, tzinfo=timezone.utc)
     stranded = now - timedelta(hours=60)  # its exact-48h prune tick never ran
 
-    await record_online_sample(redis, stranded, 9)
-    await record_online_sample(redis, now, 1)
+    await record_online_sample(redis, stranded, 9, timezone.utc)
+    await record_online_sample(redis, now, 1, timezone.utc)
 
     assert await read_hourly_online_peaks(redis, [stranded]) == [None]
     assert await read_hourly_online_peaks(redis, [now]) == [1]

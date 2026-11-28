@@ -1,5 +1,5 @@
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, tzinfo
 from decimal import Decimal
 from functools import partial
 from typing import Final, Optional
@@ -11,7 +11,7 @@ from app.core.enums import PromocodeRewardType, Role
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.core.utils.money import round_cents
-from app.core.utils.time import datetime_now, time_zone
+from app.core.utils.time import datetime_now
 from app.modules.analytics.cache import AnalyticsCache
 from app.modules.analytics.dto import (
     AnalyticsPeriodInfoDto,
@@ -23,6 +23,7 @@ from app.modules.analytics.dto import (
 from app.modules.analytics.period import resolve_period
 from app.modules.pricing import PricingRepository
 from app.modules.promocodes import PromocodeDto, PromocodeRepository, PromocodeStatus
+from app.modules.settings import SettingsRepository
 from app.modules.transactions import TransactionStatsRepository
 from app.modules.users import UserStatsRepository
 
@@ -65,7 +66,9 @@ class GetPromocodeStatsUseCase(UseCase[AnalyticsPeriodQueryDto, PromocodeStatsDt
         pricing_repository: PricingRepository,
         uow: UnitOfWork,
         cache: AnalyticsCache,
+        settings_repository: SettingsRepository,
     ) -> None:
+        self._settings_repository = settings_repository
         self._user_stats = user_stats
         self._promocode_repository = promocode_repository
         self._transaction_stats = transaction_stats
@@ -110,12 +113,17 @@ class GetPromocodeStatsUseCase(UseCase[AnalyticsPeriodQueryDto, PromocodeStatsDt
         return _converted(free, await self._payments(activations, end)) / len(free)
 
     async def _execute(self, actor: Actor, data: AnalyticsPeriodQueryDto) -> PromocodeStatsDto:
+        async with self._uow:
+            zone = (await self._settings_repository.get_shop_settings()).zone
         return await self._cache.get_or_compute(
-            "get_promocode_stats", data, PromocodeStatsDto, partial(self._compute, data)
+            "get_promocode_stats",
+            data,
+            PromocodeStatsDto,
+            partial(self._compute, data, zone),
+            zone=zone,
         )
 
-    async def _compute(self, data: AnalyticsPeriodQueryDto) -> PromocodeStatsDto:
-        zone = time_zone(data.tz)
+    async def _compute(self, data: AnalyticsPeriodQueryDto, zone: tzinfo) -> PromocodeStatsDto:
         async with self._uow:
             now = datetime_now()
             period = resolve_period(

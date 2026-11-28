@@ -1,6 +1,7 @@
 import re
 from typing import Annotated, Final, Optional
 from uuid import UUID
+from zoneinfo import available_timezones
 
 from pydantic import BaseModel, EmailStr, Field, HttpUrl, field_validator, model_validator
 from remnapy.enums import TrafficLimitStrategy
@@ -73,6 +74,11 @@ class ShopSettingsResponse(ResponseModel):
     payment_email: Optional[str]
     plan_change_credit_enabled: bool
     plan_change_traffic_cap_enabled: bool
+    timezone: str
+
+
+class ShopTimezoneResponse(ResponseModel):
+    timezone: str
 
 
 class UpdateShopSettingsRequest(BaseModel):
@@ -101,6 +107,14 @@ class UpdateShopSettingsRequest(BaseModel):
     payment_email: Optional[EmailStr] = None
     plan_change_credit_enabled: Optional[bool] = None
     plan_change_traffic_cap_enabled: Optional[bool] = None
+    timezone: Optional[str] = Field(default=None, max_length=64)
+
+    @field_validator("timezone")
+    @classmethod
+    def known_timezone(cls, value: Optional[str]) -> str:
+        if value is None or value not in available_timezones():
+            raise ValueError("timezone must be an IANA time zone")
+        return value
 
     @field_validator("max_active_subscriptions", mode="before")
     @classmethod

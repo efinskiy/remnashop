@@ -1,12 +1,12 @@
 import { usePermissions } from "@entities/user/use-current-user";
 import { AccessSettingsForm } from "@features/access-settings/AccessSettingsForm";
-import { DailyReportSettingsForm } from "@features/daily-report-settings/DailyReportSettingsForm";
 import { ExpiryDisableSettingsSection } from "@features/expiry-disable-settings/ExpiryDisableSettingsSection";
 import { GraceSettingsSection } from "@features/grace-settings/GraceSettingsSection";
 import { LegalDocumentsEditor } from "@features/legal-documents-editor/LegalDocumentsEditor";
 import { OAuthSettingsForm } from "@features/oauth-settings/OAuthSettingsForm";
 import { ShopSettingsForm } from "@features/shop-settings/ShopSettingsForm";
 import { SupportSettingsForm } from "@features/support-settings/SupportSettingsForm";
+import { TimeSettingsForm } from "@features/time-settings/TimeSettingsForm";
 import { WebPushSettingsForm } from "@features/web-push-settings/WebPushSettingsForm";
 
 export function GeneralSettingsPage() {
@@ -20,7 +20,9 @@ export function GeneralSettingsPage() {
       {permissions.includes("GRACE_SETTINGS_VIEW") && <ExpiryDisableSettingsSection />}
       {permissions.includes("SHOP_SETTINGS_VIEW") && <SupportSettingsForm />}
       {permissions.includes("NOTIFICATION_SETTINGS_VIEW") && <WebPushSettingsForm />}
-      {permissions.includes("NOTIFICATION_SETTINGS_VIEW") && <DailyReportSettingsForm />}
+      {(permissions.includes("SHOP_SETTINGS_VIEW") || permissions.includes("NOTIFICATION_SETTINGS_VIEW")) && (
+        <TimeSettingsForm />
+      )}
       {permissions.includes("LEGAL_DOCUMENTS_VIEW") && <LegalDocumentsEditor />}
     </div>
   );

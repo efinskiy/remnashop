@@ -80,6 +80,7 @@ class SendTestBroadcastEmailUseCase(UseCase[SendTestBroadcastEmailDto, None, Use
                 broadcast, self._referral_repository, self._settings_repository
             )
             bot = await self._settings_repository.get_bot_settings()
+            zone = (await self._settings_repository.get_shop_settings()).zone
             labels = await load_unsubscribe_labels(
                 self._translation_repository, [data.locale, broadcast.default_locale]
             )
@@ -107,6 +108,7 @@ class SendTestBroadcastEmailUseCase(UseCase[SendTestBroadcastEmailDto, None, Use
         renderer = BroadcastEmailRenderer(
             broadcast,
             promocode_code=code,
+            zone=zone,
             brand=brand,
             unsubscribe=(
                 unsubscribe_links(cabinet_url, self._config.crypt_key.get_secret_value())

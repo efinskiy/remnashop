@@ -18,9 +18,8 @@ from app.core.runtime_heartbeat import (
 from app.core.security.permissions import Permission, PermissionPolicy
 from app.core.usecase import UseCase
 from app.core.utils.money import round_cents
-from app.core.utils.time import datetime_now, day_start, time_zone
+from app.core.utils.time import datetime_now, day_start
 from app.modules.overview.dto import (
-    GetOverviewDto,
     HostMemoryDto,
     HostStatsDto,
     OverviewDto,
@@ -31,6 +30,7 @@ from app.modules.overview.dto import (
     RuntimeProcessDto,
 )
 from app.modules.pricing import PricingRepository
+from app.modules.settings import SettingsRepository
 from app.modules.subscriptions import SubscriptionStatsRepository
 from app.modules.transactions import TransactionStatsRepository
 from app.modules.users import UserRepository, UserStatsRepository
@@ -38,7 +38,7 @@ from app.modules.users import UserRepository, UserStatsRepository
 _RECENT_PAYMENTS: Final[int] = 8
 
 
-class GetOverviewUseCase(UseCase[GetOverviewDto, OverviewDto]):
+class GetOverviewUseCase(UseCase[None, OverviewDto]):
     # open to every admin: each section below checks its own permission, since
     # no single Permission covers the overview page
     required_permission = Permission.PUBLIC
@@ -52,7 +52,9 @@ class GetOverviewUseCase(UseCase[GetOverviewDto, OverviewDto]):
         pricing_repository: PricingRepository,
         redis: Redis,
         uow: UnitOfWork,
+        settings_repository: SettingsRepository,
     ) -> None:
+        self._settings_repository = settings_repository
         self._user_stats = user_stats
         self._subscription_stats = subscription_stats
         self._transaction_stats = transaction_stats
@@ -61,10 +63,11 @@ class GetOverviewUseCase(UseCase[GetOverviewDto, OverviewDto]):
         self._redis = redis
         self._uow = uow
 
-    async def _execute(self, actor: Actor, data: GetOverviewDto) -> OverviewDto:
+    async def _execute(self, actor: Actor, data: None) -> OverviewDto:
         perms = PermissionPolicy.effective_permissions(actor)
-        today_start = day_start(datetime_now(), time_zone(data.tz))
         async with self._uow:
+            zone = (await self._settings_repository.get_shop_settings()).zone
+            today_start = day_start(datetime_now(), zone)
             users = await self._users(today_start) if Permission.USERS_VIEW in perms else None
             subscriptions = (
                 await self._subscriptions(today_start)

@@ -163,7 +163,6 @@ class NotificationSettingsDto(BaseDto):
     vapid_public_key: Optional[str] = None
     vapid_private_key: Optional[SecretStr] = None
     vapid_contact: Optional[str] = None
-    report_timezone: str = "UTC"
     daily_report_hour: int = 0
 
     @property
@@ -174,7 +173,6 @@ class NotificationSettingsDto(BaseDto):
 @dataclass(frozen=True, kw_only=True)
 class UpdateNotificationSettingsDto:
     vapid_contact: Optional[str] = None
-    report_timezone: Optional[str] = None
     daily_report_hour: Optional[int] = None
 
 

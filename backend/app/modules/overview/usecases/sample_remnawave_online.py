@@ -25,6 +25,7 @@ from app.modules.overview.events import (
     RemnawaveVersionMismatchEvent,
 )
 from app.modules.overview.online import record_online_sample
+from app.modules.settings import SettingsRepository
 
 _DOWN_KEY: Final[str] = f"{REDIS_KEY_PREFIX}remnawave_down"
 _FAILURES_KEY: Final[str] = f"{REDIS_KEY_PREFIX}remnawave_failed_samples"
@@ -42,7 +43,9 @@ class SampleRemnawaveOnlineUseCase(UseCase[None, None]):
         redis: Redis,
         uow: UnitOfWork,
         event_publisher: EventPublisher,
+        settings_repository: SettingsRepository,
     ) -> None:
+        self._settings_repository = settings_repository
         self._remnawave_sdk = remnawave_sdk
         self._redis = redis
         self._uow = uow
@@ -59,7 +62,11 @@ class SampleRemnawaveOnlineUseCase(UseCase[None, None]):
         if await self._redis.exists(_DOWN_KEY):
             await self._publish(RemnawaveRestoredEvent())
             await self._redis.delete(_DOWN_KEY)
-        await record_online_sample(self._redis, datetime_now(), int(stats.online_stats.online_now))
+        async with self._uow:
+            zone = (await self._settings_repository.get_shop_settings()).zone
+        await record_online_sample(
+            self._redis, datetime_now(), int(stats.online_stats.online_now), zone
+        )
         try:
             metadata = await self._remnawave_sdk.system.get_metadata()
         except Exception:

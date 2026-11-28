@@ -86,6 +86,7 @@ class StartBroadcastUseCase(UseCase[int, None]):
                     broadcast.delivery,
                     broadcast.email_fallback,
                     now,
+                    (await self._settings_repository.get_shop_settings()).zone,
                 )
             await self._broadcast_repository.mark_sending(data, total, broadcast.started_at or now)
             await self._event_publisher.publish(

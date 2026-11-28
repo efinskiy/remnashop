@@ -2,7 +2,9 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { type AdLink, getAdLinkPayout } from "@entities/advertising/api";
+import { shopToday, useShopTimeZoneReady } from "@entities/settings/shop-time-zone";
 import { formatMoney } from "@shared/lib/format";
+import { toIsoDate } from "@shared/lib/iso-date";
 import { useAsyncResource } from "@shared/lib/use-async-resource";
 import { EYEBROW_CLASS, GLASS_PLATE_CLASS } from "@shared/ui/classes";
 import { DatePickerField } from "@shared/ui/DatePickerField";
@@ -13,23 +15,24 @@ import { Spinner } from "@shared/ui/Spinner";
 
 type Preset = "previous" | "current" | "custom";
 
-function isoDay(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
-// [first day, last day] of a UTC calendar month; offset 0 = this month
+// [first day, last day] of the shop's calendar month; offset 0 = this month
 function monthRange(offset: number): [string, string] {
-  const now = new Date();
-  const year = now.getUTCFullYear();
-  const month = now.getUTCMonth() + offset;
-  return [isoDay(new Date(Date.UTC(year, month, 1))), isoDay(new Date(Date.UTC(year, month + 1, 0)))];
+  const today = shopToday();
+  const year = today.getFullYear();
+  const month = today.getMonth() + offset;
+  return [toIsoDate(new Date(year, month, 1)), toIsoDate(new Date(year, month + 1, 0))];
 }
 
 export function AdLinkPayoutCard({ adLink }: { adLink: AdLink }) {
+  // the month presets are the shop's months
+  return useShopTimeZoneReady() ? <AdLinkPayoutBody adLink={adLink} /> : <Spinner size="card" />;
+}
+
+function AdLinkPayoutBody({ adLink }: { adLink: AdLink }) {
   const { t, i18n } = useTranslation();
   const [preset, setPreset] = useState<Preset>("previous");
   const [customFrom, setCustomFrom] = useState(() => monthRange(0)[0]);
-  const [customTo, setCustomTo] = useState(() => isoDay(new Date()));
+  const [customTo, setCustomTo] = useState(() => toIsoDate(shopToday()));
 
   const [from, to] =
     preset === "custom" ? [customFrom, customTo] : monthRange(preset === "previous" ? -1 : 0);

@@ -455,7 +455,10 @@ async def test_preview_counts_by_locale(
     b = await make_customer(user_repository, session, telegram_id=9202, language=Locale.EN)
     c = await make_customer(user_repository, session, telegram_id=9203, language=Locale.RU)
     preview = await PreviewBroadcastAudienceUseCase(
-        broadcast_repository, broadcast_recipient_repository, uow
+        broadcast_repository,
+        broadcast_recipient_repository,
+        uow,
+        SettingsRepository(broadcast_repository.session),
     )(
         admin,
         PreviewAudienceDto(

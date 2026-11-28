@@ -1,12 +1,12 @@
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, tzinfo
 from pathlib import Path
 from typing import Any, Final, Optional
 
 from fluent_compiler.bundle import FluentBundle
 from loguru import logger
 
-from app.core.constants import CUSTOMER_NOTIFICATION_CLOSE_CALLBACK, T_ME
+from app.core.constants import CUSTOMER_NOTIFICATION_CLOSE_CALLBACK, T_ME, TIMEZONE
 from app.core.enums import Locale
 from app.modules.broadcasts.content import render_text
 from app.modules.broadcasts.dto import (
@@ -44,6 +44,7 @@ def recipient_values(
     now: datetime,
     promocode_code: Optional[str],
     referral_base: Optional[str] = None,
+    zone: tzinfo = TIMEZONE,
 ) -> dict[str, str]:
     # an unlimited subscription has no date to show: the line holding it drops
     expire_at = (
@@ -55,7 +56,8 @@ def recipient_values(
         "name": context.name,
         "username": f"@{context.username}" if context.username else "",
         "plan": context.plan_name or "",
-        "expire_date": expire_at.strftime(_DATE_FORMAT) if expire_at else "",
+        # the shop's date, like every other date a customer reads
+        "expire_date": expire_at.astimezone(zone).strftime(_DATE_FORMAT) if expire_at else "",
         "days_left": str(max((expire_at - now).days, 0)) if expire_at else "",
         "bonus_days": str(context.bonus_days),
         "points": str(context.points),
@@ -75,10 +77,12 @@ class BroadcastRenderer:
         *,
         promocode_code: Optional[str],
         referral_bases: ReferralLinkBasesDto = NO_REFERRAL_LINKS,
+        zone: tzinfo = TIMEZONE,
     ) -> None:
         self._broadcast = broadcast
         self._promocode_code = promocode_code
         self._referral_bases = referral_bases
+        self._zone = zone
 
     def _content(self, locale: Locale) -> tuple[Locale, BroadcastContentDto]:
         content = self._broadcast.contents.get(locale)
@@ -137,7 +141,9 @@ class BroadcastRenderer:
         # no unsubscribe button in Telegram for now: a marketing email carries its unsubscribe link,
         # the bot keeps answering bc:unsub for messages sent before
         _, content = self._content(context.language)
-        values = recipient_values(context, now, self._promocode_code, self._referral_bases.bot)
+        values = recipient_values(
+            context, now, self._promocode_code, self._referral_bases.bot, self._zone
+        )
         return RenderedMessage(
             text=render_text(content.text, values),
             reply_markup=self._keyboard(

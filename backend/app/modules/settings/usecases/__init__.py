@@ -19,6 +19,7 @@ from app.modules.settings.usecases.get_public_appearance_image import (
     GetPublicAppearanceImageUseCase,
 )
 from app.modules.settings.usecases.get_shop_settings import GetShopSettingsUseCase
+from app.modules.settings.usecases.get_shop_timezone import GetShopTimezoneUseCase
 from app.modules.settings.usecases.remove_bot_proxy import RemoveBotProxyUseCase
 from app.modules.settings.usecases.report_bot_status import ReportBotStatusUseCase
 from app.modules.settings.usecases.reset_appearance_settings import ResetAppearanceSettingsUseCase
@@ -62,6 +63,7 @@ __all__ = [
     "GetPublicAppearanceImageUseCase",
     "GetPublicAppearanceUseCase",
     "GetShopSettingsUseCase",
+    "GetShopTimezoneUseCase",
     "RemoveBotProxyUseCase",
     "ReportBotStatusUseCase",
     "ResetAppearanceSettingsUseCase",

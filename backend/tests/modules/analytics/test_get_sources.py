@@ -30,6 +30,7 @@ from app.modules.analytics.sources import SourceKind
 from app.modules.analytics.usecases import GetSourcesUseCase
 from app.modules.pricing.repository import PricingRepository
 from app.modules.referrals.repository import ReferralRepository
+from app.modules.settings.repository import SettingsRepository
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.transactions.dto import CreateTransactionDto
 from app.modules.transactions.repository import TransactionRepository
@@ -53,6 +54,7 @@ def _use_case(session: AsyncSession, pricing: PricingRepository, uow: UnitOfWork
         pricing,
         uow,
         PassThroughAnalyticsCache(),
+        SettingsRepository(session),
     )
 
 

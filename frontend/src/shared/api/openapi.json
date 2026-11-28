@@ -10203,10 +10203,6 @@
             "title": "Is Push Configured",
             "type": "boolean"
           },
-          "report_timezone": {
-            "title": "Report Timezone",
-            "type": "string"
-          },
           "vapid_contact": {
             "anyOf": [
               {
@@ -10234,7 +10230,6 @@
           "is_push_configured",
           "vapid_public_key",
           "vapid_contact",
-          "report_timezone",
           "daily_report_hour"
         ],
         "title": "NotificationSettingsResponse",
@@ -16248,6 +16243,10 @@
               }
             ],
             "title": "Support Url"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
           }
         },
         "required": [
@@ -16264,9 +16263,23 @@
           "support_url",
           "payment_email",
           "plan_change_credit_enabled",
-          "plan_change_traffic_cap_enabled"
+          "plan_change_traffic_cap_enabled",
+          "timezone"
         ],
         "title": "ShopSettingsResponse",
+        "type": "object"
+      },
+      "ShopTimezoneResponse": {
+        "properties": {
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "timezone"
+        ],
+        "title": "ShopTimezoneResponse",
         "type": "object"
       },
       "SlideResponse": {
@@ -19642,18 +19655,6 @@
             ],
             "title": "Daily Report Hour"
           },
-          "report_timezone": {
-            "anyOf": [
-              {
-                "maxLength": 64,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Report Timezone"
-          },
           "vapid_contact": {
             "anyOf": [
               {
@@ -20650,6 +20651,18 @@
               }
             ],
             "title": "Support Url"
+          },
+          "timezone": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timezone"
           }
         },
         "title": "UpdateShopSettingsRequest",

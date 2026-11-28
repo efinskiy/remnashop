@@ -18,6 +18,5 @@ class NotificationSettings(BaseSql, TimestampMixin):
     # mailto: for the VAPID `sub` claim; push services contact it about abuse
     vapid_contact: Mapped[Optional[str]] = mapped_column(String(255))
 
-    # the daily report covers the previous day in this IANA zone, sent at this local hour
-    report_timezone: Mapped[str] = mapped_column(String(64), default="UTC", server_default="UTC")
+    # the daily report covers the previous day in the shop's zone, sent at this local hour
     daily_report_hour: Mapped[int] = mapped_column(SmallInteger(), default=0, server_default="0")
