@@ -1,5 +1,5 @@
 import { apiGet } from "@shared/api/http";
-import { toIsoDate, VIEWER_TIME_ZONE } from "@shared/lib/iso-date";
+import { toIsoDate, viewerTimeZone } from "@shared/lib/iso-date";
 import type { Permission } from "@shared/types/rbac";
 import type { ApiSchema } from "@shared/api/schemas";
 
@@ -26,8 +26,8 @@ export type RevenueGranularity = ApiSchema<"RevenueGranularity">;
 export type Analytics = ApiSchema<"AnalyticsResponse">;
 
 export function periodParams(period: AnalyticsPeriod, today = new Date()): URLSearchParams {
-  if (period.kind === "range") return new URLSearchParams({ period_from: period.from, period_to: period.to, tz: VIEWER_TIME_ZONE });
-  const params = new URLSearchParams({ period_to: toIsoDate(today), tz: VIEWER_TIME_ZONE });
+  if (period.kind === "range") return new URLSearchParams({ period_from: period.from, period_to: period.to, tz: viewerTimeZone() });
+  const params = new URLSearchParams({ period_to: toIsoDate(today), tz: viewerTimeZone() });
   if (period.kind === "days") {
     const from = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (period.days - 1));
     params.set("period_from", toIsoDate(from));

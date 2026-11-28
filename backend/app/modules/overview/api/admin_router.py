@@ -75,9 +75,8 @@ async def get_overview_online(
     use_case: FromDishka[GetOnlineChartUseCase],
     actor: UserDto = Depends(require_admin_user),
     days: OverviewPeriodDays = OverviewPeriodDays.SEVEN,
-    tz: Optional[str] = Query(None, max_length=64),
 ) -> OnlineChartResponse:
-    chart = await use_case(actor, _chart_dto(days, tz))
+    chart = await use_case(actor, _chart_dto(days, None))
     return OnlineChartResponse.model_validate(chart, from_attributes=True)
 
 

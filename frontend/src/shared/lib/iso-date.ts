@@ -1,5 +1,7 @@
 /** The browser's IANA zone: the API counts "today" and bare dates in it. */
-export const VIEWER_TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
+export function viewerTimeZone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
 
 export function toIsoDate(date: Date): string {
   const year = date.getFullYear();

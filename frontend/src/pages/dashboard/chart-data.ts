@@ -19,12 +19,17 @@ export function fillDailySeries<T extends { day: string }>(
   sparse: T[],
   days: number,
   emptyValue: (day: string) => T,
+  // the online chart's peaks are stored per UTC day
+  utc = false,
 ): T[] {
   const byDay = new Map(sparse.map((item) => [item.day, item]));
   const result: T[] = [];
   const today = new Date();
   for (let i = days - 1; i >= 0; i--) {
-    const key = toIsoDate(new Date(today.getFullYear(), today.getMonth(), today.getDate() - i));
+    const day = utc
+      ? new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - i))
+      : new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
+    const key = utc ? day.toISOString().slice(0, 10) : toIsoDate(day);
     result.push(byDay.get(key) ?? emptyValue(key));
   }
   return result;

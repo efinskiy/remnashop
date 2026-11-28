@@ -114,7 +114,8 @@ class GetOverviewUseCase(UseCase[GetOverviewDto, OverviewDto]):
         today = sum(
             (r.anchor_final_price for r in paid if r.paid_at >= today_start), start=ZERO_AMOUNT
         )
-        same_time_cutoff = now - timedelta(days=1)
+        # a wall-clock day back, so a DST switch doesn't stretch yesterday's window
+        same_time_cutoff = now.astimezone(today_start.tzinfo) - timedelta(days=1)
         yesterday = sum(
             (r.anchor_final_price for r in paid if r.paid_at < same_time_cutoff),
             start=ZERO_AMOUNT,
