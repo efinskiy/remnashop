@@ -1,6 +1,7 @@
 from redis.asyncio import Redis
 
 from app.core.actor import Actor
+from app.core.constants import TIMEZONE
 from app.core.db.uow import UnitOfWork
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
@@ -21,7 +22,8 @@ class GetOnlineChartUseCase(UseCase[GetOverviewChartDto, OnlineChartDto]):
 
     async def _execute(self, actor: Actor, data: GetOverviewChartDto) -> OnlineChartDto:
         async with self._uow:
-            period = await resolve_period(self._user_stats, data.days)
+            # peaks are stored per UTC day
+            period = await resolve_period(self._user_stats, data.days, TIMEZONE)
         peak_rows = await read_daily_online_peaks(self._redis, period.days())
         return OnlineChartDto(
             days=data.days,

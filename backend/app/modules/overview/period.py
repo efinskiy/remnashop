@@ -1,12 +1,12 @@
 import operator
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, tzinfo
 from decimal import Decimal
 from typing import Final, TypeVar
 
 from app.core.enums import Role
-from app.core.utils.time import datetime_now
+from app.core.utils.time import datetime_now, day_start
 from app.modules.overview.dto import Granularity
 from app.modules.users import UserStatsRepository
 
@@ -59,11 +59,11 @@ class Period:
         return sorted(acc.items())
 
 
-async def resolve_period(user_stats: UserStatsRepository, days: int) -> Period:
-    today_start = datetime_now().replace(hour=0, minute=0, second=0, microsecond=0)
+async def resolve_period(user_stats: UserStatsRepository, days: int, zone: tzinfo) -> Period:
+    today_start = day_start(datetime_now(), zone)
     today = today_start.date()
     if days == 0:
-        first_registration = await user_stats.earliest_registration(Role.USER)
+        first_registration = await user_stats.earliest_registration(Role.USER, zone)
         start_date = first_registration or today
     else:
         start_date = today - timedelta(days=days - 1)
@@ -72,8 +72,8 @@ async def resolve_period(user_stats: UserStatsRepository, days: int) -> Period:
         today_start=today_start,
         start_date=start_date,
         today=today,
-        # calendar days, like the frontend's fillDailySeries (`days` UTC days
-        # ending today); a rolling cutoff would add a partial first day and
+        # calendar days in the viewer's zone, like the frontend's fillDailySeries;
+        # a rolling cutoff would add a partial first day and
         # the daily series wouldn't sum to the card totals
         since=today_start - timedelta(days=span_days - 1),
         granularity="month" if span_days > _MONTHLY_THRESHOLD_DAYS else "day",

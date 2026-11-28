@@ -119,6 +119,26 @@ async def test_owner_can_get_analytics_for_a_period(
     assert period["previous_start"].startswith("2026-08-02")
 
 
+async def test_bare_dates_are_read_in_the_viewers_zone(
+    client: httpx.AsyncClient,
+    user_repository: UserRepository,
+    session_repository: SessionRepository,
+    uow: UnitOfWork,
+    config: AppConfig,
+) -> None:
+    headers = await _owner_headers(user_repository, session_repository, uow, config)
+    url = f"{API_V1}/analytics/overview?period_from=2026-09-01&period_to=2026-09-30"
+
+    response = await client.get(f"{url}&tz=Europe/Moscow", headers=headers)
+    unknown = await client.get(f"{url}&tz=Etc/Unknown", headers=headers)
+
+    assert response.status_code == 200
+    assert response.json()["period"]["start"] == "2026-09-01T00:00:00+03:00"
+    assert unknown.status_code == 200
+    assert unknown.json()["period"]["start"].startswith("2026-09-01T00:00:00")
+    assert unknown.json()["period"]["start"] != "2026-09-01T00:00:00+03:00"
+
+
 async def test_get_analytics_defaults_to_the_last_30_days(
     client: httpx.AsyncClient,
     user_repository: UserRepository,

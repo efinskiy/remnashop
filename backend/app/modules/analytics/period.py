@@ -1,11 +1,11 @@
 from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, tzinfo
 from typing import Final, Optional
 
 from app.core.constants import TIMEZONE
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ValidationError
-from app.core.utils.time import range_end_utc, range_start_utc
+from app.core.utils.time import day_start, range_end_utc, range_start_utc
 
 _DEFAULT_DAYS: Final[int] = 30
 _MAX_PERIOD_DAYS: Final[int] = 3660
@@ -40,19 +40,18 @@ def resolve_period(
     *,
     earliest: Optional[date],
     now: datetime,
+    zone: tzinfo = TIMEZONE,
 ) -> AnalyticsPeriod:
-    tomorrow = datetime.combine(
-        now.astimezone(TIMEZONE).date(), time.min, tzinfo=TIMEZONE
-    ) + timedelta(days=1)
+    tomorrow = day_start(now, zone) + timedelta(days=1)
     try:
-        end = range_end_utc(period_to) or tomorrow
+        end = range_end_utc(period_to, zone) or tomorrow
         if period_from is not None:
-            start = range_start_utc(period_from)
+            start = range_start_utc(period_from, zone)
             assert start is not None
         elif period_to is None:
             start = end - timedelta(days=_DEFAULT_DAYS)
         elif earliest is not None:
-            start = datetime.combine(earliest, time.min, tzinfo=TIMEZONE)
+            start = datetime.combine(earliest, time.min, tzinfo=zone)
         else:
             start = end - timedelta(days=1)
     except OverflowError as error:
@@ -63,7 +62,7 @@ def resolve_period(
     end = min(end, tomorrow)
     if earliest is not None:
         # an older window than the data would only scan empty days
-        first_day = datetime.combine(earliest, time.min, tzinfo=TIMEZONE)
+        first_day = datetime.combine(earliest, time.min, tzinfo=zone)
         if first_day < end:
             start = max(start, first_day)
     if start >= end:

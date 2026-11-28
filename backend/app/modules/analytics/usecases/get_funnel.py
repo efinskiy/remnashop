@@ -6,7 +6,7 @@ from app.core.db.uow import UnitOfWork
 from app.core.enums import Role
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
-from app.core.utils.time import datetime_now
+from app.core.utils.time import datetime_now, time_zone
 from app.modules.advertising import AdLinkRepository
 from app.modules.analytics.cache import AnalyticsCache
 from app.modules.analytics.dto import (
@@ -58,13 +58,15 @@ class GetFunnelUseCase(UseCase[AnalyticsPeriodQueryDto, FunnelDto]):
         )
 
     async def _compute(self, data: AnalyticsPeriodQueryDto) -> FunnelDto:
+        zone = time_zone(data.tz)
         async with self._uow:
             now = datetime_now()
             period = resolve_period(
                 data.period_from,
                 data.period_to,
-                earliest=await self._user_stats.earliest_registration(Role.USER),
+                earliest=await self._user_stats.earliest_registration(Role.USER, zone),
                 now=now,
+                zone=zone,
             )
             previous = period.previous
             registered = [

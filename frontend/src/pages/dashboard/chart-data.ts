@@ -1,5 +1,5 @@
 import type { OverviewPeriodDays } from "@entities/overview/api";
-import { parseIsoDate } from "@shared/lib/iso-date";
+import { parseIsoDate, toIsoDate } from "@shared/lib/iso-date";
 import { useAsyncResource, type AsyncState } from "@shared/lib/use-async-resource";
 
 // each chart card owns its period: refetches on its own pill switch or a global refresh
@@ -19,14 +19,17 @@ export function fillDailySeries<T extends { day: string }>(
   sparse: T[],
   days: number,
   emptyValue: (day: string) => T,
+  // the online chart's peaks are stored per UTC day
+  utc = false,
 ): T[] {
   const byDay = new Map(sparse.map((item) => [item.day, item]));
   const result: T[] = [];
   const today = new Date();
   for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(today);
-    d.setUTCDate(d.getUTCDate() - i);
-    const key = d.toISOString().slice(0, 10);
+    const day = utc
+      ? new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - i))
+      : new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
+    const key = utc ? day.toISOString().slice(0, 10) : toIsoDate(day);
     result.push(byDay.get(key) ?? emptyValue(key));
   }
   return result;

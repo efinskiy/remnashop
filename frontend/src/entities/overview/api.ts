@@ -1,4 +1,5 @@
 import { apiGet } from "@shared/api/http";
+import { viewerTimeZone } from "@shared/lib/iso-date";
 import type { ApiSchema } from "@shared/api/schemas";
 
 export type OverviewPeriodDays = ApiSchema<"RevenueChartResponse">["days"];
@@ -35,11 +36,11 @@ export type AttentionKind = ApiSchema<"AttentionKind">;
 export type AttentionItem = ApiSchema<"AttentionItemResponse">;
 
 export function getOverview(signal?: AbortSignal): Promise<Overview> {
-  return apiGet<Overview>("/overview", signal);
+  return apiGet<Overview>(`/overview?tz=${encodeURIComponent(viewerTimeZone())}`, signal);
 }
 
 export function getRevenueChart(days: OverviewPeriodDays, signal?: AbortSignal): Promise<RevenueChart> {
-  return apiGet<RevenueChart>(`/overview/revenue?days=${days}`, signal);
+  return apiGet<RevenueChart>(`/overview/revenue?days=${days}&tz=${encodeURIComponent(viewerTimeZone())}`, signal);
 }
 
 export function getOnlineChart(days: OverviewPeriodDays, signal?: AbortSignal): Promise<OnlineChart> {

@@ -4,6 +4,7 @@ from dataclasses import replace
 from datetime import datetime, timedelta
 from decimal import Decimal
 from itertools import pairwise
+from zoneinfo import ZoneInfo
 
 import pytest
 from redis.asyncio import Redis
@@ -26,8 +27,8 @@ from app.core.enums import (
 )
 from app.core.exceptions import PermissionDeniedError
 from app.core.runtime_heartbeat import publish_runtime_heartbeat
-from app.core.utils.time import datetime_now
-from app.modules.overview.dto import GetOverviewChartDto
+from app.core.utils.time import datetime_now, day_start
+from app.modules.overview.dto import GetOverviewChartDto, GetOverviewDto
 from app.modules.overview.usecases import (
     GetOnlineChartUseCase,
     GetOverviewUseCase,
@@ -120,7 +121,7 @@ async def test_owner_sees_all_sections_with_correct_counts(
         redis,
         uow,
     )
-    overview = await use_case(OWNER)
+    overview = await use_case(OWNER, GetOverviewDto())
     revenue = await GetRevenueChartUseCase(
         UserStatsRepository(user_repository.session),
         transaction_repository,
@@ -343,7 +344,7 @@ async def test_runtime_lists_only_processes_with_a_live_heartbeat(
         redis,
         uow,
     )
-    overview = await use_case(OWNER)
+    overview = await use_case(OWNER, GetOverviewDto())
 
     assert [p.process for p in overview.runtime] == ["api", "telegram", "worker", "scheduler"]
     process = overview.runtime[0]
@@ -384,7 +385,7 @@ async def test_runtime_shows_each_process_of_a_role(
         redis,
         uow,
     )
-    overview = await use_case(OWNER)
+    overview = await use_case(OWNER, GetOverviewDto())
 
     assert [(p.process, p.instance, p.pid) for p in overview.runtime] == [
         ("api", "admin", 30),
@@ -415,7 +416,7 @@ async def test_overview_includes_host_memory_when_available(
         redis,
         uow,
     )
-    overview = await use_case(OWNER)
+    overview = await use_case(OWNER, GetOverviewDto())
 
     if overview.host_memory is not None:
         assert overview.host_memory.total_bytes > 0
@@ -529,7 +530,7 @@ async def test_revenue_today_compares_with_yesterday_same_time(
 
     overview = await _overview_use_case(
         user_repository, subscription_stats_repository, pricing_repository, redis, uow
-    )(OWNER)
+    )(OWNER, GetOverviewDto())
 
     assert overview.revenue_today is not None
     assert overview.revenue_today.today == Decimal("500")
@@ -540,6 +541,50 @@ async def test_revenue_today_compares_with_yesterday_same_time(
     assert newest.amount == Decimal("500")
     assert newest.name == "Rev Payer"
     assert newest.currency == Currency.RUB
+
+
+async def test_revenue_today_counts_the_viewers_day(
+    user_repository: UserRepository,
+    transaction_repository: TransactionRepository,
+    pricing_repository: PricingRepository,
+    subscription_stats_repository: SubscriptionStatsRepository,
+    redis: Redis,
+    session: AsyncSession,
+    uow: UnitOfWork,
+    plan_id: int,
+) -> None:
+    payer = await user_repository.create(
+        CreateUserDto(name="Tz Payer", telegram_id=830_202, username="tzpayer")
+    )
+    now = datetime_now()
+    local_start = day_start(now, ZoneInfo("Europe/Moscow"))
+    if now - local_start < timedelta(minutes=2):
+        pytest.skip("too close to Moscow midnight to place today's rows")
+    seeded = [
+        await _seed_paid(
+            transaction_repository,
+            session,
+            uow,
+            user_id=payer.id,
+            plan_id=plan_id,
+            key=key,
+            amount=amount,
+            at=at,
+        )
+        for key, amount, at in (
+            # 00:01 in Moscow is the previous UTC day for three hours of every day
+            ("tz-today", "300", local_start + timedelta(minutes=1)),
+            ("tz-yday", "700", local_start - timedelta(minutes=1)),
+        )
+    ]
+    await _clear_window(session, local_start, keep=seeded)
+
+    overview = await _overview_use_case(
+        user_repository, subscription_stats_repository, pricing_repository, redis, uow
+    )(OWNER, GetOverviewDto(tz="Europe/Moscow"))
+
+    assert overview.revenue_today is not None
+    assert overview.revenue_today.today == Decimal("300")
 
 
 async def test_a_hidden_staff_payer_is_left_out_of_recent_payments(
@@ -571,7 +616,7 @@ async def test_a_hidden_staff_payer_is_left_out_of_recent_payments(
 
     overview = await _overview_use_case(
         user_repository, subscription_stats_repository, pricing_repository, redis, uow
-    )(admin)
+    )(admin, GetOverviewDto())
 
     assert overview.recent_payments is not None
     assert all(p.user_id != staff.id for p in overview.recent_payments)
@@ -588,7 +633,7 @@ async def test_revenue_sections_hidden_without_transactions_view(
 
     overview = await _overview_use_case(
         user_repository, subscription_stats_repository, pricing_repository, redis, uow
-    )(actor)
+    )(actor, GetOverviewDto())
 
     assert overview.revenue_today is None
     assert overview.recent_payments is None
@@ -620,7 +665,7 @@ async def test_change_is_none_when_yesterday_had_no_revenue(
 
     overview = await _overview_use_case(
         user_repository, subscription_stats_repository, pricing_repository, redis, uow
-    )(OWNER)
+    )(OWNER, GetOverviewDto())
 
     assert overview.revenue_today is not None
     assert overview.revenue_today.yesterday_same_time == Decimal("0")
@@ -638,7 +683,7 @@ async def test_subscriptions_rows_add_up_to_total(
     use_case = _overview_use_case(
         user_repository, subscription_stats_repository, pricing_repository, redis, uow
     )
-    before = (await use_case(OWNER)).subscriptions
+    before = (await use_case(OWNER, GetOverviewDto())).subscriptions
     assert before is not None
     await create_subscription(
         subscription_repository,
@@ -662,7 +707,7 @@ async def test_subscriptions_rows_add_up_to_total(
         is_trial=True,
     )
 
-    after = (await use_case(OWNER)).subscriptions
+    after = (await use_case(OWNER, GetOverviewDto())).subscriptions
 
     assert after is not None
     assert after.paid_active == before.paid_active + 1

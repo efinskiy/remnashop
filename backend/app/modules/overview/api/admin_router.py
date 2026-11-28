@@ -1,8 +1,8 @@
-from typing import cast
+from typing import Optional, cast
 
 from dishka import FromDishka
 from dishka.integrations.fastapi import inject
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies.admin import require_admin_user
 from app.modules.overview.api.schemas import (
@@ -16,7 +16,7 @@ from app.modules.overview.api.schemas import (
     RecapResponse,
     RevenueChartResponse,
 )
-from app.modules.overview.dto import GetOverviewChartDto, OverviewDays
+from app.modules.overview.dto import GetOverviewChartDto, GetOverviewDto, OverviewDays
 from app.modules.overview.usecases import (
     GetAttentionUseCase,
     GetClientAppsUseCase,
@@ -32,8 +32,8 @@ from app.modules.users import UserDto
 router = APIRouter(prefix="/overview", tags=["overview"])
 
 
-def _chart_dto(days: OverviewPeriodDays) -> GetOverviewChartDto:
-    return GetOverviewChartDto(days=cast(OverviewDays, int(days)))
+def _chart_dto(days: OverviewPeriodDays, tz: Optional[str]) -> GetOverviewChartDto:
+    return GetOverviewChartDto(days=cast(OverviewDays, int(days)), tz=tz)
 
 
 @router.get("", response_model=OverviewResponse)
@@ -41,8 +41,9 @@ def _chart_dto(days: OverviewPeriodDays) -> GetOverviewChartDto:
 async def get_overview(
     use_case: FromDishka[GetOverviewUseCase],
     actor: UserDto = Depends(require_admin_user),
+    tz: Optional[str] = Query(None, max_length=64),
 ) -> OverviewResponse:
-    overview = await use_case(actor)
+    overview = await use_case(actor, GetOverviewDto(tz=tz))
     return OverviewResponse.model_validate(overview, from_attributes=True)
 
 
@@ -62,8 +63,9 @@ async def get_overview_revenue(
     use_case: FromDishka[GetRevenueChartUseCase],
     actor: UserDto = Depends(require_admin_user),
     days: OverviewPeriodDays = OverviewPeriodDays.SEVEN,
+    tz: Optional[str] = Query(None, max_length=64),
 ) -> RevenueChartResponse:
-    chart = await use_case(actor, _chart_dto(days))
+    chart = await use_case(actor, _chart_dto(days, tz))
     return RevenueChartResponse.model_validate(chart, from_attributes=True)
 
 
@@ -74,7 +76,7 @@ async def get_overview_online(
     actor: UserDto = Depends(require_admin_user),
     days: OverviewPeriodDays = OverviewPeriodDays.SEVEN,
 ) -> OnlineChartResponse:
-    chart = await use_case(actor, _chart_dto(days))
+    chart = await use_case(actor, _chart_dto(days, None))
     return OnlineChartResponse.model_validate(chart, from_attributes=True)
 
 

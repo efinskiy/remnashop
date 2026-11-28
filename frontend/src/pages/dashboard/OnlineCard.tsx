@@ -91,7 +91,7 @@ function DailyBody({ days, refreshKey }: { days: 7 | 30; refreshKey: number }) {
   if (state.kind === "loading") return <Spinner size="card" />;
   if (state.kind === "error") return <ErrorState text={t("common.loadError")} />;
 
-  const series = fillDailySeries(state.data.daily_peak, state.data.days, (day) => ({ day, count: 0 }));
+  const series = fillDailySeries(state.data.daily_peak, state.data.days, (day) => ({ day, count: 0 }), true);
   return (
     <OnlineView
       current={state.data.current}
