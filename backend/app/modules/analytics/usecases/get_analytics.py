@@ -1,15 +1,15 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, tzinfo
 from functools import partial
 from typing import Final
 
 from app.core.actor import Actor
-from app.core.constants import TIMEZONE, ZERO_AMOUNT
+from app.core.constants import ZERO_AMOUNT
 from app.core.db.uow import UnitOfWork
 from app.core.enums import Role, SubscriptionStatus
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.core.utils.money import round_cents
-from app.core.utils.time import datetime_now
+from app.core.utils.time import datetime_now, time_zone
 from app.modules.analytics.aggregates import monthly_value, report_amount
 from app.modules.analytics.cache import AnalyticsCache
 from app.modules.analytics.dto import (
@@ -44,6 +44,7 @@ def _period_kpi(
     covered: dict[datetime, set[int]],
     registrations: list[tuple[int, datetime]],
     now: datetime,
+    zone: tzinfo,
 ) -> PeriodKpiDto:
     # registrations shifted back by the window, so each had all of it to pay
     window = timedelta(days=CONVERSION_WINDOW_DAYS)
@@ -57,8 +58,7 @@ def _period_kpi(
         for user_id, registered_at in cohort.items()
         if user_id in first_paid
         and (
-            first_paid[user_id].astimezone(TIMEZONE).date()
-            - registered_at.astimezone(TIMEZONE).date()
+            first_paid[user_id].astimezone(zone).date() - registered_at.astimezone(zone).date()
         ).days
         <= CONVERSION_WINDOW_DAYS
     )
@@ -105,13 +105,15 @@ class GetAnalyticsUseCase(UseCase[AnalyticsPeriodQueryDto, AnalyticsDto]):
         )
 
     async def _compute(self, data: AnalyticsPeriodQueryDto) -> AnalyticsDto:
+        zone = time_zone(data.tz)
         async with self._uow:
             now = datetime_now()
             period = resolve_period(
                 data.period_from,
                 data.period_to,
-                earliest=await self._user_stats.earliest_registration(Role.USER),
+                earliest=await self._user_stats.earliest_registration(Role.USER, zone),
                 now=now,
+                zone=zone,
             )
             previous = period.previous
             rates = await self._pricing_repository.get_rate_table()
@@ -135,6 +137,7 @@ class GetAnalyticsUseCase(UseCase[AnalyticsPeriodQueryDto, AnalyticsDto]):
                     covered=covered,
                     registrations=registrations,
                     now=now,
+                    zone=zone,
                 )
                 for p in (period, previous)
             }

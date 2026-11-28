@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, tzinfo
 from decimal import Decimal
 from typing import Any, Final, Optional, cast
 
@@ -20,7 +20,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.constants import DEFAULT_PAGE_SIZE, INT32_MAX, ZERO_AMOUNT
+from app.core.constants import DEFAULT_PAGE_SIZE, INT32_MAX, TIMEZONE, ZERO_AMOUNT
 from app.core.db.filters import customer_rows, in_ids
 from app.core.db.models.subscription_purchase_idempotency import SubscriptionPurchaseIdempotency
 from app.core.db.models.transaction import Transaction
@@ -794,8 +794,10 @@ class TransactionRepository:
         )
         return dict((await self.session.execute(stmt)).tuples().all())
 
-    async def daily_paid_anchor_revenue(self, since: datetime) -> dict[date, DailyPaidDto]:
-        day_col = func.date(func.timezone("UTC", Transaction.paid_at))
+    async def daily_paid_anchor_revenue(
+        self, since: datetime, zone: tzinfo = TIMEZONE
+    ) -> dict[date, DailyPaidDto]:
+        day_col = func.date(func.timezone(str(zone), Transaction.paid_at))
         stmt = (
             select(day_col, func.sum(Transaction.anchor_final_price), func.count())
             .where(

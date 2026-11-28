@@ -12,7 +12,13 @@ Granularity = Literal["day", "month"]
 
 
 @dataclass(frozen=True, kw_only=True)
-class GetOverviewChartDto:
+class GetOverviewDto:
+    # the viewer's IANA zone their "today" is counted in
+    tz: Optional[str] = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class GetOverviewChartDto(GetOverviewDto):
     days: OverviewDays = 7
 
 

@@ -1,5 +1,5 @@
 import type { OverviewPeriodDays } from "@entities/overview/api";
-import { parseIsoDate } from "@shared/lib/iso-date";
+import { parseIsoDate, toIsoDate } from "@shared/lib/iso-date";
 import { useAsyncResource, type AsyncState } from "@shared/lib/use-async-resource";
 
 // each chart card owns its period: refetches on its own pill switch or a global refresh
@@ -24,9 +24,7 @@ export function fillDailySeries<T extends { day: string }>(
   const result: T[] = [];
   const today = new Date();
   for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(today);
-    d.setUTCDate(d.getUTCDate() - i);
-    const key = d.toISOString().slice(0, 10);
+    const key = toIsoDate(new Date(today.getFullYear(), today.getMonth(), today.getDate() - i));
     result.push(byDay.get(key) ?? emptyValue(key));
   }
   return result;

@@ -1,5 +1,6 @@
 # ruff: noqa: DTZ001  # bare dates arrive naive by design
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -17,6 +18,15 @@ def test_default_is_last_30_days_including_today() -> None:
     assert period.end == TODAY_START + timedelta(days=1)
     assert period.start == period.end - timedelta(days=30)
     assert period.days == 30
+
+
+def test_bare_dates_are_the_viewers_days() -> None:
+    moscow = ZoneInfo("Europe/Moscow")
+    # 22:30 UTC on the 4th is already the 5th in Moscow
+    late = datetime(2026, 10, 4, 22, 30, tzinfo=TIMEZONE)
+    period = resolve_period(datetime(2026, 10, 5), None, earliest=None, now=late, zone=moscow)
+    assert period.start == datetime(2026, 10, 4, 21, tzinfo=TIMEZONE)
+    assert period.end == datetime(2026, 10, 5, 21, tzinfo=TIMEZONE)
 
 
 def test_bare_dates_cover_whole_days() -> None:

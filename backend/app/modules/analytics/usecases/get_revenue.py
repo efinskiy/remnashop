@@ -9,7 +9,7 @@ from app.core.enums import PaymentGatewayType, PurchaseType, Role, TransactionSt
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.core.utils.money import round_cents
-from app.core.utils.time import datetime_now
+from app.core.utils.time import datetime_now, time_zone
 from app.modules.analytics.aggregates import (
     RevenueGranularity,
     bucket_index,
@@ -210,12 +210,14 @@ class GetRevenueUseCase(UseCase[GetRevenueDto, RevenueDto]):
         )
 
     async def _compute(self, data: GetRevenueDto) -> RevenueDto:
+        zone = time_zone(data.tz)
         async with self._uow:
             period = resolve_period(
                 data.period_from,
                 data.period_to,
-                earliest=await self._user_stats.earliest_registration(Role.USER),
+                earliest=await self._user_stats.earliest_registration(Role.USER, zone),
                 now=datetime_now(),
+                zone=zone,
             )
             rates = await self._pricing_repository.get_rate_table()
             paid = await self._transaction_stats.list_paid(period.previous.start, period.end)

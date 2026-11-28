@@ -9,6 +9,7 @@ from app.api.dependencies.admin import require_admin
 from app.api.errors import error_responses
 from app.core.actor import Actor
 from app.core.constants import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
+from app.core.types import TimeZoneName
 from app.modules.analytics.aggregates import RevenueGranularity
 from app.modules.analytics.api.schemas import (
     AnalyticsResponse,
@@ -47,9 +48,11 @@ router = APIRouter(prefix="/analytics", tags=["analytics"])
 
 
 def _period_query(
-    period_from: Optional[datetime] = None, period_to: Optional[datetime] = None
+    period_from: Optional[datetime] = None,
+    period_to: Optional[datetime] = None,
+    tz: Optional[TimeZoneName] = Query(None, max_length=64),
 ) -> AnalyticsPeriodQueryDto:
-    return AnalyticsPeriodQueryDto(period_from=period_from, period_to=period_to)
+    return AnalyticsPeriodQueryDto(period_from=period_from, period_to=period_to, tz=tz)
 
 
 @router.get("/overview", response_model=AnalyticsResponse, responses=error_responses(400))
@@ -112,7 +115,10 @@ async def get_analytics_revenue(
     revenue = await use_case(
         actor,
         GetRevenueDto(
-            period_from=query.period_from, period_to=query.period_to, granularity=granularity
+            period_from=query.period_from,
+            period_to=query.period_to,
+            tz=query.tz,
+            granularity=granularity,
         ),
     )
     return RevenueResponse.model_validate(revenue, from_attributes=True)
