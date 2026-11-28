@@ -5,7 +5,6 @@ from dishka.integrations.fastapi import inject
 from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies.admin import require_admin_user
-from app.core.types import TimeZoneName
 from app.modules.overview.api.schemas import (
     AttentionResponse,
     ClientAppsResponse,
@@ -42,7 +41,7 @@ def _chart_dto(days: OverviewPeriodDays, tz: Optional[str]) -> GetOverviewChartD
 async def get_overview(
     use_case: FromDishka[GetOverviewUseCase],
     actor: UserDto = Depends(require_admin_user),
-    tz: Optional[TimeZoneName] = Query(None, max_length=64),
+    tz: Optional[str] = Query(None, max_length=64),
 ) -> OverviewResponse:
     overview = await use_case(actor, GetOverviewDto(tz=tz))
     return OverviewResponse.model_validate(overview, from_attributes=True)
@@ -64,7 +63,7 @@ async def get_overview_revenue(
     use_case: FromDishka[GetRevenueChartUseCase],
     actor: UserDto = Depends(require_admin_user),
     days: OverviewPeriodDays = OverviewPeriodDays.SEVEN,
-    tz: Optional[TimeZoneName] = Query(None, max_length=64),
+    tz: Optional[str] = Query(None, max_length=64),
 ) -> RevenueChartResponse:
     chart = await use_case(actor, _chart_dto(days, tz))
     return RevenueChartResponse.model_validate(chart, from_attributes=True)
@@ -76,7 +75,7 @@ async def get_overview_online(
     use_case: FromDishka[GetOnlineChartUseCase],
     actor: UserDto = Depends(require_admin_user),
     days: OverviewPeriodDays = OverviewPeriodDays.SEVEN,
-    tz: Optional[TimeZoneName] = Query(None, max_length=64),
+    tz: Optional[str] = Query(None, max_length=64),
 ) -> OnlineChartResponse:
     chart = await use_case(actor, _chart_dto(days, tz))
     return OnlineChartResponse.model_validate(chart, from_attributes=True)

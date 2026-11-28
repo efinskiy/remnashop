@@ -130,11 +130,13 @@ async def test_bare_dates_are_read_in_the_viewers_zone(
     url = f"{API_V1}/analytics/overview?period_from=2026-09-01&period_to=2026-09-30"
 
     response = await client.get(f"{url}&tz=Europe/Moscow", headers=headers)
-    unknown = await client.get(f"{url}&tz=Mars/Olympus", headers=headers)
+    unknown = await client.get(f"{url}&tz=Etc/Unknown", headers=headers)
 
     assert response.status_code == 200
     assert response.json()["period"]["start"] == "2026-09-01T00:00:00+03:00"
-    assert unknown.status_code == 422
+    assert unknown.status_code == 200
+    assert unknown.json()["period"]["start"].startswith("2026-09-01T00:00:00")
+    assert unknown.json()["period"]["start"] != "2026-09-01T00:00:00+03:00"
 
 
 async def test_get_analytics_defaults_to_the_last_30_days(

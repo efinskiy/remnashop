@@ -1,7 +1,7 @@
 from calendar import monthrange
 from datetime import datetime, time, timedelta, tzinfo
 from typing import Literal, Optional, overload
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.core.constants import TIMEZONE
 
@@ -12,7 +12,14 @@ def datetime_now() -> datetime:
 
 def time_zone(name: Optional[str]) -> tzinfo:
     """The viewer's IANA zone their dashboard counts days in; UTC when none was sent."""
-    return ZoneInfo(name) if name else TIMEZONE
+    if not name:
+        return TIMEZONE
+    try:
+        return ZoneInfo(name)
+    except (ZoneInfoNotFoundError, ValueError):
+        # a browser may report "Etc/Unknown" or a zone newer than the image's tzdata;
+        # UTC days beat a dashboard that won't load
+        return TIMEZONE
 
 
 def day_start(moment: datetime, zone: tzinfo) -> datetime:
