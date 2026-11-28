@@ -7,7 +7,7 @@ from app.core.ports import EventPublisher
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.modules.translations.dto import ActiveLocalesDto
-from app.modules.translations.events import LocaleDeactivatedEvent
+from app.modules.translations.events import LocaleChangedEvent
 from app.modules.translations.ports import BotCommandsSync
 from app.modules.translations.repository import TranslationRepository
 
@@ -39,6 +39,8 @@ class RemoveLocaleUseCase(UseCase[Locale, ActiveLocalesDto]):
                 )
             await self._translation_repository.remove_active_locale(data)
             locales = await self._translation_repository.get_locales()
-            await self._event_publisher.publish(LocaleDeactivatedEvent(actor=actor, locale=data))
+            await self._event_publisher.publish(
+                LocaleChangedEvent(actor=actor, action="deactivate", locale=data)
+            )
         await self._bot_commands.drop_locale(data)
         return locales

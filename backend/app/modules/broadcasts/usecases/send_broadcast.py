@@ -16,7 +16,7 @@ from app.core.usecase import UseCase
 from app.core.utils.time import datetime_now
 from app.modules.broadcasts.dispatch import StartBroadcastDispatch
 from app.modules.broadcasts.dto import BroadcastDto, SendBroadcastDto
-from app.modules.broadcasts.events import BroadcastScheduledEvent
+from app.modules.broadcasts.events import BroadcastChangedEvent
 from app.modules.broadcasts.repository import BroadcastRepository
 from app.modules.broadcasts.validation import assert_references
 from app.modules.promocodes import PromocodeRepository
@@ -70,8 +70,11 @@ class SendBroadcastUseCase(UseCase[SendBroadcastDto, BroadcastDto]):
                 await self._check_email(broadcast)
             await self._broadcast_repository.schedule(broadcast.id, scheduled_at)
             await self._event_publisher.publish(
-                BroadcastScheduledEvent(
-                    actor=actor, broadcast_id=broadcast.id, scheduled_at=scheduled_at.isoformat()
+                BroadcastChangedEvent(
+                    actor=actor,
+                    action="schedule",
+                    broadcast_id=broadcast.id,
+                    scheduled_at=scheduled_at.isoformat(),
                 )
             )
             if scheduled_at <= now:

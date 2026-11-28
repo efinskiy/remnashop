@@ -10,9 +10,10 @@ from app.core.db.uow import UnitOfWork
 from app.core.enums import Locale, Role
 from app.core.events import ActorTargetEvent, BaseEvent, EventCategory
 from app.core.outbox_event_publisher import OutboxEventPublisher
+from app.core.request_ip import REQUEST_CLIENT_IP
 from app.modules.auth.events import LoginFailedEvent, LoginSucceededEvent
 from app.modules.users.dto import UserDto
-from app.modules.users.events import AdminCreatedEvent, AdminPermissionsUpdatedEvent
+from app.modules.users.events import AdminChangedEvent
 from tests.fakes.dispatch import RecordingDispatch
 
 OWNER = UserDto(
@@ -59,20 +60,26 @@ async def _published_row(session, event: BaseEvent) -> EventOutboxEntry:
 
 
 async def test_actor_target_event_payload_never_contains_password_hash(session) -> None:
-    row = await _published_row(session, AdminCreatedEvent(actor=OWNER, target=ADMIN))
+    row = await _published_row(
+        session, AdminChangedEvent(actor=OWNER, action="create", target=ADMIN)
+    )
     serialized = str(row.payload)
     assert "super-secret-hash" not in serialized
     assert "another-secret-hash" not in serialized
 
 
 async def test_actor_target_event_payload_never_contains_permission_or_ip_fields(session) -> None:
-    row = await _published_row(session, AdminCreatedEvent(actor=OWNER, target=ADMIN))
+    row = await _published_row(
+        session, AdminChangedEvent(actor=OWNER, action="create", target=ADMIN)
+    )
     assert "permission_grants" not in row.payload.get("target", {})
     assert "ip_allowlist" not in row.payload.get("target", {})
 
 
 async def test_admin_created_payload_shape(session) -> None:
-    row = await _published_row(session, AdminCreatedEvent(actor=OWNER, target=ADMIN))
+    row = await _published_row(
+        session, AdminChangedEvent(actor=OWNER, action="create", target=ADMIN)
+    )
     assert row.payload["target"]["id"] == ADMIN.id
     assert row.payload["target"]["login"] == "admin"
     assert row.payload["target"]["role"] == "ADMIN"
@@ -82,15 +89,21 @@ async def test_user_snapshot_includes_contact_fields(session) -> None:
     target = ADMIN.model_copy(
         update={"telegram_id": 123456789, "username": "admin_tg", "email": "admin@example.com"}
     )
-    row = await _published_row(session, AdminCreatedEvent(actor=OWNER, target=target))
+    row = await _published_row(
+        session, AdminChangedEvent(actor=OWNER, action="create", target=target)
+    )
     assert row.payload["target"]["telegram_id"] == 123456789
     assert row.payload["target"]["username"] == "admin_tg"
     assert row.payload["target"]["email"] == "admin@example.com"
 
 
-async def test_admin_permissions_updated_payload_includes_grants_and_revokes(session) -> None:
-    event = AdminPermissionsUpdatedEvent(
-        actor=OWNER, target=ADMIN, permission_grants=["BOT_SETTINGS_MANAGE"], permission_revokes=[]
+async def test_admin_permissions_payload_includes_grants_and_revokes(session) -> None:
+    event = AdminChangedEvent(
+        actor=OWNER,
+        action="permissions",
+        target=ADMIN,
+        permission_grants=["BOT_SETTINGS_MANAGE"],
+        permission_revokes=[],
     )
     row = await _published_row(session, event)
     assert row.payload["permission_grants"] == ["BOT_SETTINGS_MANAGE"]
@@ -147,7 +160,9 @@ async def test_publish_records_user_event_actor(session) -> None:
 
 async def test_publish_drops_api_token_actor_id(session) -> None:
     api_token_actor = UserDto(id=0, name="API Token: ci", role=Role.USER, language=Locale.EN)
-    row = await _published_row(session, AdminCreatedEvent(actor=api_token_actor, target=ADMIN))
+    row = await _published_row(
+        session, AdminChangedEvent(actor=api_token_actor, action="create", target=ADMIN)
+    )
     assert row.actor_id is None
     assert row.actor_name == "API Token: ci"
 
@@ -160,7 +175,9 @@ async def test_publish_handles_synthetic_actor(session) -> None:
         is_privileged=True,
         log="[api_token:ci]",
     )
-    row = await _published_row(session, AdminCreatedEvent(actor=token_actor, target=ADMIN))
+    row = await _published_row(
+        session, AdminChangedEvent(actor=token_actor, action="create", target=ADMIN)
+    )
     assert row.actor_id is None
     assert row.actor_name == "API Token: ci"
     assert row.actor_login is None
@@ -168,7 +185,9 @@ async def test_publish_handles_synthetic_actor(session) -> None:
 
 async def test_publish_drops_system_actor_id(session) -> None:
     system_actor = UserDto(id=-1, name="SYSTEM", role=Role.SYSTEM, language=Locale.EN)
-    row = await _published_row(session, AdminCreatedEvent(actor=system_actor, target=ADMIN))
+    row = await _published_row(
+        session, AdminChangedEvent(actor=system_actor, action="create", target=ADMIN)
+    )
     assert row.actor_id is None
     assert row.actor_name == "SYSTEM"
 
@@ -212,3 +231,42 @@ async def test_publish_never_kicks_for_a_rolled_back_transaction(session) -> Non
             raise RuntimeError("abort")
 
     assert dispatch.messages == []
+
+
+@pytest.fixture
+def request_ip():
+    token = REQUEST_CLIENT_IP.set("203.0.113.7")
+    yield
+    REQUEST_CLIENT_IP.reset(token)
+
+
+@pytest.mark.usefixtures("request_ip")
+async def test_admin_event_takes_the_request_address(session) -> None:
+    row = await _published_row(
+        session, AdminChangedEvent(actor=OWNER, action="create", target=ADMIN)
+    )
+    assert row.ip_address == "203.0.113.7"
+
+
+@pytest.mark.usefixtures("request_ip")
+async def test_an_address_the_event_names_wins(session) -> None:
+    event = AdminChangedEvent(actor=OWNER, action="create", target=ADMIN, ip_address="198.51.100.1")
+    row = await _published_row(session, event)
+    assert row.ip_address == "198.51.100.1"
+
+
+@pytest.mark.usefixtures("request_ip")
+async def test_system_and_customer_events_take_no_request_address(session) -> None:
+    system_actor = UserDto(id=-1, name="SYSTEM", role=Role.SYSTEM, language=Locale.EN)
+    publisher = OutboxEventPublisher(UnitOfWork(session), RecordingDispatch())
+    await publisher.publish(AdminChangedEvent(actor=system_actor, action="create", target=ADMIN))
+    await publisher.publish(LoginSucceededEvent(user=OWNER))
+    rows = (await session.scalars(select(EventOutboxEntry))).all()
+    assert [row.ip_address for row in rows] == [None, None]
+
+
+async def test_admin_event_outside_a_request_has_no_address(session) -> None:
+    row = await _published_row(
+        session, AdminChangedEvent(actor=OWNER, action="create", target=ADMIN)
+    )
+    assert row.ip_address is None

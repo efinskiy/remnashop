@@ -562,6 +562,7 @@ gateway-name =
     .CLOUDPAYMENTS = CloudPayments
     .PAYPEAR = PayPear
     .CISPAY = cisPay
+    .PAY_2328 = 2328.io
 
 ntf-referrals =
     .disabled = ❌ Реферальная программа сейчас не работает.
@@ -724,8 +725,8 @@ frg-subscription-recurring-retrying = <b>Автопродление включе
 frg-subscription-recurring-pending = <b>Автоплатёж обрабатывается</b>. Ожидается подтверждение от ЮKassa. Отключение остановит новые списания; отправленный платёж может завершиться.
 frg-subscription-recurring-in-flight = <b>Автоплатёж отправлен в ЮKassa</b> и может завершиться. Отключение автопродления останавливает только следующие списания.
 frg-subscription-recurring-reason = Причина: { $reason }.
-frg-subscription-recurring-next-retry = Следующая попытка оплаты: { $when } UTC.
-frg-subscription-recurring-next-check = Следующая проверка платежа: { $when } UTC.
+frg-subscription-recurring-next-retry = Следующая попытка оплаты: { $when }.
+frg-subscription-recurring-next-check = Следующая проверка платежа: { $when }.
 
 frg-purchase-recurring-preserved = Разовая оплата не отменяет ранее подключённое автопродление. Отключить его можно в настройках подписки.
 

@@ -147,6 +147,56 @@ async def test_rejects_negative(
     assert response.json()["code"] == "GRACE_SETTINGS_INVALID"
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"expiry_disable_after_days": 0},
+        {"expiry_disable_warn_days": -1},
+        # past the default 7 days
+        {"expiry_disable_warn_days": 8},
+        {"expiry_disable_after_days": 3, "expiry_disable_warn_days": 4},
+    ],
+)
+async def test_rejects_an_expiry_disable_warning_outside_its_days(
+    client: httpx.AsyncClient, owner_headers: dict[str, str], payload: dict[str, int]
+) -> None:
+    response = await client.patch(_URL, json=payload, headers=owner_headers)
+
+    assert response.status_code == 400
+    assert response.json()["code"] == "EXPIRY_DISABLE_SETTINGS_INVALID"
+
+
+async def test_rejects_expiry_disable_days_past_the_cap(
+    client: httpx.AsyncClient, owner_headers: dict[str, str]
+) -> None:
+    response = await client.patch(
+        _URL, json={"expiry_disable_after_days": 1_000_000}, headers=owner_headers
+    )
+
+    assert response.status_code == 422
+
+
+async def test_expiry_disable_saves_on_its_own(
+    client: httpx.AsyncClient, owner_headers: dict[str, str]
+) -> None:
+    response = await client.patch(
+        _URL,
+        json={
+            "expiry_disable_enabled": True,
+            "expiry_disable_after_days": 10,
+            "expiry_disable_warn_days": 0,
+        },
+        headers=owner_headers,
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["expiry_disable_enabled"] is True
+    assert body["expiry_disable_after_days"] == 10
+    assert body["expiry_disable_warn_days"] == 0
+    assert body["enabled"] is False
+
+
 async def test_requires_manage_permission(
     client: httpx.AsyncClient,
     user_repository: UserRepository,

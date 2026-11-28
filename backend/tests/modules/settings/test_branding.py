@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from app.core.enums import AppearanceTarget
 from app.modules.settings import AppearanceSettingsDto
 from app.modules.settings.branding import (
     appearance_manifest,
@@ -9,7 +8,7 @@ from app.modules.settings.branding import (
     link_preview_image,
     push_icon_path,
 )
-from app.modules.settings.dto import AppearanceImageDto
+from app.modules.settings.dto import AppearanceImageDto, AppearanceTarget
 
 _AT = datetime(2026, 1, 1, tzinfo=timezone.utc)
 _V = int(_AT.timestamp())

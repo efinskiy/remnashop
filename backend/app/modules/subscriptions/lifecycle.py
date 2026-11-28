@@ -59,6 +59,14 @@ class SubscriptionLifecycleService:
         dto = await self._subscription_repository.get_by_id_for_update(subscription_id)
         state = _dto_to_state(dto)
         new_state = state.sync_status(target)
+        # out of the rule's switch-off, or live again during its claim: a later switch-off,
+        # from the panel or an admin, isn't the rule's
+        if (
+            dto.expiry_disabled_at is not None
+            and new_state.status is not SubscriptionStatus.DISABLED
+            and new_state.status is not dto.status
+        ):
+            await self._subscription_repository.set_expiry_disabled_at(subscription_id, None)
         return await self._subscription_repository.apply_state(new_state)
 
     async def sync_expire_at(
@@ -203,8 +211,12 @@ class SubscriptionLifecycleService:
         if dto.grace_until is not None:
             # every renewal ends grace; the sync heeds the panel again from here
             await self._subscription_repository.set_grace_until(subscription_id, None)
+        if dto.expiry_disabled_at is not None:
+            await self._subscription_repository.set_expiry_disabled_at(subscription_id, None)
         renewed = await self._subscription_repository.apply_state(
-            _dto_to_state(dto).reactivate_on_renew(new_expire_at)
+            _dto_to_state(dto).reactivate_on_renew(
+                new_expire_at, disabled_by_expiry=dto.disabled_by_expiry
+            )
         )
         if not is_unlimited_expiry(new_expire_at):
             # a lapsed term restarts today; its old segments lie in the past and credit nothing

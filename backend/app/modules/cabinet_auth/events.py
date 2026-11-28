@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from typing import ClassVar
 
-from app.core.enums import CabinetSignInMethod
 from app.core.events import BaseEvent, EventCategory, UserEvent
+from app.modules.users import CabinetSignInMethod
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -13,7 +13,7 @@ class EmailCodeAttemptsExhaustedEvent(BaseEvent):
 
 @dataclass(frozen=True, kw_only=True)
 class CabinetNewDeviceSignInEvent(UserEvent):
-    category: ClassVar[EventCategory] = EventCategory.USER
+    category: ClassVar[EventCategory] = EventCategory.AUTH
     browser: str
 
 

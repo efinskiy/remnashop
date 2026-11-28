@@ -158,6 +158,7 @@ class ErrorCode(UpperStrEnum):
     GATEWAY_SHOP_DUPLICATE = auto()
     GATEWAY_REQUIRED = auto()
     GRACE_SETTINGS_INVALID = auto()
+    EXPIRY_DISABLE_SETTINGS_INVALID = auto()
     HTTP_ERROR = auto()
     IDENTITY_BLACKLISTED = auto()
     IMAGE_CONTENT_MISMATCH = auto()

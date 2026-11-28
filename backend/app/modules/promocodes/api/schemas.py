@@ -4,16 +4,13 @@ from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.core.enums import (
-    Currency,
-    PromocodeAvailability,
-    PromocodeLinkOutcome,
-    PromocodeRewardType,
-)
+from app.core.dto import ResponseModel
+from app.core.enums import Currency, PromocodeAvailability, PromocodeRewardType
 from app.core.utils.time import range_start_utc
+from app.modules.promocodes.dto import PromocodeLinkOutcome
 
 
-class PromocodeResponse(BaseModel):
+class PromocodeResponse(ResponseModel):
     id: int
     code: str
     is_active: bool
@@ -33,7 +30,7 @@ class PromocodeResponse(BaseModel):
     created_at: Optional[datetime] = None
 
 
-class PublicPromocodeResponse(BaseModel):
+class PublicPromocodeResponse(ResponseModel):
     # no allowed_user_ids (other users' ids) and no admin-only fields
     # (max_activations, is_reusable)
     code: str
@@ -92,21 +89,21 @@ class ActivatePromocodeByLinkRequest(BaseModel):
     code: str = Field(min_length=1, max_length=64)
 
 
-class PromocodeLinkResponse(BaseModel):
+class PromocodeLinkResponse(ResponseModel):
     # CHOOSE_TARGET: the cabinet asks which subscription, then activates as usual
     outcome: PromocodeLinkOutcome
     promocode: PublicPromocodeResponse
 
 
-class PromocodeTargetsResponse(BaseModel):
+class PromocodeTargetsResponse(ResponseModel):
     subscription_ids: list[int]
 
 
-class GeneratedPromocodeCodeResponse(BaseModel):
+class GeneratedPromocodeCodeResponse(ResponseModel):
     code: str
 
 
-class UserPromocodeActivationResponse(BaseModel):
+class UserPromocodeActivationResponse(ResponseModel):
     activation_id: int
     promocode_id: int
     code: str
@@ -116,7 +113,7 @@ class UserPromocodeActivationResponse(BaseModel):
     activated_at: datetime
 
 
-class PromocodeSummaryResponse(BaseModel):
+class PromocodeSummaryResponse(ResponseModel):
     total_count: int
     active_count: int
     activations_count: int
@@ -128,7 +125,7 @@ class PromocodeSummaryResponse(BaseModel):
     discounted_orders_count: int
 
 
-class PromocodeActivatedUserResponse(BaseModel):
+class PromocodeActivatedUserResponse(ResponseModel):
     activation_id: int
     user_id: int
     name: str
@@ -137,16 +134,16 @@ class PromocodeActivatedUserResponse(BaseModel):
     activated_at: datetime
 
 
-class PromocodePageResponse(BaseModel):
+class PromocodePageResponse(ResponseModel):
     items: list[PromocodeResponse]
     total: int
 
 
-class PromocodeActivatedUserPageResponse(BaseModel):
+class PromocodeActivatedUserPageResponse(ResponseModel):
     items: list[PromocodeActivatedUserResponse]
     total: int
 
 
-class UserPromocodeActivationPageResponse(BaseModel):
+class UserPromocodeActivationPageResponse(ResponseModel):
     items: list[UserPromocodeActivationResponse]
     total: int

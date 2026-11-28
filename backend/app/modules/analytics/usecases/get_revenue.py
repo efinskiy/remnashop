@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import tzinfo
 from decimal import Decimal
 from functools import partial
 
@@ -11,7 +12,7 @@ from app.core.usecase import UseCase
 from app.core.utils.money import round_cents
 from app.core.utils.time import datetime_now
 from app.modules.analytics.aggregates import (
-    Granularity,
+    RevenueGranularity,
     bucket_index,
     bucket_starts,
     median,
@@ -28,6 +29,7 @@ from app.modules.analytics.dto import (
 )
 from app.modules.analytics.period import AnalyticsPeriod, resolve_period
 from app.modules.pricing import CurrencyRateTable, PricingRepository
+from app.modules.settings import SettingsRepository
 from app.modules.transactions import (
     PaidTransactionDto,
     PaymentAttemptDto,
@@ -85,7 +87,7 @@ def _count_attempts(
 def _build_revenue(
     *,
     period: AnalyticsPeriod,
-    granularity: Granularity,
+    granularity: RevenueGranularity,
     paid: list[PaidTransactionDto],
     attempts: list[PaymentAttemptDto],
     previous_attempts: list[PaymentAttemptDto],
@@ -197,7 +199,9 @@ class GetRevenueUseCase(UseCase[GetRevenueDto, RevenueDto]):
         pricing_repository: PricingRepository,
         uow: UnitOfWork,
         cache: AnalyticsCache,
+        settings_repository: SettingsRepository,
     ) -> None:
+        self._settings_repository = settings_repository
         self._user_stats = user_stats
         self._transaction_stats = transaction_stats
         self._pricing_repository = pricing_repository
@@ -205,17 +209,20 @@ class GetRevenueUseCase(UseCase[GetRevenueDto, RevenueDto]):
         self._cache = cache
 
     async def _execute(self, actor: Actor, data: GetRevenueDto) -> RevenueDto:
+        async with self._uow:
+            zone = (await self._settings_repository.get_shop_settings()).zone
         return await self._cache.get_or_compute(
-            "get_revenue", data, RevenueDto, partial(self._compute, data)
+            "get_revenue", data, RevenueDto, partial(self._compute, data, zone), zone=zone
         )
 
-    async def _compute(self, data: GetRevenueDto) -> RevenueDto:
+    async def _compute(self, data: GetRevenueDto, zone: tzinfo) -> RevenueDto:
         async with self._uow:
             period = resolve_period(
                 data.period_from,
                 data.period_to,
-                earliest=await self._user_stats.earliest_registration(Role.USER),
+                earliest=await self._user_stats.earliest_registration(Role.USER, zone),
                 now=datetime_now(),
+                zone=zone,
             )
             rates = await self._pricing_repository.get_rate_table()
             paid = await self._transaction_stats.list_paid(period.previous.start, period.end)

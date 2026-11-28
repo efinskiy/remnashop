@@ -1,12 +1,11 @@
 from dishka import FromDishka
 from dishka.integrations.fastapi import inject
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Request, Response, status
 
-from app.api.dependencies.admin import require_admin
+from app.api.dependencies.admin import require_admin, require_admin_user
 from app.api.errors import error_responses
 from app.api.uploads import MULTIPART_FILE_BODY, read_form_file
 from app.core.actor import Actor
-from app.core.enums import AppearanceTarget
 from app.modules.settings.api.schemas import (
     AccessSettingsResponse,
     AppearanceResponse,
@@ -22,6 +21,7 @@ from app.modules.settings.api.schemas import (
     OAuthSettingsResponse,
     SetBotProxyRequest,
     ShopSettingsResponse,
+    ShopTimezoneResponse,
     UpdateAccessSettingsRequest,
     UpdateAppearanceRequest,
     UpdateBotCommandsRequest,
@@ -36,6 +36,7 @@ from app.modules.settings.api.schemas import (
 )
 from app.modules.settings.appearance_images import MAX_APPEARANCE_IMAGE_SIZE_BYTES
 from app.modules.settings.dto import (
+    AppearanceTarget,
     GetBotCommandsDto,
     SetBotProxyDto,
     UpdateAccessSettingsDto,
@@ -65,6 +66,7 @@ from app.modules.settings.usecases import (
     GetGraceSettingsUseCase,
     GetOAuthSettingsUseCase,
     GetShopSettingsUseCase,
+    GetShopTimezoneUseCase,
     RemoveBotProxyUseCase,
     ResetAppearanceSettingsUseCase,
     ResetBulkEmailSettingsUseCase,
@@ -85,6 +87,7 @@ from app.modules.settings.usecases import (
     UploadAppearanceFaviconUseCase,
     UploadAppearanceLogoUseCase,
 )
+from app.modules.users import UserDto
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -333,6 +336,16 @@ async def get_shop_settings(
     return ShopSettingsResponse.model_validate(settings, from_attributes=True)
 
 
+@router.get("/timezone", response_model=ShopTimezoneResponse)
+@inject
+async def get_shop_timezone(
+    use_case: FromDishka[GetShopTimezoneUseCase],
+    actor: UserDto = Depends(require_admin_user),
+) -> ShopTimezoneResponse:
+    zone = await use_case(actor)
+    return ShopTimezoneResponse.model_validate(zone, from_attributes=True)
+
+
 @router.patch("/shop", response_model=ShopSettingsResponse, responses=error_responses(400))
 @inject
 async def update_shop_settings(
@@ -377,13 +390,16 @@ async def update_grace_settings(
             traffic_limit_strategy=payload.traffic_limit_strategy,
             tag=payload.tag,
             duration_days=payload.duration_days,
+            expiry_disable_enabled=payload.expiry_disable_enabled,
+            expiry_disable_after_days=payload.expiry_disable_after_days,
+            expiry_disable_warn_days=payload.expiry_disable_warn_days,
             fields_set=frozenset(payload.model_fields_set),
         ),
     )
     return GraceSettingsResponse.model_validate(settings, from_attributes=True)
 
 
-@router.post("/bot/actions/restart", status_code=status.HTTP_202_ACCEPTED)
+@router.post("/bot/actions/restart", response_class=Response, status_code=status.HTTP_202_ACCEPTED)
 @inject
 async def restart_bot(
     use_case: FromDishka[RestartBotUseCase],

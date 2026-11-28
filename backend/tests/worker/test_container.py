@@ -1,12 +1,15 @@
 import importlib
-import re
+import subprocess
 import typing
 from pathlib import Path
-from typing import Any, Final
+from typing import Any, Final, Union
 
 import pytest
+import taskiq.cli.utils as taskiq_cli_utils
 from dishka import Scope
 from taskiq import AsyncTaskiqDecoratedTask
+from taskiq.cli.scheduler.args import SchedulerArgs
+from taskiq.cli.worker.args import WorkerArgs
 
 import app.modules
 from app.core.config import AppConfig
@@ -14,20 +17,39 @@ from app.worker.container import create_worker_container
 
 _ENTRYPOINT: Final[Path] = Path(__file__).parents[3] / "docker-entrypoint.sh"
 _MODULES_DIR: Final[Path] = Path(app.modules.__file__).parent
+_BACKEND_DIR: Final[Path] = _ENTRYPOINT.parent / "backend"
+_COMMAND_ARGS: Final[dict[str, type[Union[WorkerArgs, SchedulerArgs]]]] = {
+    "worker": WorkerArgs,
+    "scheduler": SchedulerArgs,
+}
 
 
-def _worker_task_modules() -> set[str]:
-    worker_line = next(
-        line for line in _ENTRYPOINT.read_text().splitlines() if "taskiq worker" in line
+def _command_argv(command: str) -> list[str]:
+    # the shell's own word splitting and globbing, run from a directory laid out
+    # like WORKDIR (/opt/remnashop), so an unquoted pattern would expand here too
+    line = next(
+        line for line in _ENTRYPOINT.read_text().splitlines() if f"exec taskiq {command}" in line
     )
-    return set(re.findall(r"app\.modules\.\w+\.tasks", worker_line))
-
-
-def _scheduler_task_modules() -> set[str]:
-    scheduler_line = next(
-        line for line in _ENTRYPOINT.read_text().splitlines() if "exec taskiq scheduler" in line
+    script = line.replace(f"exec taskiq {command}", "printf '%s\\n'", 1)
+    result = subprocess.run(
+        ["sh", "-c", script], cwd=_BACKEND_DIR, capture_output=True, text=True, check=True
     )
-    return set(re.findall(r"app\.modules\.\w+\.tasks", scheduler_line))
+    return result.stdout.splitlines()
+
+
+def _discovered_task_modules(command: str, monkeypatch: pytest.MonkeyPatch) -> set[str]:
+    args = _COMMAND_ARGS[command].from_cli(_command_argv(command))
+    assert args.fs_discover
+    imported: list[str] = []
+    monkeypatch.setattr(taskiq_cli_utils, "import_from_modules", imported.extend)
+    monkeypatch.chdir(_BACKEND_DIR)
+    taskiq_cli_utils.import_tasks([], args.tasks_pattern, args.fs_discover)
+    return set(imported)
+
+
+_TASK_MODULES_ON_DISK: Final[set[str]] = {
+    f"app.modules.{path.parent.name}.tasks" for path in _MODULES_DIR.glob("*/tasks.py")
+}
 
 
 def _injected_types(task: AsyncTaskiqDecoratedTask[Any, Any]) -> list[Any]:
@@ -41,22 +63,15 @@ def _injected_types(task: AsyncTaskiqDecoratedTask[Any, Any]) -> list[Any]:
     ]
 
 
-def test_worker_command_lists_every_tasks_module() -> None:
-    on_disk = {f"app.modules.{path.parent.name}.tasks" for path in _MODULES_DIR.glob("*/tasks.py")}
-    assert _worker_task_modules() == on_disk
+@pytest.mark.parametrize("command", sorted(_COMMAND_ARGS))
+def test_command_discovers_every_tasks_module(
+    command: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # a module the scheduler misses is never kicked; one the worker misses never runs
+    assert _discovered_task_modules(command, monkeypatch) == _TASK_MODULES_ON_DISK
 
 
-def test_scheduler_command_lists_every_module_with_a_schedule() -> None:
-    # a module missing here is executed by the worker but never kicked by the scheduler
-    scheduled = {
-        f"app.modules.{path.parent.name}.tasks"
-        for path in _MODULES_DIR.glob("*/tasks.py")
-        if "schedule=" in path.read_text()
-    }
-    assert scheduled <= _scheduler_task_modules()
-
-
-@pytest.mark.parametrize("module_name", sorted(_worker_task_modules()))
+@pytest.mark.parametrize("module_name", sorted(_TASK_MODULES_ON_DISK))
 async def test_worker_container_resolves_every_task_dependency(
     config: AppConfig, module_name: str
 ) -> None:

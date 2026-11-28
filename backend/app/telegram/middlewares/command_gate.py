@@ -4,9 +4,8 @@ from aiogram.types import Message, TelegramObject
 from dishka import AsyncContainer
 
 from app.core.constants import CONTAINER_KEY
-from app.core.enums import MiddlewareEventType
 from app.modules.settings import BOT_COMMANDS, GetBotCommandsDto, GetBotCommandsUseCase
-from app.telegram.middlewares.base import EventTypedMiddleware
+from app.telegram.middlewares.base import EventTypedMiddleware, MiddlewareEventType
 
 _CURRENT_COMMAND_NAMES: Final[frozenset[str]] = frozenset(item.command for item in BOT_COMMANDS)
 

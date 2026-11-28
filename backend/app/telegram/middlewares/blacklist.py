@@ -5,10 +5,13 @@ from dishka import AsyncContainer
 from fluentogram import TranslatorHub
 
 from app.core.constants import CONTAINER_KEY, USER_KEY
-from app.core.enums import MiddlewareEventType
 from app.modules.users import UserDto
 from app.telegram.i18n import get_translator
-from app.telegram.middlewares.base import EventTypedMiddleware, is_successful_payment
+from app.telegram.middlewares.base import (
+    EventTypedMiddleware,
+    MiddlewareEventType,
+    is_successful_payment,
+)
 from app.telegram.notice import answer_notice
 
 

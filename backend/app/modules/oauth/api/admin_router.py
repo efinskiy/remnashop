@@ -8,8 +8,8 @@ from app.core.enums import OAuthProvider
 from app.core.exceptions import AuthenticationError, ValidationError
 from app.core.utils.http import resolve_client_ip
 from app.modules.oauth.api.schemas import (
-    OAuthAuthorizeResponse,
-    OAuthCallbackRequest,
+    OAuthConnectAuthorizeResponse,
+    OAuthConnectCallbackRequest,
     OAuthIdentityListResponse,
     OAuthIdentityResponse,
 )
@@ -41,7 +41,7 @@ async def list_connected_accounts(
 
 @router.post(
     "/{provider}/connect/authorize",
-    response_model=OAuthAuthorizeResponse,
+    response_model=OAuthConnectAuthorizeResponse,
     responses=error_responses(400),
 )
 @inject
@@ -49,12 +49,12 @@ async def oauth_connect_authorize(
     provider: OAuthProvider,
     use_case: FromDishka[OAuthConnectAuthorizeUseCase],
     actor: UserDto = Depends(require_admin_user),
-) -> OAuthAuthorizeResponse:
+) -> OAuthConnectAuthorizeResponse:
     try:
         url = await use_case(actor, provider)
     except AuthenticationError as error:
         raise ValidationError(str(error), code=error.code) from error
-    return OAuthAuthorizeResponse(url=url)
+    return OAuthConnectAuthorizeResponse(url=url)
 
 
 @router.post(
@@ -65,7 +65,7 @@ async def oauth_connect_authorize(
 @inject
 async def oauth_connect_callback(
     provider: OAuthProvider,
-    payload: OAuthCallbackRequest,
+    payload: OAuthConnectCallbackRequest,
     request: Request,
     use_case: FromDishka[OAuthConnectCallbackUseCase],
     actor: UserDto = Depends(require_admin_user),

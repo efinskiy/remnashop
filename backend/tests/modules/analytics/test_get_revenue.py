@@ -21,6 +21,7 @@ from app.core.utils.time import datetime_now
 from app.modules.analytics.dto import GetRevenueDto
 from app.modules.analytics.usecases import GetRevenueUseCase
 from app.modules.pricing.repository import PricingRepository
+from app.modules.settings.repository import SettingsRepository
 from app.modules.transactions.repository import TransactionRepository
 from app.modules.transactions.stats_repository import TransactionStatsRepository
 from app.modules.users.dto import CreateUserDto, UserDto
@@ -41,6 +42,7 @@ def _use_case(
         pricing_repository,
         uow,
         PassThroughAnalyticsCache(),
+        SettingsRepository(session),
     )
 
 

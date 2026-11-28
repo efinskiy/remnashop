@@ -1,11 +1,10 @@
 from dishka import FromDishka
 from dishka.integrations.fastapi import inject
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Response, status
 
 from app.api.dependencies.admin import require_admin
 from app.api.errors import error_responses
 from app.core.actor import Actor
-from app.core.enums import BlacklistKind
 from app.modules.blacklist.api.schemas import (
     AddSourceRequest,
     BlacklistResponse,
@@ -16,6 +15,7 @@ from app.modules.blacklist.api.schemas import (
 from app.modules.blacklist.dto import (
     AddBlacklistSourceDto,
     BlacklistEntryInputDto,
+    BlacklistKind,
     UpdateBlacklistSourceDto,
 )
 from app.modules.blacklist.usecases import (
@@ -141,7 +141,7 @@ async def update_blacklist_source(
     return BlacklistSourceResponse.model_validate(source, from_attributes=True)
 
 
-@router.post("/sources/actions/sync", status_code=status.HTTP_202_ACCEPTED)
+@router.post("/sources/actions/sync", response_class=Response, status_code=status.HTTP_202_ACCEPTED)
 @inject
 async def sync_blacklist_sources(
     use_case: FromDishka[SyncBlacklistSourcesUseCase],

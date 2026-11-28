@@ -43,14 +43,14 @@ def menu_subscription(
     expired, so the customer sees it ran out rather than that they never had one."""
     if active is not None:
         return active
-    expired = [s for s in owned if s.status == SubscriptionStatus.EXPIRED]
+    expired = [s for s in owned if s.customer_status is SubscriptionStatus.EXPIRED]
     return max(expired, key=lambda s: s.expire_at, default=None)
 
 
 def connect_problem(subscription: Optional[SubscriptionDto]) -> str:
     if subscription is None or subscription.status is SubscriptionStatus.ACTIVE:
         return ""
-    return subscription.status.value
+    return subscription.customer_status.value
 
 
 def subscription_menu_values(
@@ -83,7 +83,7 @@ def subscription_menu_values(
         unlimited = strip_serializer_escapes(runner.get("frg-subscription-unlimited"))
         values = {
             "subscription_status": strip_serializer_escapes(
-                runner.get("frg-subscription-status", status=subscription.status.value)
+                runner.get("frg-subscription-status", status=subscription.customer_status.value)
             ),
             "subscription_traffic_limit": (
                 strip_serializer_escapes(
@@ -114,7 +114,7 @@ def subscription_menu_values(
     block = render_window_text(
         runner,
         "frg-menu-subscription",
-        status=subscription.status.value,
+        status=subscription.customer_status.value,
         is_trial=int(subscription.is_trial),
         traffic_strategy="RESET" if resets else "NO_RESET",
         trial_available=int(trial_available),

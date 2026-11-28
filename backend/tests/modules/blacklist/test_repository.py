@@ -1,6 +1,5 @@
 from app.core.db.uow import UnitOfWork
-from app.core.enums import BlacklistKind
-from app.modules.blacklist.dto import AddBlacklistSourceDto, ParsedSourceList
+from app.modules.blacklist.dto import AddBlacklistSourceDto, BlacklistKind, ParsedSourceList
 from app.modules.blacklist.repository import BlacklistRepository
 
 

@@ -34,6 +34,8 @@ class DeleteBroadcastMediaUseCase(UseCase[int, BroadcastDto]):
             current = await lock_editable(self._broadcast_repository, data)
             if current.sends_telegram:
                 validate_texts(current.contents, current.default_locale, has_media=False)
+            # an edited broadcast goes out only once it is scheduled again
+            await self._broadcast_repository.return_to_draft(current.id)
             await self._broadcast_repository.set_media(current.id, None)
             updated = await self._broadcast_repository.get_by_id(current.id)
             await self._event_publisher.publish(

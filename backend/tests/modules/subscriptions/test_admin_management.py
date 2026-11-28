@@ -1,6 +1,7 @@
 from dataclasses import replace
 from datetime import timedelta
 from decimal import Decimal
+from typing import Optional
 from uuid import uuid4
 
 import pytest
@@ -54,6 +55,7 @@ from app.modules.subscriptions.idempotency_repository import PurchaseIdempotency
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.revoker import PanelSubscriptionRevoker
+from app.modules.subscriptions.stats_repository import SubscriptionStatsRepository
 from app.modules.subscriptions.usage import PanelTrafficUsage
 from app.modules.subscriptions.usecases import (
     AdminDeleteAllDevicesUseCase,
@@ -427,6 +429,7 @@ async def test_disable_then_enable(
     )
     assert disabled.status is SubscriptionStatus.DISABLED
     assert remnawave_store[granted.remnawave_user_id]["status"] == "DISABLED"
+    assert remnawave_store[granted.remnawave_user_id]["droppedConnections"] == 1
 
     enabled = await use_case(
         OWNER, SetSubscriptionEnabledDto(subscription_id=granted.id, enabled=True)
@@ -557,6 +560,7 @@ async def test_admin_reissue_updates_url_without_client_cooldown(
     plan_repository: PlanRepository,
     subscription_repository: SubscriptionRepository,
     remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
     event_publisher: EventPublisher,
     uow: UnitOfWork,
 ) -> None:
@@ -573,6 +577,7 @@ async def test_admin_reissue_updates_url_without_client_cooldown(
 
     assert reissued.url != granted.url
     assert reissued.link_reset_at is None
+    assert remnawave_store[granted.remnawave_user_id]["droppedConnections"] == 1
 
 
 async def test_reset_traffic_of_deleted_subscription_is_rejected(
@@ -837,6 +842,10 @@ async def test_change_plan_keeping_expiry_carries_the_paid_credit(
     assert {segment.kind for segment in carried} == {CreditSegmentKind.CARRIED}
     assert sum(segment.paid for segment in carried) == Decimal("300")
     assert {segment.ends_at for segment in carried} == {old.expire_at}
+    # the new row's snapshot says 0, and the customer's money still counts
+    assert changed.plan_snapshot.price_paid == Decimal(0)
+    live = await SubscriptionStatsRepository(subscription_repository.session).list_live()
+    assert [row.is_paid for row in live if row.user_id == changed.user_id] == [True]
 
 
 async def test_squads_are_restored_in_the_panel_when_deleted_mid_edit(
@@ -1176,6 +1185,7 @@ async def test_channel_leave_pauses_a_trial_and_rejoin_resumes_it(
     paused = await subscription_repository.get_by_id(trial.id)
     assert paused.status is SubscriptionStatus.DISABLED and paused.paused_by_channel_leave
     assert remnawave_store[trial.remnawave_user_id]["status"] == "DISABLED"
+    assert remnawave_store[trial.remnawave_user_id]["droppedConnections"] == 1
 
     assert await use_case.system(replace(leave, joined=True)) is not None
     resumed = await subscription_repository.get_by_id(trial.id)
@@ -1403,3 +1413,41 @@ async def test_an_admin_changes_their_own_subscription_only_with_staff_self_mana
     updated = await update(allowed, change)
 
     assert updated.device_limit == 7
+
+
+async def _is_paid(subscription_repository: SubscriptionRepository, user_id: int) -> list[bool]:
+    live = await SubscriptionStatsRepository(subscription_repository.session).list_live()
+    return [row.is_paid for row in live if row.user_id == user_id]
+
+
+@pytest.mark.parametrize("duration_days", [None, 5])
+@pytest.mark.parametrize("paid", [True, False])
+async def test_a_plan_change_keeps_the_paid_status(
+    grant_use_case: GrantSubscriptionUseCase,
+    change_plan_use_case: ChangeSubscriptionPlanUseCase,
+    user_repository: UserRepository,
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+    duration_days: Optional[int],
+    paid: bool,
+) -> None:
+    old = await _granted(grant_use_case, user_repository, plan_repository, 9420, "keep-paid-a")
+    if paid:
+        # paid only by its sale: a segment migration 1027 wrote with 0 carries nothing
+        await subscription_repository.session.execute(
+            update(Subscription)
+            .where(Subscription.id == old.id)
+            .values(plan_snapshot={**old.plan_snapshot.to_json(), "price_paid": "300"})
+        )
+    assert await _is_paid(subscription_repository, old.user_id) == [paid]
+    new_plan = await _plan(plan_repository, "keep-paid-b")
+
+    changed = await change_plan_use_case(
+        OWNER,
+        ChangeSubscriptionPlanDto(
+            subscription_id=old.id, plan_id=new_plan.id, duration_days=duration_days
+        ),
+    )
+
+    assert changed.plan_snapshot.price_paid == Decimal(0)
+    assert await _is_paid(subscription_repository, changed.user_id) == [paid]

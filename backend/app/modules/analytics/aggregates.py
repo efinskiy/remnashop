@@ -1,7 +1,7 @@
 from bisect import bisect_right
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Literal
+from enum import StrEnum
 
 from app.core.constants import ZERO_AMOUNT
 from app.core.enums import Currency
@@ -9,7 +9,11 @@ from app.modules.analytics.period import AnalyticsPeriod
 from app.modules.pricing import CurrencyRateTable, convert_for_report
 from app.modules.subscriptions import LiveSubscriptionDto
 
-Granularity = Literal["day", "week", "month"]
+
+class RevenueGranularity(StrEnum):
+    DAY = "day"
+    WEEK = "week"
+    MONTH = "month"
 
 
 def report_amount(amount: Decimal, currency: Currency, rates: CurrencyRateTable) -> Decimal:
@@ -33,7 +37,7 @@ def median(values: list[Decimal]) -> Decimal:
     return (ordered[middle - 1] + ordered[middle]) / 2
 
 
-def bucket_starts(period: AnalyticsPeriod, granularity: Granularity) -> list[datetime]:
+def bucket_starts(period: AnalyticsPeriod, granularity: RevenueGranularity) -> list[datetime]:
     starts: list[datetime] = []
     cursor = period.start
     while cursor < period.end:

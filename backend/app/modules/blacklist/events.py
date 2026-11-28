@@ -1,26 +1,20 @@
 from dataclasses import dataclass
 from typing import ClassVar, Literal, Optional
 
-from app.core.enums import BlacklistKind
-from app.core.events import ActorEvent, BaseEvent, EventCategory
+from app.core.events import ActorEvent, EventCategory, SystemEvent
+from app.modules.blacklist.dto import BlacklistKind
 
 
 @dataclass(frozen=True, kw_only=True)
-class BlacklistEntryAddedEvent(ActorEvent):
+class BlacklistEntryChangedEvent(ActorEvent):
     category: ClassVar[EventCategory] = EventCategory.SETTINGS
+    action: Literal["create", "delete"]
     kind: BlacklistKind
     value: str
 
 
 @dataclass(frozen=True, kw_only=True)
-class BlacklistEntryRemovedEvent(ActorEvent):
-    category: ClassVar[EventCategory] = EventCategory.SETTINGS
-    kind: BlacklistKind
-    value: str
-
-
-@dataclass(frozen=True, kw_only=True)
-class BlacklistReconciledEvent(BaseEvent):
+class BlacklistReconciledEvent(SystemEvent):
     category: ClassVar[EventCategory] = EventCategory.USER
     blocked_user_ids: list[int]
 
@@ -28,5 +22,5 @@ class BlacklistReconciledEvent(BaseEvent):
 @dataclass(frozen=True, kw_only=True)
 class BlacklistSourceChangedEvent(ActorEvent):
     category: ClassVar[EventCategory] = EventCategory.SETTINGS
-    action: Literal["add", "disable", "enable", "remove", "sync"]
+    action: Literal["create", "delete", "disable", "enable", "sync"]
     source_id: Optional[int] = None

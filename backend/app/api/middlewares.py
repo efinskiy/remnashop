@@ -3,12 +3,15 @@ from typing import Final
 
 from starlette.datastructures import MutableHeaders
 from starlette.exceptions import HTTPException
+from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.status import HTTP_413_CONTENT_TOO_LARGE
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.core.constants import API_V1, BROADCAST_MEDIA_MAX_BYTES
 from app.core.error_codes import ErrorCode
+from app.core.request_ip import REQUEST_CLIENT_IP
+from app.core.utils.http import resolve_client_ip
 
 # Bodies are read before any dependency runs (FastAPI parses forms and JSON
 # ahead of authentication), so without a cap here an anonymous caller could
@@ -107,3 +110,18 @@ class BodySizeLimitMiddleware:
             return message
 
         await self.app(scope, limited_receive, send)
+
+
+class ClientIpMiddleware:
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        token = REQUEST_CLIENT_IP.set(resolve_client_ip(Request(scope)))
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            REQUEST_CLIENT_IP.reset(token)

@@ -111,9 +111,10 @@ class LegalRepository:
         )
         return [self._to_revision_dto(row) for row in result.scalars()]
 
-    async def _find_current(
+    async def find_current(
         self, kind: LegalDocumentKind, locale: Locale, channel: Optional[PurchaseChannel]
-    ) -> Optional[LegalDocumentRevision]:
+    ) -> Optional[LegalRevisionDto]:
+        """The latest revision for exactly this locale and channel (None = the common one)."""
         result = await self.session.execute(
             select(LegalDocumentRevision)
             .where(
@@ -126,26 +127,8 @@ class LegalRepository:
             .order_by(LegalDocumentRevision.id.desc())
             .limit(1)
         )
-        return result.scalar_one_or_none()
-
-    async def resolve(
-        self,
-        kind: LegalDocumentKind,
-        channel: PurchaseChannel,
-        locale: Locale,
-        default_locale: Locale,
-    ) -> Optional[LegalRevisionDto]:
-        chain: list[tuple[Locale, Optional[PurchaseChannel]]] = [
-            (locale, channel),
-            (locale, None),
-            (default_locale, channel),
-            (default_locale, None),
-        ]
-        for chain_locale, chain_channel in dict.fromkeys(chain):
-            row = await self._find_current(kind, chain_locale, chain_channel)
-            if row is not None and row.body.strip():
-                return self._to_revision_dto(row)
-        return None
+        row = result.scalar_one_or_none()
+        return self._to_revision_dto(row) if row is not None else None
 
     async def documents_version(self) -> str:
         # changes with every saved text and every visibility switch

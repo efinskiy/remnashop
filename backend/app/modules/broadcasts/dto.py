@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import StrEnum, auto
 from pathlib import Path
 from typing import Optional
 
@@ -8,21 +9,54 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.core.constants import DEFAULT_PAGE_SIZE
 from app.core.dto import BaseDto, TimestampMixin
 from app.core.enums import (
-    BroadcastButtonKind,
     BroadcastCategory,
     BroadcastChannel,
     BroadcastDelivery,
     BroadcastMediaType,
     BroadcastRecipientStatus,
     BroadcastStatus,
-    BroadcastSubscriptionFilter,
     Locale,
+    UpperStrEnum,
 )
 from app.modules.broadcasts.channels import sends_email, sends_telegram
 
 
+class BroadcastButtonKind(UpperStrEnum):
+    URL = auto()
+    PROMOCODE = auto()
+    MENU = auto()
+    CLOSE = auto()
+    SHARE_REFERRAL = auto()
+
+
+# our own reasons in BroadcastRecipient.error, which otherwise holds the provider's text
+class BroadcastRecipientError(StrEnum):
+    NO_TELEGRAM = "no telegram"
+    NO_EMAIL = "no email"
+    UNDELIVERABLE = "undeliverable"
+    OPTED_OUT = "opted out"
+    BLOCKED = "blocked"
+    BOT_BLOCKED = "bot blocked"
+    USER_GONE = "user gone"
+    RECALL_FAILED = "recall failed"
+    STOPPED = "stopped"
+    # a failure that came without any text
+    NO_DETAILS = "no details"
+
+
+class BroadcastSubscriptionFilter(UpperStrEnum):
+    ACTIVE = auto()
+    TRIAL = auto()
+    EXPIRED = auto()
+    LIMITED = auto()
+    NONE = auto()
+
+
+# also returned by the API: see core.dto.ResponseModel for the schema flag
 class BroadcastAudienceDto(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", json_schema_serialization_defaults_required=True
+    )
 
     user_ids: list[int] = []
     subscription: list[BroadcastSubscriptionFilter] = []
@@ -41,7 +75,9 @@ class BroadcastAudienceDto(BaseModel):
 
 
 class BroadcastButtonDto(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", json_schema_serialization_defaults_required=True
+    )
 
     kind: BroadcastButtonKind
     url: Optional[str] = None
@@ -49,14 +85,18 @@ class BroadcastButtonDto(BaseModel):
 
 
 class BroadcastContentDto(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", json_schema_serialization_defaults_required=True
+    )
 
     text: str
     button_labels: list[str] = []
 
 
 class BroadcastEmailContentDto(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", json_schema_serialization_defaults_required=True
+    )
 
     subject: str
     html: str

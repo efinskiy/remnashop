@@ -2,10 +2,11 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
+from app.core.dto import ResponseModel
 from app.core.enums import PaymentGatewayType
 
 
-class GatewayResponse(BaseModel):
+class GatewayResponse(ResponseModel):
     type: PaymentGatewayType
     order_index: int
     is_active: bool
@@ -30,33 +31,33 @@ class ReorderGatewaysRequest(BaseModel):
     types: list[PaymentGatewayType]
 
 
-class GatewayFieldConditionResponse(BaseModel):
+class GatewayFieldConditionResponse(ResponseModel):
     field: str
     value: str
 
 
-class GatewayFieldSpecResponse(BaseModel):
+class GatewayFieldSpecResponse(ResponseModel):
     key: str
     kind: Literal["text", "secret", "number", "boolean", "url", "choice"]
-    options: list[str] = []
+    options: list[str]
     required: bool
     group: Optional[str]
     requires_all_channels: bool
     required_unless: Optional[str]
-    hidden_when: Optional[GatewayFieldConditionResponse] = None
+    hidden_when: Optional[GatewayFieldConditionResponse]
 
 
-class GatewayCatalogEntryResponse(BaseModel):
+class GatewayCatalogEntryResponse(ResponseModel):
     type: PaymentGatewayType
     webhook_url: Optional[str]
     fields: list[GatewayFieldSpecResponse]
 
 
-class GatewayCatalogResponse(BaseModel):
+class GatewayCatalogResponse(ResponseModel):
     items: list[GatewayCatalogEntryResponse]
     total: int
 
 
-class GatewayListResponse(BaseModel):
+class GatewayListResponse(ResponseModel):
     items: list[GatewayResponse]
     total: int

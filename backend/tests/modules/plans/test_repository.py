@@ -1,13 +1,16 @@
+import asyncio
 from dataclasses import replace
 from decimal import Decimal
+from typing import Final
 from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError as PydanticValidationError
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from app.core.enums import Currency, Locale, PlanAvailability, PlanType
-from app.core.exceptions import ConflictError, NotFoundError, ValidationError
+from app.core.exceptions import ConflictError, NotFoundError
 from app.modules.plans.api.schemas import CreatePlanRequest, PlanIconRequest
 from app.modules.plans.dto import (
     CreatePlanDto,
@@ -24,6 +27,9 @@ from app.modules.plans.dto import (
 )
 from app.modules.plans.repository import PlanRepository
 from app.modules.translations import TranslationRepository
+
+# long enough for an unblocked delete to finish on a local Postgres
+_LOCK_WAIT_SECONDS: Final[float] = 0.3
 
 
 def _create_dto(public_code: str = "basic", name: str = "Basic") -> CreatePlanDto:
@@ -239,22 +245,6 @@ async def test_reorder_applies_new_order(plan_repository: PlanRepository) -> Non
     reordered = await plan_repository.reorder(ReorderPlansDto(plan_ids=[second.id, first.id]))
 
     assert [plan.id for plan in reordered] == [second.id, first.id]
-
-
-async def test_reorder_rejects_incomplete_id_set(plan_repository: PlanRepository) -> None:
-    first = await plan_repository.create(_create_dto("a", "A"))
-    await plan_repository.create(_create_dto("b", "B"))
-
-    with pytest.raises(ValidationError):
-        await plan_repository.reorder(ReorderPlansDto(plan_ids=[first.id]))
-
-
-async def test_reorder_rejects_duplicate_id(plan_repository: PlanRepository) -> None:
-    first = await plan_repository.create(_create_dto("a", "A"))
-    second = await plan_repository.create(_create_dto("b", "B"))
-
-    with pytest.raises(ValidationError):
-        await plan_repository.reorder(ReorderPlansDto(plan_ids=[first.id, first.id, second.id]))
 
 
 async def test_get_by_id_returns_plan(plan_repository: PlanRepository) -> None:
@@ -516,3 +506,32 @@ def test_create_request_rejects_two_translations_for_one_locale() -> None:
                 ],
             }
         )
+
+
+async def test_a_plan_delete_waits_for_a_reorder_holding_the_plan_set(
+    engine: AsyncEngine,
+) -> None:
+    # a reorder checks its list against lock_order's ids, then writes: a delete
+    # landing in between would leave it a plan id with no row
+    reorder_session = AsyncSession(bind=engine, expire_on_commit=False)
+    delete_session = AsyncSession(bind=engine, expire_on_commit=False)
+    plan_id = None
+    try:
+        plan_id = (await PlanRepository(reorder_session).create(_create_dto("race-del"))).id
+        await reorder_session.commit()
+
+        assert plan_id in await PlanRepository(reorder_session).lock_order()
+        delete = asyncio.create_task(PlanRepository(delete_session).delete(plan_id))
+        await asyncio.sleep(_LOCK_WAIT_SECONDS)
+        assert not delete.done()
+
+        await reorder_session.commit()
+        await asyncio.wait_for(delete, timeout=5)
+        await delete_session.commit()
+        plan_id = None
+    finally:
+        await reorder_session.close()
+        await delete_session.close()
+        if plan_id is not None:
+            async with engine.begin() as connection:
+                await connection.execute(text("DELETE FROM plans WHERE id = :id"), {"id": plan_id})

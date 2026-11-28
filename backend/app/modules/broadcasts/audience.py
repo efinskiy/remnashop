@@ -1,10 +1,11 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, tzinfo
 from typing import Final, Optional
 
 from sqlalchemy import ColumnElement, and_, exists, false, or_, select
 from sqlalchemy.orm import aliased
 
-from app.core.db.filters import in_ids
+from app.core.constants import TIMEZONE
+from app.core.db.filters import expired_subscription, in_ids
 from app.core.db.models.ad_link_attribution import AdLinkAttribution
 from app.core.db.models.referral import Referral
 from app.core.db.models.subscription import Subscription
@@ -14,13 +15,17 @@ from app.core.enums import (
     BroadcastCategory,
     BroadcastChannel,
     BroadcastDelivery,
-    BroadcastSubscriptionFilter,
+    BroadcastRecipientStatus,
     SubscriptionStatus,
     TransactionStatus,
 )
 from app.core.utils.time import range_end_utc, range_start_utc
 from app.modules.broadcasts.channels import sends_telegram
-from app.modules.broadcasts.dto import BroadcastAudienceDto
+from app.modules.broadcasts.dto import (
+    BroadcastAudienceDto,
+    BroadcastRecipientError,
+    BroadcastSubscriptionFilter,
+)
 
 _LIVE: Final[tuple[SubscriptionStatus, ...]] = (
     SubscriptionStatus.ACTIVE,
@@ -52,7 +57,7 @@ def _bucket_row(bucket: BroadcastSubscriptionFilter) -> Optional[ColumnElement[b
     if bucket is BroadcastSubscriptionFilter.TRIAL:
         return and_(Subscription.status.in_(_LIVE), Subscription.is_trial.is_(True))
     if bucket is BroadcastSubscriptionFilter.EXPIRED:
-        return and_(Subscription.status == SubscriptionStatus.EXPIRED, ~_has_live())
+        return and_(expired_subscription(), ~_has_live())
     if bucket is BroadcastSubscriptionFilter.LIMITED:
         return Subscription.status == SubscriptionStatus.LIMITED
     return None
@@ -98,7 +103,7 @@ def _subscription_conditions(
     if audience.expired_within_days is not None:
         row_filters.append(
             and_(
-                Subscription.status == SubscriptionStatus.EXPIRED,
+                expired_subscription(),
                 Subscription.expire_at >= now - timedelta(days=audience.expired_within_days),
                 Subscription.expire_at < now,
                 ~_has_live(),
@@ -127,14 +132,15 @@ def _subscription_conditions(
     return [or_(*parts)]
 
 
-def _profile_conditions(audience: BroadcastAudienceDto) -> list[ColumnElement[bool]]:
+def _profile_conditions(audience: BroadcastAudienceDto, zone: tzinfo) -> list[ColumnElement[bool]]:
     conditions: list[ColumnElement[bool]] = []
     if audience.paid is not None:
         conditions.append(_flag(_PAID, audience.paid))
     if audience.locales:
         conditions.append(User.language.in_(audience.locales))
-    registered_from = range_start_utc(audience.registered_from)
-    registered_to = range_end_utc(audience.registered_to)
+    # picked dates are the shop's days
+    registered_from = range_start_utc(audience.registered_from, zone)
+    registered_to = range_end_utc(audience.registered_to, zone)
     if registered_from is not None:
         conditions.append(User.created_at >= registered_from)
     if registered_to is not None:
@@ -179,7 +185,10 @@ def channel_condition(
 
 
 def audience_predicate(
-    audience: BroadcastAudienceDto, category: BroadcastCategory, now: datetime
+    audience: BroadcastAudienceDto,
+    category: BroadcastCategory,
+    now: datetime,
+    zone: tzinfo = TIMEZONE,
 ) -> ColumnElement[bool]:
     conditions: list[ColumnElement[bool]] = [
         User.deleted_at.is_(None),
@@ -192,5 +201,40 @@ def audience_predicate(
         return and_(*conditions, in_ids(User.id, audience.user_ids))
 
     conditions += _subscription_conditions(audience, now)
-    conditions += _profile_conditions(audience)
+    conditions += _profile_conditions(audience, zone)
     return and_(*conditions)
+
+
+_Drop = tuple[BroadcastRecipientStatus, ColumnElement[bool], BroadcastRecipientError]
+
+
+def send_time_drops(channel: BroadcastChannel, marketing: bool) -> list[_Drop]:
+    """Why a pending recipient no longer gets the message, first match first: the
+    audience was built at materialization, a block or opt-out since then still wins."""
+    canceled = BroadcastRecipientStatus.CANCELED
+    failed = BroadcastRecipientStatus.FAILED
+    drops: list[_Drop] = [(canceled, User.is_blocked.is_(True), BroadcastRecipientError.BLOCKED)]
+    if marketing:
+        drops.append(
+            (canceled, User.marketing_opt_out.is_(True), BroadcastRecipientError.OPTED_OUT)
+        )
+    if channel is BroadcastChannel.TELEGRAM:
+        # a user who lost their telegram_id since materialization can never be reached
+        drops.append((failed, User.telegram_id.is_(None), BroadcastRecipientError.NO_TELEGRAM))
+        drops.append(
+            (
+                BroadcastRecipientStatus.BLOCKED,
+                User.is_bot_blocked.is_(True),
+                BroadcastRecipientError.BOT_BLOCKED,
+            )
+        )
+    else:
+        drops.append((failed, User.email.is_(None), BroadcastRecipientError.NO_EMAIL))
+        drops.append(
+            (
+                failed,
+                User.email_undeliverable_at.is_not(None),
+                BroadcastRecipientError.UNDELIVERABLE,
+            )
+        )
+    return drops

@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, tzinfo
 from decimal import Decimal
 from typing import Any, Final, Optional, cast
 
@@ -20,14 +20,13 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.constants import DEFAULT_PAGE_SIZE, INT32_MAX, ZERO_AMOUNT
+from app.core.constants import DEFAULT_PAGE_SIZE, INT32_MAX, TIMEZONE, ZERO_AMOUNT
 from app.core.db.filters import customer_rows, in_ids
 from app.core.db.models.subscription_purchase_idempotency import SubscriptionPurchaseIdempotency
 from app.core.db.models.transaction import Transaction
 from app.core.db.timestamp import NOW_FUNC
 from app.core.enums import (
     Currency,
-    DiscountSource,
     FulfillmentHold,
     PaymentGatewayType,
     PurchaseChannel,
@@ -39,7 +38,6 @@ from app.core.exceptions import NotFoundError
 from app.modules.subscriptions import (
     IDEMPOTENCY_KEY_RETENTION_DAYS,
     PlanSnapshot,
-    SpentPurchaseDiscount,
 )
 from app.modules.transactions.dto import CreateTransactionDto, DailyPaidDto, TransactionDto
 
@@ -253,7 +251,7 @@ class TransactionRepository:
         row = await self.session.scalar(select(Transaction).where(*filters))
         return self._to_dto(row) if row is not None else None
 
-    async def has_paid_purchase(self, user_id: int) -> bool:
+    async def has_paid_order_outside_stars(self, user_id: int) -> bool:
         stmt = select(
             exists().where(
                 Transaction.user_id == user_id,
@@ -529,8 +527,8 @@ class TransactionRepository:
         )
         return count or 0
 
-    async def fail_unpaid_free_order(self, idempotency_key: str) -> Optional[SpentPurchaseDiscount]:
-        row = await self.session.execute(
+    async def fail_unpaid_free_order(self, idempotency_key: str) -> Optional[TransactionDto]:
+        row = await self.session.scalar(
             update(Transaction)
             .where(
                 Transaction.idempotency_key == idempotency_key,
@@ -539,23 +537,9 @@ class TransactionRepository:
                 Transaction.fulfilled_subscription_id.is_(None),
             )
             .values(status=TransactionStatus.FAILED, updated_at=NOW_FUNC)
-            .returning(
-                Transaction.user_id,
-                Transaction.discount_source,
-                Transaction.discount_percent,
-                Transaction.discount_promocode_id,
-                Transaction.discount_from_promocode,
-            )
+            .returning(Transaction)
         )
-        failed = row.first()
-        if failed is None or failed.discount_source is not DiscountSource.PURCHASE:
-            return None
-        return SpentPurchaseDiscount(
-            user_id=failed.user_id,
-            percent=failed.discount_percent,
-            promocode_id=failed.discount_promocode_id,
-            from_promocode=failed.discount_from_promocode,
-        )
+        return self._to_dto(row) if row is not None else None
 
     async def list_paginated(
         self,
@@ -844,8 +828,10 @@ class TransactionRepository:
         )
         return dict((await self.session.execute(stmt)).tuples().all())
 
-    async def daily_paid_anchor_revenue(self, since: datetime) -> dict[date, DailyPaidDto]:
-        day_col = func.date(func.timezone("UTC", Transaction.paid_at))
+    async def daily_paid_anchor_revenue(
+        self, since: datetime, zone: tzinfo = TIMEZONE
+    ) -> dict[date, DailyPaidDto]:
+        day_col = func.date(func.timezone(str(zone), Transaction.paid_at))
         stmt = (
             select(day_col, func.sum(Transaction.anchor_final_price), func.count())
             .where(

@@ -10,7 +10,7 @@ from sqlalchemy import update
 from app.core.config import AppConfig
 from app.core.db.models.user import User
 from app.core.db.uow import UnitOfWork
-from app.core.enums import BlacklistKind, Locale, RegistrationSource, Role, SessionAudience
+from app.core.enums import Locale, RegistrationSource, Role, SessionAudience
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ValidationError as DomainValidationError
 from app.core.security import create_access_token, hash_password, hash_refresh_token
@@ -19,6 +19,7 @@ from app.core.security.permissions import Permission
 from app.modules.auth.dto import CreateSessionDto
 from app.modules.auth.repository import SessionRepository
 from app.modules.blacklist import BlacklistRepository
+from app.modules.blacklist.dto import BlacklistKind
 from app.modules.users import unsubscribe_token
 from app.modules.users.dto import CreateUserDto, RegistrationSnapshotDto, UpdateUserDto, UserDto
 from app.modules.users.repository import UserRepository

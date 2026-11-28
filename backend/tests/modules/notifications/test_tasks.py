@@ -81,6 +81,9 @@ async def _close_window(redis: Redis, scope: str) -> None:
 def test_scope_falls_back_from_ip_to_login_to_a_dash() -> None:
     assert coalesce_scope(_EVENT, {"login": "bob"}, _IP) == f"{_EVENT}:{_IP}"
     assert coalesce_scope(_EVENT, {"login": "bob"}, None) == f"{_EVENT}:bob"
+    # failed outbox entries: one burst per event type that broke
+    poisoned = "OutboxEntryPoisonedEvent"
+    assert coalesce_scope(poisoned, {"failed_event": "X"}, None) == f"{poisoned}:X"
     assert coalesce_scope(_EVENT, {}, None) == f"{_EVENT}:-"
 
 

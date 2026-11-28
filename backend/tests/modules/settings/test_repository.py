@@ -4,8 +4,9 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db.models.oauth_settings import OAuthSettings
-from app.core.enums import AppearanceImageKind, AppearanceTarget
 from app.modules.settings.dto import (
+    AppearanceImageKind,
+    AppearanceTarget,
     UpdateAppearanceSettingsDto,
     UpdateBotSettingsDto,
     UpdateOAuthSettingsDto,

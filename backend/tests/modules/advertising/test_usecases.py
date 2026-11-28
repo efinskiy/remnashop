@@ -58,6 +58,7 @@ from app.modules.pricing.dto import UpdateCurrencyRateDto
 from app.modules.pricing.repository import PricingRepository
 from app.modules.promocodes.dto import ActivatePromocodeByLinkDto, CreatePromocodeDto
 from app.modules.promocodes.repository import PromocodeRepository
+from app.modules.settings.repository import SettingsRepository
 from app.modules.transactions.dto import CreateTransactionDto
 from app.modules.transactions.repository import TransactionRepository
 from app.modules.users.dto import CreateUserDto, UserDto
@@ -255,7 +256,11 @@ async def test_get_ad_link_stats_zero_attributions_has_no_division_by_zero(
     )
     ad_link = await create(OWNER, CreateAdLinkDto(name="Empty", code="stats-empty"))
     use_case = GetAdLinkStatsUseCase(
-        ad_link_repository, transaction_repository, pricing_repository, uow
+        ad_link_repository,
+        transaction_repository,
+        pricing_repository,
+        uow,
+        SettingsRepository(pricing_repository.session),
     )
 
     stats = await use_case(OWNER, GetAdLinkStatsDto(ad_link_id=ad_link.id))
@@ -284,7 +289,11 @@ async def test_get_ad_link_stats_zero_cost_has_no_roi(
         ad_link_id=ad_link.id, user_id=user.id, channel=AdLinkChannel.BOT
     )
     use_case = GetAdLinkStatsUseCase(
-        ad_link_repository, transaction_repository, pricing_repository, uow
+        ad_link_repository,
+        transaction_repository,
+        pricing_repository,
+        uow,
+        SettingsRepository(pricing_repository.session),
     )
 
     stats = await use_case(OWNER, GetAdLinkStatsDto(ad_link_id=ad_link.id))
@@ -328,7 +337,11 @@ async def test_get_ad_link_stats_computes_conversion_and_revenue(
     await transaction_repository.mark_status(order.id, TransactionStatus.PAID)
 
     use_case = GetAdLinkStatsUseCase(
-        ad_link_repository, transaction_repository, pricing_repository, uow
+        ad_link_repository,
+        transaction_repository,
+        pricing_repository,
+        uow,
+        SettingsRepository(pricing_repository.session),
     )
     stats = await use_case(OWNER, GetAdLinkStatsDto(ad_link_id=ad_link.id))
 
@@ -375,7 +388,11 @@ async def test_get_ad_link_stats_counts_a_paid_trial_apart_from_purchases(
             await transaction_repository.mark_status(order.id, TransactionStatus.PAID)
 
     stats = await GetAdLinkStatsUseCase(
-        ad_link_repository, transaction_repository, pricing_repository, uow
+        ad_link_repository,
+        transaction_repository,
+        pricing_repository,
+        uow,
+        SettingsRepository(pricing_repository.session),
     )(OWNER, GetAdLinkStatsDto(ad_link_id=ad_link.id))
 
     # only the buyer converted; both paid for a trial, and every payment is revenue
@@ -452,7 +469,11 @@ async def test_get_ad_link_stats_converts_revenue_with_a_non_unit_rate(
     await transaction_repository.mark_status(usd_order.id, TransactionStatus.PAID)
 
     use_case = GetAdLinkStatsUseCase(
-        ad_link_repository, transaction_repository, pricing_repository, uow
+        ad_link_repository,
+        transaction_repository,
+        pricing_repository,
+        uow,
+        SettingsRepository(pricing_repository.session),
     )
     stats = await use_case(OWNER, GetAdLinkStatsDto(ad_link_id=ad_link.id))
 
@@ -468,7 +489,11 @@ async def test_get_ad_link_stats_unknown_id_raises_not_found(
     uow: UnitOfWork,
 ) -> None:
     use_case = GetAdLinkStatsUseCase(
-        ad_link_repository, transaction_repository, pricing_repository, uow
+        ad_link_repository,
+        transaction_repository,
+        pricing_repository,
+        uow,
+        SettingsRepository(pricing_repository.session),
     )
 
     with pytest.raises(NotFoundError):
@@ -548,7 +573,11 @@ async def test_get_ad_link_stats_created_from_excludes_older_attributions(
         ad_link_id=ad_link.id, user_id=user.id, channel=AdLinkChannel.BOT
     )
     use_case = GetAdLinkStatsUseCase(
-        ad_link_repository, transaction_repository, pricing_repository, uow
+        ad_link_repository,
+        transaction_repository,
+        pricing_repository,
+        uow,
+        SettingsRepository(pricing_repository.session),
     )
 
     future = await use_case(
@@ -759,7 +788,11 @@ async def test_revenue_share_is_added_to_the_cost(
     await transaction_repository.mark_status(order.id, TransactionStatus.PAID)
 
     stats = await GetAdLinkStatsUseCase(
-        ad_link_repository, transaction_repository, pricing_repository, uow
+        ad_link_repository,
+        transaction_repository,
+        pricing_repository,
+        uow,
+        SettingsRepository(pricing_repository.session),
     )(OWNER, GetAdLinkStatsDto(ad_link_id=ad_link.id))
     summary = await GetAdvertisingSummaryUseCase(
         ad_link_repository, transaction_repository, pricing_repository, uow
@@ -818,7 +851,11 @@ async def test_get_ad_link_payout_counts_payments_inside_the_window(
         )
 
     payout = await GetAdLinkPayoutUseCase(
-        ad_link_repository, transaction_repository, pricing_repository, uow
+        ad_link_repository,
+        transaction_repository,
+        pricing_repository,
+        uow,
+        SettingsRepository(pricing_repository.session),
     )(OWNER, GetAdLinkPayoutDto(ad_link_id=ad_link.id, paid_from=window_from, paid_to=window_to))
 
     assert payout.payments_count == 2

@@ -233,7 +233,7 @@ async def test_delete_user_nulls_out_actor_id_on_their_own_event_log_entries(
         entry = await event_log_repository.create(
             EventLogEntryDto(
                 category=EventCategory.ADMIN_MANAGEMENT,
-                event_type="AdminCreatedEvent",
+                event_type="AdminChangedEvent",
                 occurred_at=datetime_now(),
                 actor_id=actor.id,
                 actor_login=actor.login,
@@ -400,7 +400,9 @@ async def test_block_matching_handles_more_ids_than_bind_param_cap(
     telegram_ids = set(range(40_000_000, 40_040_000))
 
     async with uow:
-        blocked = await user_blacklist_repository.block_matching(telegram_ids, set())
+        blocked = await user_blacklist_repository.block_matching(
+            telegram_ids, set(), roles=[Role.USER]
+        )
 
     assert blocked == [target.id]
 
@@ -655,24 +657,12 @@ async def test_has_discount_filter_counts_the_loyalty_discount(
     assert loyal.id in {user.id for user in with_discount}
 
 
-async def test_restore_purchase_discount_skips_an_order_without_a_promocode(
-    user_repository: UserRepository,
-) -> None:
-    user = await user_repository.create(CreateUserDto(name="u", telegram_id=930_010))
-
-    await user_repository.restore_purchase_discount(user.id, 20, None, from_promocode=True)
-
-    restored = await user_repository.find_by_id(user.id)
-    assert restored is not None
-    assert restored.purchase_discount == 0
-
-
 async def test_restore_purchase_discount_gives_back_an_admin_granted_one(
     user_repository: UserRepository,
 ) -> None:
     user = await user_repository.create(CreateUserDto(name="u", telegram_id=930_011))
 
-    await user_repository.restore_purchase_discount(user.id, 20, None, from_promocode=False)
+    await user_repository.restore_purchase_discount(user.id, 20, None)
 
     restored = await user_repository.find_by_id(user.id)
     assert restored is not None

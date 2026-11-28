@@ -5,9 +5,10 @@ from typing import Optional
 from pydantic import BaseModel, Field, field_validator
 
 from app.core.constants import INT32_MAX, RECURRING_TERMS_ID_PATTERN
+from app.core.dto import ResponseModel
 from app.core.enums import Currency, Locale, PaymentGatewayType, PurchaseChannel, PurchaseType
 from app.core.utils.validators import known_locale
-from app.modules.recurring_payments.policy import RecurringState
+from app.modules.recurring_payments.policy import ConsentChannel, RecurringState
 
 
 class CheckoutRecurringTermsRequest(BaseModel):
@@ -32,7 +33,7 @@ class RecurringAdminActionRequest(BaseModel):
     expected_pending_transaction_id: Optional[int] = Field(default=None, ge=1, le=INT32_MAX)
 
 
-class RecurringTermsResponse(BaseModel):
+class RecurringTermsResponse(ResponseModel):
     version: str
     terms_id: str
     user_id: int
@@ -53,12 +54,12 @@ class RecurringTermsResponse(BaseModel):
     text: str
 
 
-class CheckoutRecurringTermsResponse(BaseModel):
+class CheckoutRecurringTermsResponse(ResponseModel):
     # null where the method or the plan offers no auto-renewal
     terms: Optional[RecurringTermsResponse]
 
 
-class RecurringPaymentStateResponse(BaseModel):
+class RecurringPaymentStateResponse(ResponseModel):
     subscription_id: int
     terms: Optional[RecurringTermsResponse] = None
     accepted_terms: Optional[RecurringTermsResponse] = None
@@ -78,7 +79,7 @@ class RecurringPaymentStateResponse(BaseModel):
     last_error: Optional[str] = None
 
 
-class RecurringPaymentAdminItemResponse(BaseModel):
+class RecurringPaymentAdminItemResponse(ResponseModel):
     subscription_id: int
     user_id: int
     user_name: Optional[str]
@@ -103,20 +104,20 @@ class RecurringPaymentAdminItemResponse(BaseModel):
     expire_at: datetime
 
 
-class RecurringConsentResponse(BaseModel):
+class RecurringConsentResponse(ResponseModel):
     terms: RecurringTermsResponse
     channel: PurchaseChannel
     accepted_at: datetime
     revoked_at: Optional[datetime]
-    revoked_channel: Optional[str]
+    revoked_channel: Optional[ConsentChannel]
 
 
-class RecurringPaymentPageResponse(BaseModel):
+class RecurringPaymentPageResponse(ResponseModel):
     items: list[RecurringPaymentAdminItemResponse]
     total: int
 
 
-class RecurringPaymentSummaryResponse(BaseModel):
+class RecurringPaymentSummaryResponse(ResponseModel):
     total: int
     enabled: int
     disabled: int

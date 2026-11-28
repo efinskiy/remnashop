@@ -1,4 +1,5 @@
 from unittest.mock import AsyncMock, patch
+from zoneinfo import ZoneInfo
 
 import pytest
 from sqlalchemy import select
@@ -9,7 +10,7 @@ from app.core.enums import Currency, Locale
 from app.core.event_bus import EventBus
 from app.core.events import EventCategory
 from app.core.outbox_event_publisher import OutboxEventPublisher
-from app.modules.customer_notifications.render_args import customer_render_args
+from app.modules.customer_notifications.render_args import customer_render_args, shop_dates
 from app.modules.customer_notifications.routing import CustomerChannel, channels_for
 from app.modules.customer_notifications.subscribers import register_subscribers
 from app.modules.notifications.render import NotificationRenderer
@@ -90,12 +91,13 @@ async def test_recurring_events_reach_customer_channels_and_have_complete_templa
         CustomerChannel.EMAIL,
     ]
     renderer = NotificationRenderer({locale: seeded_fluent_source(locale)}, default_locale=locale)
+    args = shop_dates(fields["args"], ZoneInfo("Europe/Moscow"))
     title, body = renderer.render(
-        locale, "Customer" + event.event_type, customer_render_args(fields["args"], locale)
+        locale, "Customer" + event.event_type, customer_render_args(args, locale)
     )
     assert title and body and "{" not in body
     assert event.category is EventCategory.PAYMENT
     if isinstance(event, RecurringPaymentUpcomingEvent):
-        assert "15.11.2026 12:00 UTC" in body
+        assert "15.11.2026 15:00" in body
     if isinstance(event, RecurringPaymentFailedEvent):
-        assert "15.11.2026 13:00 UTC" in body
+        assert "15.11.2026 16:00" in body

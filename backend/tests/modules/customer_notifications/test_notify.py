@@ -73,6 +73,7 @@ btn-customer-notification =
     .support = Support
     .support-icon = 📩
     .revoke-sessions = End sessions
+    .menu = To purchase
 ntf-customer-cabinet-new-device-sign-in = Signed in from { $ip }.
     .title = New sign-in
 ntf-customer-subscription-changed = Plan changed.
@@ -92,6 +93,10 @@ ntf-customer-paid-order-not-fulfilled = Not issued.
     .title = Problem
 ntf-customer-torrent-blocker-report = Torrents are forbidden.
     .title = Torrents
+ntf-customer-accounts-merged = Accounts merged.
+    .title = Merged
+ntf-customer-promocode-discount-expiring = { $percent }% off ends soon.
+    .title = Discount
 ntf-customer-payments-restored = Payments are back.
     .title = Payments
 ntf-customer-subscription-traffic-threshold = Used { $percent }%. Renew { $can_renew }.
@@ -272,6 +277,18 @@ async def test_telegram_and_email_both_queued(fx: _Fixture) -> None:
     assert message["to"] == "a@example.com"
     assert message["subject"] == "Activated"
     assert "Subscription is active." in message["html"]
+
+
+async def test_the_email_button_opens_what_the_push_opens(
+    fx: _Fixture, config: AppConfig, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(config.cabinet, "domain", "cab.test")
+    user = await fx.create(name="e", telegram_id=8903, email="e@example.com")
+
+    await fx.notify(user, "CabinetNewDeviceSignInEvent", args={"ip": "1.2.3.4", "browser": "x"})
+
+    (message,) = fx.email.messages
+    assert 'href="https://cab.test/profile?signout=others"' in message["html"]
 
 
 async def test_same_outbox_id_is_not_sent_twice(fx: _Fixture) -> None:
@@ -821,6 +838,27 @@ async def test_one_outbox_event_reaches_every_customer_it_names(fx: _Fixture) ->
     assert len(await fx.feed_rows(second)) == 1
 
 
+@pytest.mark.parametrize(
+    ("event_type", "args", "telegram_id"),
+    [
+        ("PromocodeDiscountExpiringEvent", {"code": "SPRING", "percent": 15, "hours": 48}, 8901),
+        ("PaymentsRestored", {}, 8902),
+    ],
+)
+async def test_a_reason_to_buy_opens_the_menu_not_a_new_purchase(
+    fx: _Fixture, event_type: str, args: dict[str, Union[str, int]], telegram_id: int
+) -> None:
+    user = await fx.create(name="d", telegram_id=telegram_id)
+
+    await fx.notify(user, event_type, args=args)
+
+    (message,) = fx.telegram.messages
+    assert message["buttons"] == [
+        {"text": "To purchase", "callback_data": "cn:menu"},
+        {"text": "Close", "callback_data": "cn:close"},
+    ]
+
+
 async def _subscription(fx: _Fixture, user: UserDto, remnawave_user_id: int) -> int:
     async with fx.uow:
         subscription = await SubscriptionRepository(fx.orders.session).create(
@@ -847,6 +885,42 @@ async def test_a_purchase_offers_to_connect_through_the_subscription_page(fx: _F
     (message,) = fx.telegram.messages
     assert message["buttons"] == [
         {"text": "Connect", "url": "https://example.test/sub"},
+        {"text": "Close", "callback_data": "cn:close"},
+    ]
+
+
+async def test_a_subscription_granted_by_an_admin_offers_to_connect(fx: _Fixture) -> None:
+    user = await fx.create(name="g", telegram_id=8199)
+    subscription_id = await _subscription(fx, user, 880_199)
+
+    await fx.notify(
+        user,
+        "SubscriptionGrantedEvent",
+        subscription_id=subscription_id,
+        args={"duration_days": 30},
+    )
+
+    (message,) = fx.telegram.messages
+    assert message["buttons"] == [
+        {"text": "Connect", "url": "https://example.test/sub"},
+        {"text": "Close", "callback_data": "cn:close"},
+    ]
+
+
+async def test_a_merged_account_notice_offers_support(fx: _Fixture) -> None:
+    user = await fx.create(name="m", telegram_id=8299)
+    async with fx.uow:
+        await fx.settings.update_shop_settings(
+            UpdateShopSettingsDto(
+                support_telegram="help_desk", fields_set=frozenset({"support_telegram"})
+            )
+        )
+
+    await fx.notify(user, "AccountsMergedEvent")
+
+    (message,) = fx.telegram.messages
+    assert message["buttons"] == [
+        {"text": "📩 Support", "url": "https://t.me/help_desk"},
         {"text": "Close", "callback_data": "cn:close"},
     ]
 
@@ -881,6 +955,9 @@ async def test_a_plan_change_shows_the_new_plan_under_the_text(fx: _Fixture) -> 
 
     (message,) = fx.telegram.messages
     assert "📦 <b>Pro</b>:\n<blockquote>" in message["text"]
+    # kept with the feed row, so the bell names the plan it was changed to then
+    (row,) = await fx.feed_rows(user)
+    assert row.args["plan_name"] == "Pro"
 
 
 async def test_a_new_sign_in_offers_to_end_every_session(fx: _Fixture) -> None:

@@ -1,11 +1,19 @@
 import re
 from typing import Annotated, Final, Optional
 from uuid import UUID
+from zoneinfo import available_timezones
 
 from pydantic import BaseModel, EmailStr, Field, HttpUrl, field_validator, model_validator
 from remnapy.enums import TrafficLimitStrategy
 
-from app.core.constants import INT32_MAX, INT64_MAX, PANEL_TAG_MAX_LENGTH, PANEL_TAG_PATTERN
+from app.core.constants import (
+    EXPIRY_DISABLE_MAX_DAYS,
+    INT32_MAX,
+    INT64_MAX,
+    PANEL_TAG_MAX_LENGTH,
+    PANEL_TAG_PATTERN,
+)
+from app.core.dto import ResponseModel
 from app.core.enums import AccessMode, CaptchaProvider, SmtpSecurity
 
 _COMMAND_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-z0-9_]{1,32}$")
@@ -22,7 +30,7 @@ _CHANNEL_ID_PREFIX: Final[str] = "-100"
 _TELEGRAM_LINK_HOSTS: Final[frozenset[str]] = frozenset({"t.me", "telegram.me", "telegram.dog"})
 
 
-class BotSettingsResponse(BaseModel):
+class BotSettingsResponse(ResponseModel):
     is_configured: bool
     is_proxy_configured: bool
     drop_pending_updates: bool
@@ -33,7 +41,7 @@ class SetBotProxyRequest(BaseModel):
     proxy_url: str = Field(min_length=1)
 
 
-class BotStatusResponse(BaseModel):
+class BotStatusResponse(ResponseModel):
     is_configured: bool
     is_running: bool
     webhook_url: Optional[str]
@@ -51,7 +59,7 @@ MAX_ACTIVE_SUBSCRIPTIONS_LIMIT: Final[int] = 10
 MAX_RESET_COOLDOWN_HOURS: Final[int] = 9999
 
 
-class ShopSettingsResponse(BaseModel):
+class ShopSettingsResponse(ResponseModel):
     max_active_subscriptions: Optional[int]
     device_single_reset_enabled: bool
     device_single_reset_cooldown_hours: int
@@ -66,6 +74,11 @@ class ShopSettingsResponse(BaseModel):
     payment_email: Optional[str]
     plan_change_credit_enabled: bool
     plan_change_traffic_cap_enabled: bool
+    timezone: str
+
+
+class ShopTimezoneResponse(ResponseModel):
+    timezone: str
 
 
 class UpdateShopSettingsRequest(BaseModel):
@@ -94,6 +107,14 @@ class UpdateShopSettingsRequest(BaseModel):
     payment_email: Optional[EmailStr] = None
     plan_change_credit_enabled: Optional[bool] = None
     plan_change_traffic_cap_enabled: Optional[bool] = None
+    timezone: Optional[str] = Field(default=None, max_length=64)
+
+    @field_validator("timezone")
+    @classmethod
+    def known_timezone(cls, value: Optional[str]) -> str:
+        if value is None or value not in available_timezones():
+            raise ValueError("timezone must be an IANA time zone")
+        return value
 
     @field_validator("max_active_subscriptions", mode="before")
     @classmethod
@@ -124,7 +145,7 @@ class UpdateShopSettingsRequest(BaseModel):
         return self
 
 
-class GraceSettingsResponse(BaseModel):
+class GraceSettingsResponse(ResponseModel):
     enabled: bool
     internal_squads: list[UUID]
     external_squad: Optional[UUID]
@@ -132,6 +153,9 @@ class GraceSettingsResponse(BaseModel):
     traffic_limit_strategy: TrafficLimitStrategy
     tag: Optional[str]
     duration_days: int
+    expiry_disable_enabled: bool
+    expiry_disable_after_days: int
+    expiry_disable_warn_days: int
 
 
 class UpdateGraceSettingsRequest(BaseModel):
@@ -144,6 +168,9 @@ class UpdateGraceSettingsRequest(BaseModel):
         default=None, max_length=PANEL_TAG_MAX_LENGTH, pattern=PANEL_TAG_PATTERN
     )
     duration_days: Optional[int] = Field(default=None, le=INT32_MAX)
+    expiry_disable_enabled: Optional[bool] = None
+    expiry_disable_after_days: Optional[int] = Field(default=None, le=EXPIRY_DISABLE_MAX_DAYS)
+    expiry_disable_warn_days: Optional[int] = Field(default=None, le=EXPIRY_DISABLE_MAX_DAYS)
 
     @model_validator(mode="after")
     def non_nullable_fields(self) -> "UpdateGraceSettingsRequest":
@@ -159,7 +186,7 @@ class BotCommandRequest(BaseModel):
     enabled: bool
 
 
-class BotCommandResponse(BaseModel):
+class BotCommandResponse(ResponseModel):
     command: str
     enabled: bool
 
@@ -175,7 +202,7 @@ class UpdateBotCommandsRequest(BaseModel):
         return self
 
 
-class BotCommandsResponse(BaseModel):
+class BotCommandsResponse(ResponseModel):
     commands: list[BotCommandResponse]
 
 
@@ -183,11 +210,11 @@ class UpdateBotCommandsResponse(BotCommandsResponse):
     telegram_sync_failed: bool
 
 
-class BotLogsResponse(BaseModel):
+class BotLogsResponse(ResponseModel):
     lines: list[str]
 
 
-class OAuthSettingsResponse(BaseModel):
+class OAuthSettingsResponse(ResponseModel):
     is_github_configured: bool
     github_enabled: bool
     is_telegram_configured: bool
@@ -226,7 +253,7 @@ class UpdateOAuthSettingsRequest(BaseModel):
     passkey_origin: Optional[str] = Field(default=None, pattern=r"^https?://.+", max_length=512)
 
 
-class AppearanceResponse(BaseModel):
+class AppearanceResponse(ResponseModel):
     brand_name: Optional[str] = None
     primary_color: Optional[str] = None
     shader_base: Optional[str] = None
@@ -248,7 +275,7 @@ class UpdateAppearanceRequest(BaseModel):
     shader_enabled: Optional[bool] = None
 
 
-class AccessSettingsResponse(BaseModel):
+class AccessSettingsResponse(ResponseModel):
     mode: AccessMode
     registration_enabled: bool
     payments_enabled: bool
@@ -260,7 +287,7 @@ class UpdateAccessSettingsRequest(BaseModel):
     payments_enabled: Optional[bool] = None
 
 
-class EmailSettingsResponse(BaseModel):
+class EmailSettingsResponse(ResponseModel):
     host: Optional[str]
     port: int
     security: SmtpSecurity
@@ -320,7 +347,7 @@ class UpdateEmailSettingsRequest(BaseModel):
         return value.strip() if isinstance(value, str) else value
 
 
-class CabinetAuthSettingsResponse(BaseModel):
+class CabinetAuthSettingsResponse(ResponseModel):
     telegram_enabled: bool
     telegram_deeplink_enabled: bool
     telegram_oauth_enabled: bool
@@ -361,7 +388,7 @@ class UpdateCabinetAuthSettingsRequest(BaseModel):
         )
 
 
-class BotRequirementsResponse(BaseModel):
+class BotRequirementsResponse(ResponseModel):
     channel_required: bool
     channel_id: Optional[int]
     channel_url: Optional[str]
@@ -401,7 +428,7 @@ class UpdateBotRequirementsRequest(BaseModel):
         return value
 
 
-class CabinetSettingsResponse(BaseModel):
+class CabinetSettingsResponse(ResponseModel):
     max_active_subscriptions: Optional[int]
     device_single_reset_enabled: bool
     device_all_reset_enabled: bool

@@ -86,10 +86,17 @@ async def test_unread_count_stops_at_its_cap(
     assert result.unread_count == UNREAD_COUNT_LIMIT
 
 
-async def test_admin_without_grant_cannot_get_notifications(
+async def test_admin_with_revoke_cannot_get_notifications(
     event_log_repository: EventLogRepository, uow: UnitOfWork
 ) -> None:
-    admin = UserDto(id=2, login="admin", name="admin", role=Role.ADMIN, language=Locale.EN)
+    admin = UserDto(
+        id=2,
+        login="admin",
+        name="admin",
+        role=Role.ADMIN,
+        language=Locale.EN,
+        permission_revokes=["NOTIFICATIONS_VIEW"],
+    )
 
     with pytest.raises(PermissionDeniedError):
         await GetNotificationsUseCase(event_log_repository, uow)(admin)

@@ -1,8 +1,14 @@
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import auto
 from typing import Optional
 
-from app.core.enums import BlacklistKind
+from app.core.enums import UpperStrEnum
+
+
+class BlacklistKind(UpperStrEnum):
+    TELEGRAM_ID = auto()
+    EMAIL = auto()
 
 
 @dataclass(frozen=True, kw_only=True)

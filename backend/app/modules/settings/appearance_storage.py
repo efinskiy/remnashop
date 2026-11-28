@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from app.core.enums import AppearanceImageKind, AppearanceTarget
+from app.modules.settings.dto import AppearanceImageKind, AppearanceTarget
 
 
 # dashboard files stay at the top level, where they lived before the cabinet had its own

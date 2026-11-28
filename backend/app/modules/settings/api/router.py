@@ -10,7 +10,6 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from app.api.dependencies.public import get_current_user
 from app.api.errors import error_responses
 from app.core.config import AppConfig
-from app.core.enums import AppearanceImageKind, AppearanceTarget
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import NotFoundError
 from app.modules.settings.api.schemas import AppearanceResponse, CabinetSettingsResponse
@@ -19,6 +18,7 @@ from app.modules.settings.branding import (
     link_preview_html,
     link_preview_image,
 )
+from app.modules.settings.dto import AppearanceImageKind, AppearanceTarget
 from app.modules.settings.usecases import (
     GetCabinetSettingsUseCase,
     GetPublicAppearanceImageUseCase,
@@ -39,7 +39,7 @@ _IMAGE_HEADERS: Final[dict[str, str]] = {
 _DEFAULT_FAVICON_PATH: Final[str] = "/favicon.svg"
 
 
-@router.get("/{target}/manifest.webmanifest")
+@router.get("/{target}/manifest.webmanifest", response_class=Response)
 @inject
 async def get_appearance_manifest(
     target: AppearanceTarget, use_case: FromDishka[GetPublicAppearanceUseCase]
@@ -61,7 +61,7 @@ async def get_cabinet_link_preview(
     return HTMLResponse(link_preview_html(settings, config.cabinet.url))
 
 
-@router.get("/cabinet/preview-image", responses=error_responses(404))
+@router.get("/cabinet/preview-image", response_class=Response, responses=error_responses(404))
 @inject
 async def get_cabinet_preview_image(
     use_case: FromDishka[GetPublicAppearanceImageUseCase],
@@ -87,7 +87,7 @@ async def get_appearance(
     return AppearanceResponse.model_validate(settings, from_attributes=True)
 
 
-@router.get("/{target}/logo", responses=error_responses(404))
+@router.get("/{target}/logo", response_class=Response, responses=error_responses(404))
 @inject
 async def get_appearance_logo(
     target: AppearanceTarget, use_case: FromDishka[GetPublicAppearanceImageUseCase]
@@ -96,7 +96,7 @@ async def get_appearance_logo(
     return Response(content=image.data, media_type=image.content_type, headers=_IMAGE_HEADERS)
 
 
-@router.get("/{target}/favicon", responses=error_responses(404))
+@router.get("/{target}/favicon", response_class=Response, responses=error_responses(404))
 @inject
 async def get_appearance_favicon(
     target: AppearanceTarget, use_case: FromDishka[GetPublicAppearanceImageUseCase]
@@ -105,7 +105,7 @@ async def get_appearance_favicon(
     return Response(content=image.data, media_type=image.content_type, headers=_IMAGE_HEADERS)
 
 
-@router.get("/{target}/app-icon", responses=error_responses(404))
+@router.get("/{target}/app-icon", response_class=Response, responses=error_responses(404))
 @inject
 async def get_appearance_app_icon(
     target: AppearanceTarget, use_case: FromDishka[GetPublicAppearanceImageUseCase]
@@ -116,7 +116,7 @@ async def get_appearance_app_icon(
 
 # Linked from index.html: Safari takes the tab icon from the page as loaded and
 # ignores a <link rel="icon"> changed by a script.
-@router.get("/{target}/tab-icon")
+@router.get("/{target}/tab-icon", response_class=Response)
 @inject
 async def get_appearance_tab_icon(
     target: AppearanceTarget, use_case: FromDishka[GetPublicAppearanceImageUseCase]

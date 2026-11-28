@@ -15,23 +15,6 @@ export function useChart<T>(
   return state;
 }
 
-export function fillDailySeries<T extends { day: string }>(
-  sparse: T[],
-  days: number,
-  emptyValue: (day: string) => T,
-): T[] {
-  const byDay = new Map(sparse.map((item) => [item.day, item]));
-  const result: T[] = [];
-  const today = new Date();
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(today);
-    d.setUTCDate(d.getUTCDate() - i);
-    const key = d.toISOString().slice(0, 10);
-    result.push(byDay.get(key) ?? emptyValue(key));
-  }
-  return result;
-}
-
 export function formatChartDay(iso: string, language: string): string {
   return parseIsoDate(iso)?.toLocaleDateString(language, { day: "2-digit", month: "2-digit" }) ?? iso;
 }

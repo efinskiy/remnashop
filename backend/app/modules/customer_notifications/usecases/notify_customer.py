@@ -12,9 +12,9 @@ from app.core.config import AppConfig
 from app.core.constants import (
     CUSTOMER_NOTIFICATION_BUY_CALLBACK,
     CUSTOMER_NOTIFICATION_CLOSE_CALLBACK,
+    CUSTOMER_NOTIFICATION_MENU_CALLBACK,
     CUSTOMER_NOTIFICATION_RENEW_PREFIX,
     CUSTOMER_NOTIFICATION_REVOKE_SESSIONS_CALLBACK,
-    DATE_FORMAT,
     ICON_ID_KEY_SUFFIX,
     ICON_KEY_SUFFIX,
     REDIS_KEY_PREFIX,
@@ -39,12 +39,17 @@ from app.core.utils.telegram_text import (
     premium_emoji_html,
 )
 from app.core.utils.time import datetime_now
+from app.modules.account_merge import AccountsMergedEvent
 from app.modules.cabinet_auth import CabinetNewDeviceSignInEvent
 from app.modules.customer_notifications.dispatch import SendCustomerTelegramDispatch
 from app.modules.customer_notifications.dto import NotifyCustomerDto
 from app.modules.customer_notifications.links import customer_url
 from app.modules.customer_notifications.metrics import CUSTOMER_NOTIFICATIONS
-from app.modules.customer_notifications.render_args import customer_render_args
+from app.modules.customer_notifications.render_args import (
+    NAMES_PLAN,
+    customer_render_args,
+    shop_dates,
+)
 from app.modules.customer_notifications.repository import CustomerNotificationRepository
 from app.modules.customer_notifications.routing import (
     CustomerChannel,
@@ -64,6 +69,7 @@ from app.modules.notifications import (
     telegram_card,
 )
 from app.modules.plans import PlanRepository
+from app.modules.promocodes import PromocodeDiscountExpiringEvent
 from app.modules.recurring_payments import (
     RecurringDebitChecks,
     RecurringPaymentExhaustedEvent,
@@ -77,6 +83,7 @@ from app.modules.subscriptions import (
     SubscriptionExpiredAgoEvent,
     SubscriptionExpiredEvent,
     SubscriptionExpiringEvent,
+    SubscriptionExpiryDisableWarningEvent,
     SubscriptionGraceStartedEvent,
     SubscriptionGrantedEvent,
     SubscriptionNotConnectedEvent,
@@ -117,6 +124,7 @@ _RENEWABLE: Final[frozenset[str]] = frozenset(
         SubscriptionExpiringEvent,
         SubscriptionExpiredEvent,
         SubscriptionGraceStartedEvent,
+        SubscriptionExpiryDisableWarningEvent,
         SubscriptionExpiredAgoEvent,
         SubscriptionTrafficLimitedEvent,
         RecurringPaymentFailedEvent,
@@ -126,7 +134,11 @@ _RENEWABLE: Final[frozenset[str]] = frozenset(
 )
 # the subscription page is where a customer connects a device
 _CONNECT: Final[frozenset[str]] = frozenset(
-    {SubscriptionPurchasedEvent.__name__, SubscriptionNotConnectedEvent.__name__}
+    {
+        SubscriptionPurchasedEvent.__name__,
+        SubscriptionGrantedEvent.__name__,
+        SubscriptionNotConnectedEvent.__name__,
+    }
 )
 _SUPPORT: Final[frozenset[str]] = frozenset(
     {
@@ -137,7 +149,12 @@ _SUPPORT: Final[frozenset[str]] = frozenset(
         RecurringPaymentPausedEvent.__name__,
         RecurringPaymentExhaustedEvent.__name__,
         CabinetNewDeviceSignInEvent.__name__,
+        AccountsMergedEvent.__name__,
     }
+)
+# a customer with a subscription may want to renew it rather than buy another: the menu offers both
+_MENU: Final[frozenset[str]] = frozenset(
+    {PromocodeDiscountExpiringEvent.__name__, PAYMENTS_RESTORED}
 )
 # a sign-in the customer doesn't recognize is one tap from being thrown out
 _REVOKE_SESSIONS: Final[frozenset[str]] = frozenset({CabinetNewDeviceSignInEvent.__name__})
@@ -229,8 +246,11 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
             if with_subscription is None:
                 return
             data = with_subscription
-        if data.event_type == SubscriptionGrantedEvent.__name__:
+        if data.event_type in NAMES_PLAN:
             data = await self._with_plan_name(data, user.language)
+        async with self._uow:
+            zone = (await self._settings_repository.get_shop_settings()).zone
+        data = replace(data, args=shop_dates(data.args, zone))
         renderer = await self._renderer_factory.build()
         title, body = renderer.render(
             user.language,
@@ -404,7 +424,10 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
             has_logo=brand.has_logo,
             title=title,
             body=body,
-            cabinet_url=self._config.cabinet.url or None,
+            cabinet_url=_cabinet_link(
+                self._config.cabinet.url,
+                customer_url(data.event_type, data.subscription_id, data.args),
+            ),
             button=renderer.text(user.language, "ntf-customer-open-cabinet"),
         )
         await self._send_email.kiq(
@@ -451,6 +474,14 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
                     CUSTOMER_NOTIFICATION_REVOKE_SESSIONS_CALLBACK,
                 )
             )
+        if data.event_type in _MENU:
+            buttons.append(
+                (
+                    "btn-customer-notification.menu",
+                    "callback_data",
+                    CUSTOMER_NOTIFICATION_MENU_CALLBACK,
+                )
+            )
         if data.event_type in _CONNECT and subscription is not None and subscription.url:
             buttons.append(("btn-customer-notification.connect", "url", subscription.url))
         if data.event_type in _SUPPORT:
@@ -480,6 +511,11 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
         args = {**data.args, "is_trial": "yes" if subscription and subscription.is_trial else "no"}
         if data.event_type == SubscriptionTrafficLimitedEvent.__name__ and subscription:
             args["traffic_strategy"] = subscription.traffic_limit_strategy.value
+        if data.event_type == SubscriptionExpiryDisableWarningEvent.__name__ and (
+            # renewed or switched off since: nothing left to warn about
+            subscription is None or subscription.status is not SubscriptionStatus.EXPIRED
+        ):
+            return None
         if data.event_type == SubscriptionTrafficThresholdEvent.__name__:
             # limited, expired or gone since the panel sent it: nothing left to warn about
             if subscription is None or subscription.status is not SubscriptionStatus.ACTIVE:
@@ -499,7 +535,7 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
                 except NotFoundError:
                     plan = None
         return {
-            "reset_date": reset.strftime(DATE_FORMAT) if reset is not None else "none",
+            "reset_date": reset.isoformat() if reset is not None else "none",
             "can_renew": "yes" if can_renew(subscription, plan) else "no",
         }
 
@@ -509,6 +545,11 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
                 return await self._subscription_repository.get_by_id(subscription_id)
             except NotFoundError:
                 return None
+
+
+def _cabinet_link(cabinet: str, path: str) -> Optional[str]:
+    # the same place the push and the feed open
+    return f"{cabinet}{path}" if cabinet else None
 
 
 def _telegram_button(

@@ -1,30 +1,16 @@
 import { apiDelete, apiGet, apiPatch, apiPost, apiUpload, BASE_URL } from "@shared/api/http";
+import type { ApiSchema } from "@shared/api/schemas";
 
 export type AppearanceImageKind = "logo" | "favicon" | "app-icon";
 
-export type AppearanceTarget = "dashboard" | "cabinet";
+export type AppearanceTarget = ApiSchema<"AppearanceTarget">;
 
 export const DEFAULT_FAVICON_HREF = "/favicon.svg";
 
-export interface AppearanceSettings {
-  brand_name: string | null;
-  primary_color: string | null;
-  shader_base: string | null;
-  shader_tones: (string | null)[] | null;
-  shader_enabled: boolean;
-  has_logo: boolean;
-  has_favicon: boolean;
-  has_app_icon: boolean;
-}
+export type AppearanceSettings = ApiSchema<"AppearanceResponse">;
 
-export interface UpdateAppearancePayload {
-  brand_name?: string;
-  primary_color?: string;
-  // "" goes back to following the accent
-  shader_base?: string;
-  shader_tones?: (string | null)[];
-  shader_enabled?: boolean;
-}
+// shader_base: "" goes back to following the accent
+export type UpdateAppearancePayload = ApiSchema<"UpdateAppearanceRequest">;
 
 // public endpoint, the pre-login LoginPage reads it too
 export function getAppearance(target: AppearanceTarget, signal?: AbortSignal): Promise<AppearanceSettings> {

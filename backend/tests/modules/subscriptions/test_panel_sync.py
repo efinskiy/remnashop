@@ -12,19 +12,13 @@ from remnapy.models import UserResponseDto
 from app.core.config import AppConfig
 from app.core.constants import GB_TO_BYTES
 from app.core.db.uow import UnitOfWork
-from app.core.enums import (
-    BlacklistKind,
-    Locale,
-    PanelSyncDirection,
-    PlanType,
-    Role,
-    SubscriptionStatus,
-)
+from app.core.enums import Locale, PlanType, Role, SubscriptionStatus
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ConflictError
 from app.core.ports import EventPublisher
 from app.core.security.permissions import TOKEN_GRANTABLE_PERMISSIONS, Permission
 from app.core.utils.time import datetime_now
+from app.modules.blacklist.dto import BlacklistKind
 from app.modules.blacklist.repository import BlacklistRepository
 from app.modules.plans.dto import CreatePlanDto
 from app.modules.plans.repository import PlanRepository
@@ -37,6 +31,7 @@ from app.modules.subscriptions.dto import (
     SyncFromPanelOptionsDto,
     SyncToPanelOptionsDto,
 )
+from app.modules.subscriptions.events import PanelSyncDirection
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
 from app.modules.subscriptions.panel_sync import (
     claim_panel_sync,

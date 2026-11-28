@@ -18,6 +18,7 @@ import { SelectDropdown } from "@shared/ui/SelectDropdown";
 
 import { addButton, removeButton, setButtonIcon, setButtonLabel, setButtonUrl } from "@pages/broadcasts/editor/form";
 import type { EditorForm } from "@pages/broadcasts/editor/form";
+import { allValues } from "@shared/lib/all-values";
 
 const MAX_BUTTONS = 10;
 // phone: kind | label, then target | remove
@@ -34,7 +35,7 @@ const KIND_ICON: Record<BroadcastButtonKind, ComponentType<{ className?: string 
   SHARE_REFERRAL: Share2,
 };
 
-const KINDS: BroadcastButtonKind[] = ["URL", "PROMOCODE", "MENU", "CLOSE", "SHARE_REFERRAL"];
+const KINDS = allValues<BroadcastButtonKind>()(["URL", "PROMOCODE", "MENU", "CLOSE", "SHARE_REFERRAL"]);
 
 interface ButtonsEditorProps {
   form: EditorForm;

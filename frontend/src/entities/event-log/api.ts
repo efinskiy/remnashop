@@ -1,28 +1,16 @@
 import { apiGet, apiPost } from "@shared/api/http";
+import type { ApiSchema } from "@shared/api/schemas";
 
 export const DEFAULT_PAGE_SIZE = 50;
 
-export interface EventLogEntry {
-  id: number;
-  category: string;
-  event_type: string;
-  occurred_at: string;
-  actor_id: number | null;
-  actor_login: string | null;
-  actor_name: string | null;
-  ip_address: string | null;
-  payload: Record<string, unknown>;
-}
+export type EventLogEntry = ApiSchema<"EventLogEntryResponse">;
 
 // `location.state` for /dashboard/events: opens that entry's detail dialog on arrival
 export interface EventLogLocationState {
   entry: EventLogEntry;
 }
 
-export interface EventLogPage {
-  items: EventLogEntry[];
-  total: number;
-}
+export type EventLogPage = ApiSchema<"EventLogPageResponse">;
 
 export interface EventLogFilters {
   category?: string;
@@ -68,11 +56,7 @@ export async function listEventLogAfter(
   return { items: page.items, total: loaded.length + page.total };
 }
 
-export interface Notifications {
-  items: EventLogEntry[];
-  total: number;
-  unread_count: number;
-}
+export type Notifications = ApiSchema<"NotificationsResponse">;
 
 export function getNotifications(signal?: AbortSignal): Promise<Notifications> {
   return apiGet<Notifications>("/events/notifications", signal);

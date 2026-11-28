@@ -23,8 +23,8 @@ class PruneOutboxUseCase(UseCase[None, None]):
         async with self._uow:
             cutoff = datetime_now() - timedelta(days=_OUTBOX_RETENTION_DAYS)
             deleted = await self._outbox_repository.delete_processed_before(cutoff)
-            poisoned = await self._outbox_repository.count_poisoned()
+            poisoned = await self._outbox_repository.get_poisoned_stats()
         logger.info(
             f"Pruned {deleted} processed outbox row(s) older than {_OUTBOX_RETENTION_DAYS}d; "
-            f"{poisoned} poisoned row(s) remain unprocessed"
+            f"{poisoned.unprocessed_count} poisoned row(s) remain unprocessed"
         )

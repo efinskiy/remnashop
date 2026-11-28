@@ -1,5 +1,6 @@
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 
 import pytest
 from sqlalchemy import update
@@ -20,6 +21,7 @@ from app.modules.analytics.usecases.get_retention import (
     _monthly_churn,
 )
 from app.modules.pricing.repository import PricingRepository
+from app.modules.settings.repository import SettingsRepository
 from app.modules.subscriptions.dto import CreateSubscriptionDto
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.stats_repository import SubscriptionStatsRepository
@@ -29,7 +31,11 @@ from app.modules.users.dto import UserDto
 from app.modules.users.repository import UserRepository
 from tests.fakes.analytics_cache import PassThroughAnalyticsCache
 from tests.modules.analytics.test_get_analytics import _paid_order_dto
-from tests.modules.subscriptions.factories import create_subscription, make_plan_snapshot
+from tests.modules.subscriptions.factories import (
+    add_paid_term,
+    create_subscription,
+    make_plan_snapshot,
+)
 
 OWNER = UserDto(id=1, login="owner", name="owner", role=Role.OWNER, language=Locale.EN)
 NOW = datetime(2026, 6, 15, 12, tzinfo=UTC)
@@ -45,6 +51,7 @@ def _use_case(
         pricing_repository,
         uow,
         PassThroughAnalyticsCache(),
+        SettingsRepository(session),
     )
 
 
@@ -159,6 +166,7 @@ async def test_retention_expiring_blocks(
         telegram_id=870_001,
         remnawave_user_id=870_001,
         expire_at=now + timedelta(days=3, hours=1),
+        price_paid=Decimal("100"),
     )
     later = await create_subscription(
         subscription_repository,
@@ -166,6 +174,7 @@ async def test_retention_expiring_blocks(
         telegram_id=870_002,
         remnawave_user_id=870_002,
         expire_at=now + timedelta(days=20, hours=1),
+        price_paid=Decimal("100"),
     )
     await create_subscription(
         subscription_repository,
@@ -175,7 +184,7 @@ async def test_retention_expiring_blocks(
         is_trial=True,
         expire_at=now + timedelta(days=5),
     )
-    await subscription_repository.create(
+    extra = await subscription_repository.create(
         CreateSubscriptionDto(
             user_id=soon.user_id,
             remnawave_user_id=870_004,
@@ -185,9 +194,10 @@ async def test_retention_expiring_blocks(
             device_limit=3,
             expire_at=now + timedelta(days=10, hours=1),
             url="https://example.com/sub/870004",
-            plan_snapshot=make_plan_snapshot(name="Extra"),
+            plan_snapshot=make_plan_snapshot(name="Extra", price_paid=Decimal("100")),
         )
     )
+    await add_paid_term(session, extra)
     for user_id, tag, renew in ((soon.user_id, "a", 2), (later.user_id, "b", 0)):
         await _pay(
             transaction_repository, session, uow, user_id, plan_id, f"r-{tag}0",
@@ -235,6 +245,7 @@ async def test_expiring_top_leaves_out_staff(
             telegram_id=telegram_id,
             remnawave_user_id=telegram_id,
             expire_at=now + timedelta(days=3, hours=1),
+            price_paid=Decimal("100"),
         )
         for telegram_id in (870_101, 870_102)
     ]

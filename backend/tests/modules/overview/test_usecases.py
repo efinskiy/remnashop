@@ -4,6 +4,7 @@ from dataclasses import replace
 from datetime import datetime, timedelta
 from decimal import Decimal
 from itertools import pairwise
+from zoneinfo import ZoneInfo
 
 import pytest
 from redis.asyncio import Redis
@@ -26,7 +27,7 @@ from app.core.enums import (
 )
 from app.core.exceptions import PermissionDeniedError
 from app.core.runtime_heartbeat import publish_runtime_heartbeat
-from app.core.utils.time import datetime_now
+from app.core.utils.time import datetime_now, day_start
 from app.modules.overview.dto import GetOverviewChartDto
 from app.modules.overview.usecases import (
     GetOnlineChartUseCase,
@@ -34,6 +35,8 @@ from app.modules.overview.usecases import (
     GetRevenueChartUseCase,
 )
 from app.modules.pricing.repository import PricingRepository
+from app.modules.settings.dto import UpdateShopSettingsDto
+from app.modules.settings.repository import SettingsRepository
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.stats_repository import SubscriptionStatsRepository
 from app.modules.transactions.dto import CreateTransactionDto
@@ -119,6 +122,7 @@ async def test_owner_sees_all_sections_with_correct_counts(
         pricing_repository,
         redis,
         uow,
+        SettingsRepository(user_repository.session),
     )
     overview = await use_case(OWNER)
     revenue = await GetRevenueChartUseCase(
@@ -126,10 +130,14 @@ async def test_owner_sees_all_sections_with_correct_counts(
         transaction_repository,
         pricing_repository,
         uow,
+        SettingsRepository(user_repository.session),
     )(OWNER, GetOverviewChartDto(days=7))
-    online = await GetOnlineChartUseCase(UserStatsRepository(user_repository.session), redis, uow)(
-        OWNER, GetOverviewChartDto(days=7)
-    )
+    online = await GetOnlineChartUseCase(
+        UserStatsRepository(user_repository.session),
+        redis,
+        uow,
+        SettingsRepository(user_repository.session),
+    )(OWNER, GetOverviewChartDto(days=7))
 
     assert overview.users is not None
     assert overview.users.total >= 1
@@ -142,7 +150,8 @@ async def test_owner_sees_all_sections_with_correct_counts(
     assert overview.subscriptions.disabled == 0
     assert revenue.paid_orders_count >= 1
     assert online.current == 0
-    assert online.daily_peak == []
+    assert len(online.daily_peak) == 7
+    assert all(point.count == 0 for point in online.daily_peak)
 
 
 async def test_actor_missing_transactions_view_is_denied_the_revenue_chart(
@@ -161,6 +170,7 @@ async def test_actor_missing_transactions_view_is_denied_the_revenue_chart(
         transaction_repository,
         pricing_repository,
         uow,
+        SettingsRepository(user_repository.session),
     )
     with pytest.raises(PermissionDeniedError):
         await use_case(actor, GetOverviewChartDto(days=7))
@@ -196,6 +206,7 @@ async def test_days_window_excludes_orders_paid_before_the_cutoff(
         transaction_repository,
         pricing_repository,
         uow,
+        SettingsRepository(user_repository.session),
     )
     revenue = await use_case(OWNER, GetOverviewChartDto(days=7))
 
@@ -222,6 +233,7 @@ async def test_revenue_chart_counts_payments_per_day(
         transaction_repository,
         pricing_repository,
         uow,
+        SettingsRepository(user_repository.session),
     )(OWNER, GetOverviewChartDto(days=7))
 
     today = next(entry for entry in chart.daily if entry.day == datetime_now().date())
@@ -274,6 +286,7 @@ async def test_since_is_calendar_aligned_not_a_rolling_cutoff(
         transaction_repository,
         pricing_repository,
         uow,
+        SettingsRepository(user_repository.session),
     )
     revenue = await use_case(OWNER, GetOverviewChartDto(days=1))
 
@@ -302,6 +315,7 @@ async def test_all_time_period_starts_at_first_registration_and_buckets_by_month
         transaction_repository,
         pricing_repository,
         uow,
+        SettingsRepository(user_repository.session),
     )
     chart = await use_case(OWNER, GetOverviewChartDto(days=0))
 
@@ -342,6 +356,7 @@ async def test_runtime_lists_only_processes_with_a_live_heartbeat(
         pricing_repository,
         redis,
         uow,
+        SettingsRepository(user_repository.session),
     )
     overview = await use_case(OWNER)
 
@@ -383,6 +398,7 @@ async def test_runtime_shows_each_process_of_a_role(
         pricing_repository,
         redis,
         uow,
+        SettingsRepository(user_repository.session),
     )
     overview = await use_case(OWNER)
 
@@ -414,6 +430,7 @@ async def test_overview_includes_host_memory_when_available(
         pricing_repository,
         redis,
         uow,
+        SettingsRepository(user_repository.session),
     )
     overview = await use_case(OWNER)
 
@@ -444,6 +461,7 @@ def _overview_use_case(
         pricing_repository,
         redis,
         uow,
+        SettingsRepository(user_repository.session),
     )
 
 
@@ -540,6 +558,54 @@ async def test_revenue_today_compares_with_yesterday_same_time(
     assert newest.amount == Decimal("500")
     assert newest.name == "Rev Payer"
     assert newest.currency == Currency.RUB
+
+
+async def test_revenue_today_counts_the_shops_day(
+    user_repository: UserRepository,
+    transaction_repository: TransactionRepository,
+    pricing_repository: PricingRepository,
+    subscription_stats_repository: SubscriptionStatsRepository,
+    redis: Redis,
+    session: AsyncSession,
+    uow: UnitOfWork,
+    plan_id: int,
+) -> None:
+    payer = await user_repository.create(
+        CreateUserDto(name="Tz Payer", telegram_id=830_202, username="tzpayer")
+    )
+    async with uow:
+        await SettingsRepository(session).update_shop_settings(
+            UpdateShopSettingsDto(timezone="Europe/Moscow", fields_set=frozenset({"timezone"}))
+        )
+    now = datetime_now()
+    local_start = day_start(now, ZoneInfo("Europe/Moscow"))
+    if now - local_start < timedelta(minutes=2):
+        pytest.skip("too close to Moscow midnight to place today's rows")
+    seeded = [
+        await _seed_paid(
+            transaction_repository,
+            session,
+            uow,
+            user_id=payer.id,
+            plan_id=plan_id,
+            key=key,
+            amount=amount,
+            at=at,
+        )
+        for key, amount, at in (
+            # 00:01 in Moscow is the previous UTC day for three hours of every day
+            ("tz-today", "300", local_start + timedelta(minutes=1)),
+            ("tz-yday", "700", local_start - timedelta(minutes=1)),
+        )
+    ]
+    await _clear_window(session, local_start, keep=seeded)
+
+    overview = await _overview_use_case(
+        user_repository, subscription_stats_repository, pricing_repository, redis, uow
+    )(OWNER)
+
+    assert overview.revenue_today is not None
+    assert overview.revenue_today.today == Decimal("300")
 
 
 async def test_a_hidden_staff_payer_is_left_out_of_recent_payments(

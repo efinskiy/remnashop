@@ -12,7 +12,6 @@ from app.core.enums import (
     AddOnType,
     Currency,
     DiscountSource,
-    PanelSyncDirection,
     PaymentGatewayType,
     PlanType,
     PurchaseChannel,
@@ -43,6 +42,7 @@ from app.modules.subscriptions.dto import (
     SyncFromPanelOptionsDto,
     SyncSubscriptionStatusDto,
 )
+from app.modules.subscriptions.events import PanelSyncDirection
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
 from app.modules.subscriptions.panel_sync import claim_panel_sync
 from app.modules.subscriptions.repository import SubscriptionRepository
@@ -61,7 +61,7 @@ from app.modules.subscriptions.usecases import (
 )
 from app.modules.transactions.dto import CreateTransactionDto
 from app.modules.transactions.repository import TransactionRepository
-from app.modules.transactions.unpaid_orders import PaidOrderHolder
+from app.modules.transactions.unpaid_orders import FreeOrderFailer, PaidOrderHolder
 from app.modules.translations.repository import TranslationRepository
 from app.modules.users.dto import CreateUserDto
 from app.modules.users.repository import UserRepository
@@ -80,7 +80,7 @@ def fulfill_purchase(
     return FulfillPurchaseUseCase(
         user_repository,
         purchase_subscription_use_case,
-        TransactionRepository(user_repository.session),
+        FreeOrderFailer(TransactionRepository(user_repository.session), user_repository),
         PaidOrderHolder(TransactionRepository(user_repository.session), RecordingEventPublisher()),
         uow,
     )

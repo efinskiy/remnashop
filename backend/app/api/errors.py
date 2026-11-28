@@ -15,6 +15,7 @@ from remnapy.exceptions import ApiError as RemnawaveApiError
 from sqlalchemy.exc import DBAPIError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.core.dto import ResponseModel
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import (
     AppError,
@@ -61,7 +62,7 @@ class ErrorResponse(BaseModel):
     available_at: Optional[datetime] = None
 
 
-class RequestInvalidResponse(BaseModel):
+class RequestInvalidResponse(ResponseModel):
     detail: list[dict[str, Any]]
     code: ErrorCode
 

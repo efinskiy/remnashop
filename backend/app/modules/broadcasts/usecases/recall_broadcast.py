@@ -15,7 +15,7 @@ from app.core.usecase import UseCase
 from app.core.utils.time import datetime_now
 from app.modules.broadcasts.dispatch import RecallBroadcastDispatch
 from app.modules.broadcasts.dto import BroadcastDto
-from app.modules.broadcasts.events import BroadcastRecalledEvent
+from app.modules.broadcasts.events import BroadcastChangedEvent
 from app.modules.broadcasts.lifecycle import cancel_sending
 from app.modules.broadcasts.recipient_repository import BroadcastRecipientRepository
 from app.modules.broadcasts.repository import BroadcastRepository
@@ -76,7 +76,7 @@ class RecallBroadcastUseCase(UseCase[int, BroadcastDto]):
             if broadcast.status is BroadcastStatus.SENDING:
                 await cancel_sending(self._broadcast_repository, self._recipient_repository, data)
             await self._event_publisher.publish(
-                BroadcastRecalledEvent(actor=actor, broadcast_id=data)
+                BroadcastChangedEvent(actor=actor, action="recall", broadcast_id=data)
             )
             await self._uow.after_commit(partial(self._recall_dispatch.kiq, broadcast_id=data))
             result = await self._broadcast_repository.get_by_id(data)

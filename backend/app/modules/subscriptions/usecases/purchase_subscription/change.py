@@ -6,7 +6,8 @@ from typing import Optional
 
 from loguru import logger
 from remnapy import RemnawaveSDK
-from remnapy.models import UpdateUserRequestDto
+from remnapy.enums import UserStatus
+from remnapy.models import UpdateUserRequestDto, UpdateUserResponseDto
 
 from app.core.actor import Actor
 from app.core.constants import ZERO_AMOUNT
@@ -26,8 +27,10 @@ from app.modules.subscriptions.idempotency_repository import PurchaseIdempotency
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
 from app.modules.subscriptions.panel import (
     configure_for_plan,
+    panel_update,
     reset_traffic_if_paid,
     restore,
+    restore_expiry_switch_off,
     revert_panel_to_owner,
     subscription_row,
 )
@@ -41,8 +44,10 @@ class _TargetMovedError(Exception):
     shifted expire_at (the credit is stale), or an addon grant pushed its own
     limits over this change's."""
 
-    def __init__(self, current: SubscriptionDto) -> None:
+    def __init__(self, current: SubscriptionDto, *, switched_on: bool) -> None:
         self.current = current
+        # turned on what the expiry rule switched off: the give-up switches it back off
+        self.switched_on = switched_on
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -99,6 +104,14 @@ class ChangePurchase:
         except _TargetMovedError as moved:
             with suppress(Exception):
                 await self._remnawave_sdk.users.update_user(await self._restore(moved.current))
+            if moved.switched_on:
+                await restore_expiry_switch_off(
+                    self._remnawave_sdk,
+                    self._subscription_repository,
+                    self._lifecycle_service,
+                    self._uow,
+                    moved.current,
+                )
             raise SupersededError(
                 "Subscription kept changing while this request was in flight",
                 code=ErrorCode.PURCHASE_SUPERSEDED,
@@ -141,7 +154,9 @@ class ChangePurchase:
                     locked_old.expire_at != old.expire_at
                     or locked_old.addon_entitlements != old.addon_entitlements
                 ):
-                    raise _TargetMovedError(locked_old)
+                    raise _TargetMovedError(locked_old, switched_on=old.disabled_by_expiry)
+                panel_user = await self._past_switch_off(old, locked_old, panel_user)
+                old_paid = await self._subscription_repository.is_paid(old.id)
                 await self._subscription_repository.mark_deleted(old.id)
                 updated = await self._subscription_repository.create(
                     subscription_row(
@@ -152,6 +167,7 @@ class ChangePurchase:
                         # which configure_for_plan leaves as it is
                         status=SubscriptionStatus(panel_user.status),
                         term_anchor_day=term.anchor_day,
+                        replaced_paid=old_paid,
                     )
                 )
                 await self._record_credit(old, updated, data, term)
@@ -177,11 +193,7 @@ class ChangePurchase:
         except _TargetMovedError:
             raise
         except Exception:
-            # no orphan: update_user changed old's own panel user. Best-effort
-            # revert, so a DB failure doesn't leave the still-ACTIVE `old` on a
-            # plan config nobody paid for
-            with suppress(Exception):
-                await self._remnawave_sdk.users.update_user(await self._restore(old))
+            await self._revert_failed_change(old)
             raise
 
         if data.duration_days == 0 and old.is_unlimited and data.price_paid == ZERO_AMOUNT:
@@ -196,6 +208,35 @@ class ChangePurchase:
             f"({credit_days}d credit applied)"
         )
         return updated
+
+    async def _past_switch_off(
+        self, old: SubscriptionDto, locked_old: SubscriptionDto, panel_user: UpdateUserResponseDto
+    ) -> UpdateUserResponseDto:
+        if not locked_old.disabled_by_expiry or old.disabled_by_expiry:
+            return panel_user
+        if panel_user.expire_at <= datetime_now():
+            return panel_user
+        # the expiry rule switched it off after the push above, and is done with this
+        # expiry: on again before the new row is written from the panel's answer, under the
+        # row lock so the two can't part
+        return await self._remnawave_sdk.users.update_user(
+            panel_update(id=old.remnawave_user_id, status=UserStatus.ACTIVE)
+        )
+
+    async def _revert_failed_change(self, old: SubscriptionDto) -> None:
+        # no orphan: update_user changed old's own panel user. Best-effort
+        # revert, so a DB failure doesn't leave the still-ACTIVE `old` on a
+        # plan config nobody paid for, nor the rule's switch-off undone
+        with suppress(Exception):
+            await self._remnawave_sdk.users.update_user(await self._restore(old))
+        if old.disabled_by_expiry:
+            await restore_expiry_switch_off(
+                self._remnawave_sdk,
+                self._subscription_repository,
+                self._lifecycle_service,
+                self._uow,
+                old,
+            )
 
     async def _restore(self, row: SubscriptionDto) -> UpdateUserRequestDto:
         """The config a failed change puts back: the grace one while the row is in grace."""
@@ -214,7 +255,15 @@ class ChangePurchase:
     async def _plan_config(
         self, old: SubscriptionDto, plan: PlanSnapshot, expire_at: datetime
     ) -> UpdateUserRequestDto:
-        request = configure_for_plan(old.remnawave_user_id, plan, expire_at)
+        # the expiry rule's switch-off ends with a change that gives it a term, as with a
+        # renewal; an expired one too, as the rule may switch it off while this call is on
+        # its way. One that keeps a past expiry stays off
+        request = configure_for_plan(
+            old.remnawave_user_id,
+            plan,
+            expire_at,
+            enable=_turns_on(old, expire_at),
+        )
         if old.grace_until is None:
             return request
         async with self._uow:
@@ -306,3 +355,9 @@ class ChangePurchase:
                 payment_key=None,
                 kind=CreditSegmentKind.CARRIED,
             )
+
+
+def _turns_on(old: SubscriptionDto, expire_at: datetime) -> bool:
+    return (
+        old.disabled_by_expiry or old.status is SubscriptionStatus.EXPIRED
+    ) and expire_at > datetime_now()

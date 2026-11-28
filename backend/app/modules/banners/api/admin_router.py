@@ -62,7 +62,7 @@ async def delete_banner(
     await use_case(actor, BannerKeyDto(name=name, locale=locale))
 
 
-@router.get("/{name}/{locale}/image", responses=error_responses(404))
+@router.get("/{name}/{locale}/image", response_class=Response, responses=error_responses(404))
 @inject
 async def get_banner_image(
     name: str,

@@ -4,6 +4,7 @@ from typing import Optional
 from pydantic import BaseModel, Field, field_validator
 
 from app.core.constants import LOGIN_PATTERN
+from app.core.dto import ResponseModel
 from app.core.security import PASSWORD_MIN_LENGTH, PASSWORD_PATTERN
 
 
@@ -36,7 +37,7 @@ class LoginRequest(BaseModel):
     password: str
 
 
-class StatusResponse(BaseModel):
+class StatusResponse(ResponseModel):
     is_login_allowed: bool
     is_register_allowed: bool
     oauth_providers: dict[str, bool]
@@ -45,12 +46,12 @@ class StatusResponse(BaseModel):
     is_passkey_login_enabled: bool
 
 
-class RefreshResponse(BaseModel):
+class RefreshResponse(ResponseModel):
     access_token: str
     expires_in: int
 
 
-class SessionResponse(BaseModel):
+class SessionResponse(ResponseModel):
     id: int
     ip_address: str
     user_agent: Optional[str] = None
@@ -59,6 +60,6 @@ class SessionResponse(BaseModel):
     expires_at: datetime
 
 
-class SessionListResponse(BaseModel):
+class SessionListResponse(ResponseModel):
     items: list[SessionResponse]
     total: int

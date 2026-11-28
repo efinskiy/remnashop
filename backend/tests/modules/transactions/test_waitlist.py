@@ -78,13 +78,12 @@ async def test_add_is_idempotent_and_counted(
         assert await waitlist_repository.count() == 1
 
 
-async def test_claim_batch_honours_limit_and_exclude(
+async def test_claim_batch_honours_limit(
     waitlist_repository: WaitlistRepository, user_repository: UserRepository, uow: UnitOfWork
 ) -> None:
-    a, b, c = await _waitlisted(user_repository, uow, waitlist_repository, 3)
+    a, b, _ = await _waitlisted(user_repository, uow, waitlist_repository, 3)
     async with uow:
-        assert await waitlist_repository.claim_batch(2, set()) == [a, b]
-        assert await waitlist_repository.claim_batch(5, {a}) == [b, c]
+        assert await waitlist_repository.claim_batch(2) == [a, b]
 
 
 async def test_notify_queues_in_batches_and_empties_the_waitlist(
@@ -134,7 +133,7 @@ async def test_notify_does_nothing_while_payments_are_disabled(
 
     assert notifier.calls == []
     async with uow:
-        assert await waitlist_repository.claim_batch(100, set()) == ids
+        assert await waitlist_repository.claim_batch(100) == ids
 
 
 async def test_concurrent_run_skips_rows_claimed_by_a_running_batch(
@@ -156,7 +155,7 @@ async def test_concurrent_run_skips_rows_claimed_by_a_running_batch(
 
     async def _claim_from_second_run(batch: list[int]) -> None:
         async with real_sessions() as other, other.begin():
-            seen_by_second_run.extend(await WaitlistRepository(other).claim_batch(500, set()))
+            seen_by_second_run.extend(await WaitlistRepository(other).claim_batch(500))
 
     try:
         notifier = _FakeNotifier(on_notify=_claim_from_second_run)

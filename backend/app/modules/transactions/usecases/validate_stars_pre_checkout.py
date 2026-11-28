@@ -45,5 +45,7 @@ class ValidateStarsPreCheckoutUseCase(UseCase[StarsPreCheckoutDto, bool]):
             if not order.is_test and gateway_flags(PaymentGatewayType.TELEGRAM_STARS, settings).get(
                 REQUIRE_PAID_PURCHASE_FIELD_KEY, False
             ):
-                return await self._transaction_repository.has_paid_purchase(order.user_id)
+                return await self._transaction_repository.has_paid_order_outside_stars(
+                    order.user_id
+                )
             return True

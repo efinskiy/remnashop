@@ -15,7 +15,7 @@ from app.core.enums import (
     PurchaseType,
     TransactionStatus,
 )
-from app.modules.recurring_payments.policy import RecurringReason, RecurringState
+from app.modules.recurring_payments.policy import ConsentChannel, RecurringReason, RecurringState
 
 
 # stored as the consent's JSONB snapshot: the exact amounts, timings and text shown
@@ -223,7 +223,7 @@ class RecurringConsentDto:
     channel: PurchaseChannel
     accepted_at: datetime
     revoked_at: Optional[datetime]
-    revoked_channel: Optional[str]
+    revoked_channel: Optional[ConsentChannel]
 
 
 @dataclass(frozen=True, kw_only=True)

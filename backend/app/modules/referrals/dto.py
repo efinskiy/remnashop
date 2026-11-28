@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
+from enum import IntEnum, auto
 from typing import Final, Optional
 
 from app.core.constants import DEFAULT_PAGE_SIZE, DEFAULT_UNLIMITED_REWARD_DAYS, ZERO_AMOUNT
@@ -8,11 +9,17 @@ from app.core.dto import BaseDto, TimestampMixin
 from app.core.enums import (
     Currency,
     ReferralAccrualStrategy,
-    ReferralLevel,
     ReferralRewardStrategy,
     ReferralRewardType,
 )
 from app.modules.users import UserDto
+
+
+class ReferralLevel(IntEnum):
+    FIRST = auto()
+    SECOND = auto()
+    THIRD = auto()
+
 
 # ten years; keeps a typo out of the int32 column
 MAX_BONUS_DAYS: Final[int] = 3650

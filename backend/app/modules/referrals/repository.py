@@ -32,7 +32,7 @@ from app.core.db.models.user import User
 from app.core.db.partial_update import apply_partial_update
 from app.core.db.singleton import SINGLETON_ID, get_or_create_singleton
 from app.core.db.user_search import user_search_filter
-from app.core.enums import ReferralLevel, ReferralRewardType, Role
+from app.core.enums import ReferralRewardType, Role
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ConflictError
 from app.core.utils.time import datetime_now
@@ -40,6 +40,7 @@ from app.modules.referrals.dto import (
     DEFAULT_REWARD_AMOUNTS,
     DownlineEntryDto,
     ReferralDto,
+    ReferralLevel,
     ReferralRewardDto,
     ReferralRewardTotalsDto,
     ReferralSettingsDto,

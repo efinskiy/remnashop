@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
+from enum import StrEnum
 from typing import Any, Literal, Optional
 from uuid import UUID
 
@@ -15,15 +16,19 @@ from app.core.enums import (
     CreditSegmentKind,
     Currency,
     Locale,
-    PanelSyncDirection,
     PlanBadge,
     PlanType,
     PurchaseType,
     SubscriptionStatus,
 )
 from app.modules.plans import PlanDto
-from app.modules.subscriptions.events import StatusSyncSource
+from app.modules.subscriptions.events import PanelSyncDirection, StatusSyncSource
 from app.modules.subscriptions.unlimited import is_unlimited_expiry
+
+
+class SubscriptionSort(StrEnum):
+    CREATED_AT = "created_at"
+    EXPIRE_AT = "expire_at"
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -206,16 +211,30 @@ class SubscriptionDto(BaseDto, TimestampMixin):
     first_connected_at: Optional[datetime] = None
     panel_created_at: Optional[datetime] = None
     term_anchor_day: Optional[int] = None
+    replaced_paid: bool = False
     paused_by_channel_leave: bool = False
     grace_until: Optional[datetime] = None
     grace_started_at: Optional[datetime] = None
     grace_ended_at: Optional[datetime] = None
     panel_restore_due_at: Optional[datetime] = None
+    expiry_disabled_at: Optional[datetime] = None
+    expiry_disable_handled_at: Optional[datetime] = None
+    expiry_disable_warned_at: Optional[datetime] = None
     addon_entitlements: list[AddOnEntitlementDto] = Field(default_factory=list)
 
     @property
     def is_unlimited(self) -> bool:
         return is_unlimited_expiry(self.expire_at)
+
+    @property
+    def disabled_by_expiry(self) -> bool:
+        """Switched off by the expiry rule: a renewal or plan change turns it back on."""
+        return self.status is SubscriptionStatus.DISABLED and self.expiry_disabled_at is not None
+
+    @property
+    def customer_status(self) -> SubscriptionStatus:
+        # to the customer it is an expired subscription to renew, not an admin's switch-off
+        return SubscriptionStatus.EXPIRED if self.disabled_by_expiry else self.status
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -291,6 +310,7 @@ class SubscriptionListStatsDto:
 class LiveSubscriptionDto:
     user_id: int
     is_trial: bool
+    is_paid: bool
     status: SubscriptionStatus
     expire_at: datetime
     plan_name: str
@@ -316,6 +336,7 @@ class CreateSubscriptionDto:
     external_squad: Optional[UUID] = None
     panel_created_at: Optional[datetime] = None
     term_anchor_day: Optional[int] = None
+    replaced_paid: bool = False
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -672,6 +693,8 @@ class DeviceDto(BaseModel):
     app: Optional[str]
     user_agent: Optional[str]
     created_at: datetime
+    # the device's last subscription request, as the panel records it
+    last_fetched_at: datetime
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -687,6 +710,8 @@ class ListSubscriptionsDto:
     status: Optional[SubscriptionStatus] = None
     search: Optional[str] = None
     user_id: Optional[int] = None
+    sort: SubscriptionSort = SubscriptionSort.CREATED_AT
+    descending: bool = True
     page: int = 1
     page_size: int = DEFAULT_PAGE_SIZE
 

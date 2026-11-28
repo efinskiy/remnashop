@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from typing import ClassVar
 
 from app.core.events import EventCategory, SystemEvent
+from app.modules.overview.dto import AttentionKind
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -25,7 +26,7 @@ class RemnawaveVersionMismatchEvent(SystemEvent):
 @dataclass(frozen=True, kw_only=True)
 class SystemHealthDegradedEvent(SystemEvent):
     category: ClassVar[EventCategory] = EventCategory.INFRASTRUCTURE
-    kind: str
+    kind: AttentionKind
     subject: str
     value: int
 
@@ -33,7 +34,7 @@ class SystemHealthDegradedEvent(SystemEvent):
 @dataclass(frozen=True, kw_only=True)
 class SystemHealthRestoredEvent(SystemEvent):
     category: ClassVar[EventCategory] = EventCategory.INFRASTRUCTURE
-    kind: str
+    kind: AttentionKind
     subject: str
 
 
@@ -58,6 +59,5 @@ class DailyReportEvent(SystemEvent):
     changes: int
     changes_amount: str
     paid_never_connected: int
-    # "@username" or the name, with the number invited that day; best first
-    # (user id, name, invited); an empty name shows as "User #id"
+    # (user id, name, invited that day), best first; an empty name shows as "User #id"
     top_referrers: list[tuple[int, str, int]] = field(default_factory=list)

@@ -20,7 +20,7 @@ from app.core.constants import (
     REDIS_KEY_PREFIX,
     USER_KEY,
 )
-from app.core.enums import MiddlewareEventType, PurchaseChannel
+from app.core.enums import PurchaseChannel
 from app.core.utils.telegram_text import html_to_plain, plain_to_html
 from app.modules.legal import GetPendingLegalDocumentsUseCase
 from app.modules.settings import (
@@ -40,7 +40,11 @@ from app.telegram.legal_gate import (
     gate_message_key,
     legal_gate_keyboard,
 )
-from app.telegram.middlewares.base import EventTypedMiddleware, is_successful_payment
+from app.telegram.middlewares.base import (
+    EventTypedMiddleware,
+    MiddlewareEventType,
+    is_successful_payment,
+)
 
 # here, not under routers/: importing app.telegram.routers pulls in the handlers,
 # which import this module

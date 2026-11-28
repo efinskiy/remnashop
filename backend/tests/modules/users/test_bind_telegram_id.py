@@ -1,11 +1,12 @@
 import pytest
 
 from app.core.db.uow import UnitOfWork
-from app.core.enums import BlacklistKind, Role
+from app.core.enums import Role
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.ports import EventPublisher
 from app.modules.blacklist import BlacklistRepository
+from app.modules.blacklist.dto import BlacklistKind
 from app.modules.users.dto import BindTelegramDto, CreateUserDto, UserDto
 from app.modules.users.repository import UserRepository
 from app.modules.users.usecases import BindTelegramIdUseCase

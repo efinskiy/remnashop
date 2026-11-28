@@ -91,6 +91,7 @@ def _subscription(
     return MagicMock(
         id=7,
         status=status,
+        customer_status=status,
         is_trial=is_trial,
         traffic_limit_strategy=strategy,
         created_at=_NOW,

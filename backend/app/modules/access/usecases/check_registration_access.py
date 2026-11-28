@@ -4,9 +4,9 @@ from loguru import logger
 
 from app.core.actor import Actor
 from app.core.db.uow import UnitOfWork
-from app.core.enums import AccessDenial, AccessMode
+from app.core.enums import AccessMode
 from app.core.usecase import UseCase
-from app.modules.access.dto import CheckRegistrationAccessDto
+from app.modules.access.dto import AccessDenial, CheckRegistrationAccessDto
 from app.modules.advertising import AdLinkRepository
 from app.modules.settings import GetAccessSettingsUseCase
 from app.modules.users import UserRepository

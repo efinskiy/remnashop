@@ -3,12 +3,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db.models.user import User
 from app.core.db.uow import UnitOfWork
-from app.core.enums import BlacklistKind, Locale, Role
+from app.core.enums import Locale, Role
 from app.core.exceptions import PermissionDeniedError, ValidationError
 from app.core.ports import EventPublisher
 from app.modules.blacklist.dto import (
     AddBlacklistSourceDto,
     BlacklistEntryInputDto,
+    BlacklistKind,
     UpdateBlacklistSourceDto,
 )
 from app.modules.blacklist.repository import BlacklistRepository

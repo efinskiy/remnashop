@@ -5,7 +5,7 @@ from loguru import logger
 from app.core.actor import Actor
 from app.core.config import AppConfig
 from app.core.db.uow import UnitOfWork
-from app.core.enums import Role, SessionAudience
+from app.core.enums import Locale, Role, SessionAudience
 from app.core.events import visible_event_ip
 from app.core.exceptions import RetryableTaskError
 from app.core.security.permissions import Permission, PermissionPolicy
@@ -65,6 +65,16 @@ def _cut(value: Union[str, int]) -> Union[str, int]:
     if isinstance(value, str) and len(value) > MAX_BODY_LENGTH:
         return value[: MAX_BODY_LENGTH - 1] + "…"
     return value
+
+
+def _with_gateway_name(
+    renderer: NotificationRenderer, locale: Locale, args: dict[str, Union[str, int]]
+) -> dict[str, Union[str, int]]:
+    gateway = args.get("gateway_type")
+    if not isinstance(gateway, str):
+        return args
+    # the provider's name as the shop shows it, not the enum value
+    return {**args, "gateway_type": renderer.text(locale, f"gateway-name.{gateway}") or gateway}
 
 
 def _coalescing_notes(
@@ -135,7 +145,9 @@ class DeliverNotificationUseCase(UseCase[DeliverNotificationDto, None]):
         card_data = await self._card_data(data, targets) if token else CardData()
         for user, channels in targets:
             ip = visible_event_ip(user, data.event_type, data.payload, data.ip_address)
-            args = notification_args(data.payload, ip, user.language)
+            args = _with_gateway_name(
+                renderer, user.language, notification_args(data.payload, ip, user.language)
+            )
             title, body = renderer.render(user.language, data.event_type, args)
             if len(body) > MAX_BODY_LENGTH:
                 body = body[: MAX_BODY_LENGTH - 1] + "…"

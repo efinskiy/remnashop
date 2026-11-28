@@ -9,10 +9,11 @@ from app.core.config import AppConfig
 from app.core.config.cabinet import CabinetConfig
 from app.core.db.models.event_outbox import EventOutboxEntry
 from app.core.db.uow import UnitOfWork
-from app.core.enums import BlacklistKind, OAuthProvider
+from app.core.enums import OAuthProvider
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import AuthenticationError, ConflictError, PermissionDeniedError
 from app.modules.blacklist import BlacklistRepository
+from app.modules.blacklist.dto import BlacklistKind
 from app.modules.cabinet_auth.dto import InviteCodesDto
 from app.modules.cabinet_auth.sign_in import CabinetSignIn
 from app.modules.cabinet_auth.usecases import (

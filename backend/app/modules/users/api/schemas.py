@@ -4,10 +4,12 @@ from typing import Optional
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.core.constants import LOGIN_PATTERN, MAX_MARKUP_PERCENT
-from app.core.enums import BlacklistKind, Locale, RegistrationSource
+from app.core.dto import ResponseModel
+from app.core.enums import Locale, RegistrationSource
 from app.core.security import PASSWORD_MIN_LENGTH, PASSWORD_PATTERN
 from app.core.security.permissions import Permission
 from app.core.utils.http import validate_ip_allowlist
+from app.modules.blacklist import BlacklistKind
 from app.modules.users.schemas import UserListItemResponse, UserResponse
 
 
@@ -32,33 +34,33 @@ class AdminResponse(UserResponse):
         return [p for p in value or [] if p in Permission]
 
 
-class AdminWithPasswordResponse(BaseModel):
+class AdminWithPasswordResponse(ResponseModel):
     admin: AdminResponse
     password: str
 
 
-class AdminPromoteResponse(BaseModel):
+class AdminPromoteResponse(ResponseModel):
     admin: AdminResponse
     password: Optional[str] = None
 
 
-class BlacklistOriginResponse(BaseModel):
+class BlacklistOriginResponse(ResponseModel):
     source_id: Optional[int]
     source_name: Optional[str]
 
 
-class BlacklistHitResponse(BaseModel):
+class BlacklistHitResponse(ResponseModel):
     kind: BlacklistKind
     value: str
     origins: list[BlacklistOriginResponse]
 
 
-class BlacklistMatchResponse(BaseModel):
+class BlacklistMatchResponse(ResponseModel):
     user: UserResponse
     hits: list[BlacklistHitResponse]
 
 
-class BlacklistMatchPageResponse(BaseModel):
+class BlacklistMatchPageResponse(ResponseModel):
     items: list[BlacklistMatchResponse]
     total: int
     all_total: int
@@ -66,7 +68,7 @@ class BlacklistMatchPageResponse(BaseModel):
     lists_total: int
 
 
-class RegistrationSnapshotResponse(BaseModel):
+class RegistrationSnapshotResponse(ResponseModel):
     source: RegistrationSource
     start_payload: Optional[str]
     telegram_language_code: Optional[str]
@@ -86,17 +88,17 @@ class RegistrationSnapshotResponse(BaseModel):
     created_at: datetime
 
 
-class UserRegistrationResponse(BaseModel):
+class UserRegistrationResponse(ResponseModel):
     # null: the account predates registration snapshots
     registration: Optional[RegistrationSnapshotResponse]
 
 
-class UserPageResponse(BaseModel):
+class UserPageResponse(ResponseModel):
     items: list[UserListItemResponse]
     total: int
 
 
-class UserListStatsResponse(BaseModel):
+class UserListStatsResponse(ResponseModel):
     total: int
     subscribed: int
     blocked: int
@@ -175,7 +177,7 @@ class BindTelegramRequest(BaseModel):
     telegram_id: int = Field(gt=0, le=9_223_372_036_854_775_807)
 
 
-class SecurityResponse(BaseModel):
+class SecurityResponse(ResponseModel):
     ip_allowlist: list[str]
     # the address this request came from, as the allowlist check sees it
     client_ip: str
@@ -186,7 +188,7 @@ class SecurityResponse(BaseModel):
         return value or []
 
 
-class UnblockBlacklistMatchesResponse(BaseModel):
+class UnblockBlacklistMatchesResponse(ResponseModel):
     unblocked: int
 
 
@@ -194,7 +196,7 @@ class AdminDetailResponse(AdminResponse):
     can_sign_in_after_demote: bool
 
 
-class AdminListResponse(BaseModel):
+class AdminListResponse(ResponseModel):
     items: list[AdminResponse]
     total: int
     customer_sign_in_ids: list[int]

@@ -11,7 +11,7 @@ from remnapy.models import UserResponseDto
 from app.core.actor import Actor
 from app.core.config import AppConfig
 from app.core.db.uow import UnitOfWork
-from app.core.enums import PanelSyncDirection, SubscriptionStatus
+from app.core.enums import SubscriptionStatus
 from app.core.exceptions import RemnawavePanelUnavailableError, ValidationError
 from app.core.ports import EventPublisher
 from app.core.usecase import UseCase
@@ -23,7 +23,7 @@ from app.modules.subscriptions.dto import (
     SyncToPanelOptionsDto,
     UpdateSubscriptionSquadsDto,
 )
-from app.modules.subscriptions.events import PanelSyncCompletedEvent
+from app.modules.subscriptions.events import PanelSyncCompletedEvent, PanelSyncDirection
 from app.modules.subscriptions.panel_squads import replace_squads
 from app.modules.subscriptions.panel_sync import (
     finish_panel_sync,

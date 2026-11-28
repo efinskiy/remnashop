@@ -3,13 +3,15 @@ from typing import Optional
 
 from pydantic import BaseModel
 
+from app.core.dto import ResponseModel
 
-class BlacklistResponse(BaseModel):
+
+class BlacklistResponse(ResponseModel):
     telegram_ids: list[int]
     emails: list[str]
 
 
-class BlacklistSourceResponse(BaseModel):
+class BlacklistSourceResponse(ResponseModel):
     id: int
     url: str
     name: Optional[str]
@@ -28,6 +30,6 @@ class UpdateSourceRequest(BaseModel):
     enabled: bool
 
 
-class BlacklistSourceListResponse(BaseModel):
+class BlacklistSourceListResponse(ResponseModel):
     items: list[BlacklistSourceResponse]
     total: int

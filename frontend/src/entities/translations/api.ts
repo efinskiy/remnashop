@@ -1,38 +1,30 @@
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "@shared/api/http";
-import type { ListResponse } from "@shared/api/http";
+import type { ApiSchema } from "@shared/api/schemas";
 
-export interface ActiveLocalesResult {
-  active: string[];
-  available: string[];
-  default: string;
-}
+export type Locale = ApiSchema<"Locale">;
 
-export interface TranslationEntry {
-  locale: string;
-  message_id: string;
-  attribute_id: string;
-  value: string;
-  default_value: string;
-}
+export type ActiveLocalesResult = ApiSchema<"ActiveLocalesResponse">;
+
+export type TranslationEntry = ApiSchema<"TranslationEntryResponse">;
 
 export function listActiveLocales(signal?: AbortSignal): Promise<ActiveLocalesResult> {
   return apiGet<ActiveLocalesResult>("/settings/locales", signal);
 }
 
-export function addLocale(locale: string): Promise<ActiveLocalesResult> {
+export function addLocale(locale: Locale): Promise<ActiveLocalesResult> {
   return apiPut<ActiveLocalesResult, Record<string, never>>(`/settings/locales/${locale}`, {});
 }
 
-export function removeLocale(locale: string): Promise<ActiveLocalesResult> {
+export function removeLocale(locale: Locale): Promise<ActiveLocalesResult> {
   return apiDelete<ActiveLocalesResult>(`/settings/locales/${locale}`);
 }
 
-export function setDefaultLocale(locale: string): Promise<ActiveLocalesResult> {
-  return apiPatch<ActiveLocalesResult, { default: string }>("/settings/locales", { default: locale });
+export function setDefaultLocale(locale: Locale): Promise<ActiveLocalesResult> {
+  return apiPatch<ActiveLocalesResult, ApiSchema<"UpdateLocalesRequest">>("/settings/locales", { default: locale });
 }
 
 export function listTranslations(signal?: AbortSignal): Promise<TranslationEntry[]> {
-  return apiGet<ListResponse<TranslationEntry>>("/translations", signal).then((response) => response.items);
+  return apiGet<ApiSchema<"TranslationEntryListResponse">>("/translations", signal).then((response) => response.items);
 }
 
 export function updateTranslation(
@@ -42,7 +34,7 @@ export function updateTranslation(
   value: string,
 ): Promise<TranslationEntry> {
   const query = attributeId ? `?attribute_id=${encodeURIComponent(attributeId)}` : "";
-  return apiPut<TranslationEntry, { value: string }>(
+  return apiPut<TranslationEntry, ApiSchema<"UpdateTranslationRequest">>(
     `/translations/${locale}/${messageId}${query}`,
     { value },
   );
@@ -65,13 +57,10 @@ export interface TranslationsExportPayload {
   texts: { locale: string; message_id: string; attribute_id: string; value: string }[];
 }
 
-export interface TranslationsImportResult {
-  applied: number;
-  skipped: number;
-}
+export type TranslationsImportResult = ApiSchema<"TranslationsImportResponse">;
 
 export function exportTranslations(): Promise<TranslationsExportPayload> {
-  return apiGet<TranslationsExportPayload>("/translations/export");
+  return apiGet<ApiSchema<"TranslationsExportResponse">>("/translations/export");
 }
 
 export function importTranslations(
@@ -84,7 +73,7 @@ export function importTranslations(
 }
 
 export function resetAllTranslations(): Promise<TranslationEntry[]> {
-  return apiPost<ListResponse<TranslationEntry>, Record<string, never>>(
+  return apiPost<ApiSchema<"TranslationEntryListResponse">, Record<string, never>>(
     "/translations/actions/reset-all",
     {},
   ).then((response) => response.items);

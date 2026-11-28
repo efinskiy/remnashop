@@ -40,8 +40,9 @@ class BonusDaysTargets:
                 code=ErrorCode.SUBSCRIPTION_UNLIMITED,
             )
         # disabled on purpose; a free extension mustn't undo that (the renewal
-        # re-checks it right before touching the panel)
-        if target.status is SubscriptionStatus.DISABLED:
+        # re-checks it right before touching the panel). The expiry rule's switch-off
+        # ends with the days, as with a paid renewal
+        if target.status is SubscriptionStatus.DISABLED and not target.disabled_by_expiry:
             raise ValidationError(
                 "Bonus days can't extend a disabled subscription",
                 code=ErrorCode.BONUS_DAYS_SUBSCRIPTION_DISABLED,

@@ -10,6 +10,7 @@ from app.core.usecase import UseCase
 from app.modules.overview.dto import DailyAmountDto, GetOverviewChartDto, RevenueChartDto
 from app.modules.overview.period import resolve_period
 from app.modules.pricing import PricingRepository
+from app.modules.settings import SettingsRepository
 from app.modules.transactions import TransactionRepository
 from app.modules.users import UserStatsRepository
 
@@ -24,7 +25,9 @@ class GetRevenueChartUseCase(UseCase[GetOverviewChartDto, RevenueChartDto]):
         transaction_repository: TransactionRepository,
         pricing_repository: PricingRepository,
         uow: UnitOfWork,
+        settings_repository: SettingsRepository,
     ) -> None:
+        self._settings_repository = settings_repository
         self._user_stats = user_stats
         self._transaction_repository = transaction_repository
         self._pricing_repository = pricing_repository
@@ -34,11 +37,14 @@ class GetRevenueChartUseCase(UseCase[GetOverviewChartDto, RevenueChartDto]):
         if Permission.TRANSACTIONS_VIEW not in PermissionPolicy.effective_permissions(actor):
             raise PermissionDeniedError
         async with self._uow:
-            period = await resolve_period(self._user_stats, data.days)
+            zone = (await self._settings_repository.get_shop_settings()).zone
+            period = await resolve_period(self._user_stats, data.days, zone)
             rate_table = await self._pricing_repository.get_rate_table()
             report_currency = rate_table.anchor
             daily = sorted(
-                (await self._transaction_repository.daily_paid_anchor_revenue(period.since)).items()
+                (
+                    await self._transaction_repository.daily_paid_anchor_revenue(period.since, zone)
+                ).items()
             )
             amounts: list[tuple[date, Decimal]] = [(day, paid.amount) for day, paid in daily]
             counts = dict(period.bucketize([(day, paid.count) for day, paid in daily], 0))

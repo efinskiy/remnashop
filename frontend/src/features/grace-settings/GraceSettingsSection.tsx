@@ -3,7 +3,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import { getGraceSettings, updateGraceSettings, type GraceSettings } from "@entities/settings/api";
-import type { TrafficLimitStrategy } from "@entities/subscriptions/api";
+import { TRAFFIC_LIMIT_STRATEGIES, type TrafficLimitStrategy } from "@entities/subscriptions/api";
 import { usePermissions } from "@entities/user/use-current-user";
 import { PlanSquadsField } from "@features/plan-edit/PlanSquadsField";
 import { getErrorMessage } from "@shared/api/http";
@@ -20,7 +20,6 @@ import { Switch } from "@shared/ui/glass/Switch";
 import { SaveFooter } from "@shared/ui/SaveFooter";
 import { Spinner } from "@shared/ui/Spinner";
 
-const STRATEGIES: TrafficLimitStrategy[] = ["NO_RESET", "DAY", "WEEK", "MONTH", "MONTH_ROLLING"];
 const MB_PER_GB = 1024;
 
 type TrafficUnit = "MB" | "GB";
@@ -148,7 +147,7 @@ export function GraceSettingsSection() {
               </Field>
               <Field label={t("plans.edit.strategyLabel")}>
                 <div className="flex flex-wrap gap-1.5">
-                  {STRATEGIES.map((value) => (
+                  {TRAFFIC_LIMIT_STRATEGIES.map((value) => (
                     <ChoiceChip className="h-9" key={value} active={strategy === value} onClick={() => setStrategy(value)}>
                       {t(`plans.edit.strategy.${value}`)}
                     </ChoiceChip>
@@ -176,6 +175,7 @@ export function GraceSettingsSection() {
                   onKeyDown={blockNonIntegerKeys}
                   step="1"
                   min="0"
+                  suffix={t("common.daysSuffix")}
                   value={days}
                   onChange={(event) => setDays(event.target.value)}
                 />

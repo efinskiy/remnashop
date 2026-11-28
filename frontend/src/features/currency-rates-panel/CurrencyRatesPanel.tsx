@@ -35,9 +35,10 @@ import { Row } from "@shared/ui/glass/Row";
 import { Section, SectionRows } from "@shared/ui/glass/Section";
 import { PillTabs } from "@shared/ui/PillTabs";
 import { SaveFooter } from "@shared/ui/SaveFooter";
+import { allValues } from "@shared/lib/all-values";
 
 const ANCHOR_CURRENCIES: Currency[] = ["USD", "RUB"];
-const ROUNDING_MODES: RoundingMode[] = ["INTEGER", "DECIMAL_2"];
+const ROUNDING_MODES = allValues<RoundingMode>()(["INTEGER", "DECIMAL_2"]);
 
 interface CurrencyRatesPanelProps {
   book: PriceBook;
@@ -98,7 +99,7 @@ interface RateRowState {
 }
 
 // one unit of each, dearest first, as the default rates have it ($1 = 77 ⭐ = 85 ₽)
-const DEARER_FIRST: Currency[] = ["USD", "XTR", "RUB"];
+const DEARER_FIRST = allValues<Currency>()(["USD", "XTR", "RUB"]);
 
 // The stored rate is units of this currency per 1 anchor unit. The field reads "1 dearer unit = N cheaper ones":
 // with a RUB anchor the dollar's 0.0117647 shows as 85 ₽ for 1 $, the reverse goes above the field. Fixed by

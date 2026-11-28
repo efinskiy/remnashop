@@ -197,7 +197,9 @@ class RecurringPaymentRepository:
             channel=PurchaseChannel(consent.channel),
             accepted_at=consent.accepted_at,
             revoked_at=consent.revoked_at,
-            revoked_channel=consent.revoked_channel,
+            revoked_channel=(
+                ConsentChannel(consent.revoked_channel) if consent.revoked_channel else None
+            ),
         )
 
     async def consent_facts(self, consent_id: Optional[int]) -> Optional[ConsentFacts]:

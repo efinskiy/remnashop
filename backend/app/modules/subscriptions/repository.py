@@ -9,6 +9,7 @@ from sqlalchemy import (
     and_,
     bindparam,
     delete,
+    exists,
     func,
     or_,
     select,
@@ -35,10 +36,12 @@ from app.modules.subscriptions.dto import (
     PlanSnapshot,
     SubscriptionConfigUpdateDto,
     SubscriptionDto,
+    SubscriptionSort,
     UpdateSubscriptionDto,
     UpdateSubscriptionSquadsDto,
 )
 from app.modules.subscriptions.grace import LIVE_STATUSES
+from app.modules.subscriptions.paid import is_paid_subscription
 
 # pg_advisory_xact_lock namespace key, paired with a user_id (keys in
 # modules/plans/repository.py are 8221938/8221939).
@@ -112,11 +115,15 @@ class SubscriptionRepository:
             first_connected_at=row.first_connected_at,
             panel_created_at=row.panel_created_at,
             term_anchor_day=row.term_anchor_day,
+            replaced_paid=row.replaced_paid,
             paused_by_channel_leave=row.paused_by_channel_leave,
             grace_until=row.grace_until,
             grace_started_at=row.grace_started_at,
             grace_ended_at=row.grace_ended_at,
             panel_restore_due_at=row.panel_restore_due_at,
+            expiry_disabled_at=row.expiry_disabled_at,
+            expiry_disable_handled_at=row.expiry_disable_handled_at,
+            expiry_disable_warned_at=row.expiry_disable_warned_at,
             addon_entitlements=entitlements,
             created_at=row.created_at,
             updated_at=row.updated_at,
@@ -163,6 +170,8 @@ class SubscriptionRepository:
         status: Optional[SubscriptionStatus] = None,
         search: Optional[str] = None,
         user_id: Optional[int] = None,
+        sort: SubscriptionSort = SubscriptionSort.CREATED_AT,
+        descending: bool = True,
         page: int = 1,
         page_size: int = DEFAULT_PAGE_SIZE,
         hide_staff_from: Optional[int] = None,
@@ -194,8 +203,13 @@ class SubscriptionRepository:
         count_stmt = select(func.count()).select_from(Subscription).where(*filters)
         total = await self.session.scalar(count_stmt)
 
-        # newest first; one user's list puts the working ones (active, limited) on top
-        order: list[ColumnElement[Any]] = [Subscription.id.desc()]
+        # one user's list puts the working ones (active, limited) on top;
+        # ties by id keep offset pages stable
+        sort_col = Subscription.id if sort == "created_at" else Subscription.expire_at
+        order: list[ColumnElement[Any]] = [
+            sort_col.desc() if descending else sort_col.asc(),
+            Subscription.id.desc(),
+        ]
         if user_id is not None:
             order.insert(0, Subscription.status.notin_(_LIVE_STATUSES))
         stmt = (
@@ -214,7 +228,15 @@ class SubscriptionRepository:
     async def get_active_by_user(self, user_id: int) -> list[SubscriptionDto]:
         result = await self.session.execute(
             select(Subscription)
-            .where(Subscription.user_id == user_id, Subscription.status.in_(OWNED_STATUSES))
+            .where(
+                Subscription.user_id == user_id,
+                Subscription.status.in_(OWNED_STATUSES),
+                # switched off by the expiry rule: an expired one to the customer
+                or_(
+                    Subscription.status != SubscriptionStatus.DISABLED,
+                    Subscription.expiry_disabled_at.is_(None),
+                ),
+            )
             .order_by(Subscription.id)
         )
         rows = result.scalars().all()
@@ -255,23 +277,28 @@ class SubscriptionRepository:
         count = await self.session.scalar(stmt)
         return bool(count)
 
-    async def has_paid_subscription_before(
-        self, user_id: int, subscription_id: Optional[int] = None
-    ) -> bool:
-        """Whether the user has a paid subscription created before subscription_id,
-        if given: "is this the first paid one", which has_any_subscription can't
-        answer once this one exists. A free one (100% discount, promocode grant)
-        doesn't count."""
+    async def is_paid(self, subscription_id: int) -> bool:
+        stmt = select(exists().where(Subscription.id == subscription_id, is_paid_subscription()))
+        return bool(await self.session.scalar(stmt))
+
+    async def has_paid_subscription(self, user_id: int) -> bool:
+        stmt = select(exists().where(Subscription.user_id == user_id, is_paid_subscription()))
+        return bool(await self.session.scalar(stmt))
+
+    async def has_bought_subscription_before(self, user_id: int, subscription_id: int) -> bool:
+        """Whether a subscription sold at a price was created before this one: "is this
+        the first paid purchase", which has_any_subscription can't answer once this one
+        exists. A paid renewal of a free one doesn't count: it is no purchase."""
         price_paid = Subscription.plan_snapshot["price_paid"].astext.cast(Numeric)
-        conditions = [
-            Subscription.user_id == user_id,
-            Subscription.is_trial.is_(False),
-            price_paid > 0,
-        ]
-        if subscription_id is not None:
-            # ids come from one sequence, so their order is creation order
-            conditions.append(Subscription.id < subscription_id)
-        stmt = select(func.count()).select_from(Subscription).where(*conditions)
+        stmt = select(
+            exists().where(
+                Subscription.user_id == user_id,
+                Subscription.is_trial.is_(False),
+                price_paid > 0,
+                # ids come from one sequence, so their order is creation order
+                Subscription.id < subscription_id,
+            )
+        )
         return bool(await self.session.scalar(stmt))
 
     async def list_linked_remnawave_user_ids(self) -> set[int]:
@@ -399,6 +426,7 @@ class SubscriptionRepository:
             plan_snapshot=data.plan_snapshot.to_json(),
             panel_created_at=data.panel_created_at,
             term_anchor_day=data.term_anchor_day,
+            replaced_paid=data.replaced_paid,
             device_single_reset_at=None,
             device_all_reset_at=None,
             link_reset_at=None,
@@ -673,6 +701,66 @@ class SubscriptionRepository:
             limit=limit,
         )
 
+    async def list_expiry_disable_due(
+        self, lapsed_before: datetime, claimed_before: datetime, limit: int
+    ) -> list[SubscriptionDto]:
+        """Expired rows out of grace whose expiry (`expiry_disable.lapsed_at`) is at or before
+        `lapsed_before`, the rule not yet done with it (`expiry_disable.handled`): never
+        claimed first, then claims left half done before `claimed_before`."""
+        lapsed_at = _lapsed_at()
+        handled_at = Subscription.expiry_disable_handled_at
+        return await self._list_where(
+            Subscription.status == SubscriptionStatus.EXPIRED,
+            Subscription.grace_until.is_(None),
+            lapsed_at <= lapsed_before,
+            or_(
+                handled_at.is_(None),
+                handled_at < lapsed_at,
+                and_(Subscription.expiry_disabled_at.is_not(None), handled_at < claimed_before),
+            ),
+            limit=limit,
+            order=handled_at,
+        )
+
+    async def list_expiry_disable_warn_due(
+        self, lapsed_before: datetime, lapsed_after: datetime, limit: int
+    ) -> list[SubscriptionDto]:
+        """Expired rows out of grace whose expiry falls in (`lapsed_after`, `lapsed_before`],
+        not yet warned about it."""
+        lapsed_at = _lapsed_at()
+        return await self._list_where(
+            Subscription.status == SubscriptionStatus.EXPIRED,
+            Subscription.grace_until.is_(None),
+            lapsed_at <= lapsed_before,
+            lapsed_at > lapsed_after,
+            or_(
+                Subscription.expiry_disable_warned_at.is_(None),
+                Subscription.expiry_disable_warned_at < lapsed_at,
+            ),
+            limit=limit,
+            order=Subscription.expire_at,
+        )
+
+    async def set_expiry_disabled_at(self, subscription_id: int, at: Optional[datetime]) -> None:
+        row = await self._get_or_raise(subscription_id)
+        row.expiry_disabled_at = at
+        await self.session.flush()
+
+    async def set_expiry_disable_handled_at(
+        self, subscription_id: int, at: Optional[datetime]
+    ) -> None:
+        row = await self._get_or_raise(subscription_id)
+        row.expiry_disable_handled_at = at
+        await self.session.flush()
+
+    async def mark_expiry_disable_warned(self, subscription_id: int, at: datetime) -> None:
+        await self.session.execute(
+            update(Subscription)
+            .where(Subscription.id == subscription_id)
+            # bookkeeping, not a change to the subscription
+            .values(expiry_disable_warned_at=at, updated_at=Subscription.updated_at)
+        )
+
     async def list_grace_ended(self, now: datetime, limit: int) -> list[SubscriptionDto]:
         return await self._list_where(
             Subscription.grace_until <= now,
@@ -778,3 +866,8 @@ class SubscriptionRepository:
         await self.session.refresh(row)
         entitlements_by_subscription = await self._load_entitlements([row.id])
         return self._to_dto(row, entitlements_by_subscription.get(row.id, []))
+
+
+def _lapsed_at() -> ColumnElement[datetime]:
+    # GREATEST skips a NULL: no grace leaves expire_at
+    return func.greatest(Subscription.expire_at, Subscription.grace_ended_at)

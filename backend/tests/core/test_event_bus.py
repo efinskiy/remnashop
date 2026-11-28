@@ -4,14 +4,7 @@ from typing import Any, ClassVar
 
 import pytest
 
-from app.core.enums import (
-    AddOnType,
-    CabinetSignInMethod,
-    Locale,
-    OAuthProvider,
-    ReferralRewardType,
-    Role,
-)
+from app.core.enums import AddOnType, Locale, OAuthProvider, ReferralRewardType, Role
 from app.core.event_bus import EventBus
 from app.core.events import BaseEvent, EventCategory, StoredEvent
 from app.core.outbox_event_publisher import _build_payload
@@ -34,8 +27,8 @@ from app.modules.customer_notifications.tasks import (
 from app.modules.loyalty.tasks import recalculate_loyalty_discounts_task
 from app.modules.notifications.tasks import deliver_notification_task
 from app.modules.oauth.events import (
-    OAuthIdentityConnectedEvent,
-    OAuthIdentityDisconnectedEvent,
+    OAuthIdentityLinkedEvent,
+    OAuthIdentityUnlinkedEvent,
     OAuthLoginFailedEvent,
     OAuthLoginSucceededEvent,
 )
@@ -64,6 +57,7 @@ from app.modules.subscriptions.events import (
     SubscriptionExpiredAgoEvent,
     SubscriptionExpiredEvent,
     SubscriptionExpiringEvent,
+    SubscriptionExpiryDisableWarningEvent,
     SubscriptionGraceStartedEvent,
     SubscriptionGrantedEvent,
     SubscriptionNotConnectedEvent,
@@ -81,7 +75,7 @@ from app.modules.transactions.events import (
     TransactionRefundedEvent,
 )
 from app.modules.transactions.tasks import notify_payment_waitlist_task
-from app.modules.users.dto import UserDto
+from app.modules.users.dto import CabinetSignInMethod, UserDto
 from app.modules.users.events import CabinetUserRegisteredEvent, TelegramUserRegisteredEvent
 from app.worker.subscribers import register_all_subscribers
 
@@ -99,8 +93,8 @@ _REGISTERED_EVENTS: dict[str, BaseEvent] = {
         BootstrapConflictEvent(login="someone"),
         OAuthLoginSucceededEvent(user=_USER, provider=OAuthProvider.GITHUB),
         OAuthLoginFailedEvent(provider=OAuthProvider.GITHUB),
-        OAuthIdentityConnectedEvent(user=_USER, provider=OAuthProvider.GITHUB),
-        OAuthIdentityDisconnectedEvent(user=_USER, provider=OAuthProvider.GITHUB),
+        OAuthIdentityLinkedEvent(user=_USER, provider=OAuthProvider.GITHUB),
+        OAuthIdentityUnlinkedEvent(user=_USER, provider=OAuthProvider.GITHUB),
         SessionTheftDetectedEvent(user_id=1, session_id=1),
         SessionRevokedEvent(user=_USER, session_id=1),
         UserSessionRevokedByAdminEvent(actor=_USER, target=_TARGET, session_id=1),
@@ -165,11 +159,14 @@ _REGISTERED_EVENTS: dict[str, BaseEvent] = {
             grace_until="2026-12-05T00:00:00+00:00",
             traffic_limit_mb=0,
         ),
+        SubscriptionExpiryDisableWarningEvent(
+            user=_USER, subscription_id=1, disable_at="2026-12-05T00:00:00+00:00"
+        ),
         SubscriptionTrafficLimitedEvent(user=_USER, subscription_id=1),
         SubscriptionTrafficThresholdEvent(user=_USER, subscription_id=1),
         CabinetNewDeviceSignInEvent(user=_USER, browser="Firefox on Linux"),
         SubscriptionAddOnGrantedEvent(
-            user=_USER,
+            actor=_USER,
             target=_TARGET,
             subscription_id=1,
             addon_id=1,

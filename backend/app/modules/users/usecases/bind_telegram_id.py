@@ -8,7 +8,7 @@ from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.modules.blacklist import BlacklistRepository
 from app.modules.users.dto import BindTelegramDto, UserListItemDto
-from app.modules.users.events import TelegramIdBoundEvent
+from app.modules.users.events import TelegramIdChangedEvent
 from app.modules.users.listing import detail_roles
 from app.modules.users.repository import UserRepository
 from app.modules.users.visibility import assert_manageable, get_visible_target
@@ -53,8 +53,9 @@ class BindTelegramIdUseCase(UseCase[BindTelegramDto, UserListItemDto]):
                 )
             updated = await self._user_repository.set_telegram_id(target.id, data.telegram_id)
             await self._event_publisher.publish(
-                TelegramIdBoundEvent(
+                TelegramIdChangedEvent(
                     actor=actor,
+                    action="link",
                     target=updated,
                     previous_telegram_id=target.telegram_id,
                     ip_address=data.client_ip,

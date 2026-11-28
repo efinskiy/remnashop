@@ -5,7 +5,7 @@ from remnapy import RemnawaveSDK
 
 from app.core.config import AppConfig
 from app.core.db.uow import UnitOfWork
-from app.core.enums import Locale, PanelSyncDirection, Role
+from app.core.enums import Locale, Role
 from app.core.ports import EventPublisher
 from app.modules.settings import SettingsRepository
 from app.modules.subscriptions.dto import (
@@ -14,6 +14,7 @@ from app.modules.subscriptions.dto import (
     SyncToPanelOptionsDto,
     UpdateSubscriptionSquadsDto,
 )
+from app.modules.subscriptions.events import PanelSyncDirection
 from app.modules.subscriptions.panel_squads import missing_by_kind, replace_squads
 from app.modules.subscriptions.panel_sync import release_panel_sync
 from app.modules.subscriptions.repository import SubscriptionRepository

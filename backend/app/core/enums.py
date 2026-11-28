@@ -33,6 +33,7 @@ class PaymentGatewayType(UpperStrEnum):
     CLOUDPAYMENTS = auto()
     PAYPEAR = auto()
     CISPAY = auto()
+    PAY_2328 = auto()
 
 
 class PaymentOutcome(UpperStrEnum):
@@ -83,27 +84,6 @@ class RoundingMode(UpperStrEnum):
     DECIMAL_2 = auto()
 
 
-class PriceAdjustScope(UpperStrEnum):
-    ALL_PLANS = auto()
-    ALL_ADDONS = auto()
-    SELECTED = auto()
-
-
-class PriceAdjustMode(UpperStrEnum):
-    MULTIPLY = auto()
-    SET = auto()
-    # plan durations only: the base duration's price per day times the days, less a
-    # per-duration discount
-    LADDER = auto()
-
-
-class PinnedPriceAction(UpperStrEnum):
-    KEEP = auto()
-    # by the same ratio as the base price
-    SCALE = auto()
-    RESET = auto()
-
-
 class DiscountSource(UpperStrEnum):
     NONE = auto()
     PERSONAL = auto()
@@ -133,11 +113,6 @@ class AddOnType(UpperStrEnum):
     DEVICES = auto()
 
 
-class PanelSyncDirection(UpperStrEnum):
-    FROM_PANEL = auto()
-    TO_PANEL = auto()
-
-
 class PromocodeRewardType(UpperStrEnum):
     DURATION = auto()
     TRAFFIC = auto()
@@ -145,24 +120,6 @@ class PromocodeRewardType(UpperStrEnum):
     SUBSCRIPTION = auto()
     PERSONAL_DISCOUNT = auto()
     PURCHASE_DISCOUNT = auto()
-
-
-# derived from is_active + expires_at; never stored
-class PromocodeStatus(UpperStrEnum):
-    ACTIVE = auto()
-    EXPIRED = auto()
-    INACTIVE = auto()
-    # live, but its activation limit is used up
-    EXHAUSTED = auto()
-
-
-# what opening a promocode by link did: applied it, or needs the customer to act
-class PromocodeLinkOutcome(UpperStrEnum):
-    ACTIVATED = auto()
-    CHOOSE_TARGET = auto()
-    NO_TARGET = auto()
-    # a reusable code: applied by the customer's own press, never by opening a link again
-    CONFIRM = auto()
 
 
 class PromocodeAvailability(UpperStrEnum):
@@ -205,12 +162,6 @@ class LegalDocumentKind(UpperStrEnum):
 class LegalAcceptanceTrigger(UpperStrEnum):
     SIGN_UP = auto()
     PAYMENT = auto()
-
-
-class ReferralLevel(IntEnum):
-    FIRST = auto()
-    SECOND = auto()
-    THIRD = auto()
 
 
 class ReferralRewardType(UpperStrEnum):
@@ -260,28 +211,9 @@ class SmtpSecurity(UpperStrEnum):
     NONE = auto()
 
 
-class EmailOutcome(UpperStrEnum):
-    SENT = auto()
-    REFUSED = auto()
-    RETRY = auto()
-
-
-class AccessDenial(UpperStrEnum):
-    RESTRICTED = auto()
-    REGISTRATION_DISABLED = auto()
-    INVITE_ONLY = auto()
-
-
 class SessionAudience(UpperStrEnum):
     DASHBOARD = auto()
     CABINET = auto()
-
-
-class CabinetSignInMethod(UpperStrEnum):
-    TELEGRAM = auto()
-    EMAIL = auto()
-    GOOGLE = auto()
-    YANDEX = auto()
 
 
 class TransactionStatus(UpperStrEnum):
@@ -326,27 +258,11 @@ class BroadcastRecipientStatus(UpperStrEnum):
     RECALLED = auto()
 
 
-class BroadcastButtonKind(UpperStrEnum):
-    URL = auto()
-    PROMOCODE = auto()
-    MENU = auto()
-    CLOSE = auto()
-    SHARE_REFERRAL = auto()
-
-
 class BroadcastMediaType(UpperStrEnum):
     PHOTO = auto()
     VIDEO = auto()
     ANIMATION = auto()
     DOCUMENT = auto()
-
-
-class BroadcastSubscriptionFilter(UpperStrEnum):
-    ACTIVE = auto()
-    TRIAL = auto()
-    EXPIRED = auto()
-    LIMITED = auto()
-    NONE = auto()
 
 
 class BackupKind(UpperStrEnum):
@@ -360,11 +276,6 @@ class BackupRunStatus(UpperStrEnum):
     COMPLETED = auto()
     FAILED = auto()
     CANCELED = auto()
-
-
-class BlacklistKind(UpperStrEnum):
-    TELEGRAM_ID = auto()
-    EMAIL = auto()
 
 
 class OAuthProvider(UpperStrEnum):
@@ -392,36 +303,6 @@ class Role(IntEnum):
 
     def includes(self, other: "Role") -> bool:
         return self >= other
-
-
-# https://docs.aiogram.dev/en/latest/api/types/update.html
-class MiddlewareEventType(StrEnum):
-    AIOGD_UPDATE = auto()  # aiogram-dialog
-    UPDATE = auto()
-    MESSAGE = auto()
-    EDITED_MESSAGE = auto()
-    CHANNEL_POST = auto()
-    EDITED_CHANNEL_POST = auto()
-    BUSINESS_CONNECTION = auto()
-    BUSINESS_MESSAGE = auto()
-    EDITED_BUSINESS_MESSAGE = auto()
-    DELETED_BUSINESS_MESSAGES = auto()
-    MESSAGE_REACTION = auto()
-    MESSAGE_REACTION_COUNT = auto()
-    INLINE_QUERY = auto()
-    CHOSEN_INLINE_RESULT = auto()
-    CALLBACK_QUERY = auto()
-    SHIPPING_QUERY = auto()
-    PRE_CHECKOUT_QUERY = auto()
-    PURCHASED_PAID_MEDIA = auto()
-    POLL = auto()
-    POLL_ANSWER = auto()
-    MY_CHAT_MEMBER = auto()
-    CHAT_MEMBER = auto()
-    CHAT_JOIN_REQUEST = auto()
-    CHAT_BOOST = auto()
-    REMOVED_CHAT_BOOST = auto()
-    ERROR = auto()
 
 
 class Locale(StrEnum):
@@ -473,32 +354,6 @@ class LogLevel(UpperStrEnum):
     INFO = auto()
     DEBUG = auto()
     NOTSET = auto()
-
-
-class BannerFormat(StrEnum):
-    JPG = auto()
-    JPEG = auto()
-    PNG = auto()
-    GIF = auto()
-    WEBP = auto()
-
-
-class AppearanceImageKind(StrEnum):
-    LOGO = auto()
-    FAVICON = auto()
-    APP_ICON = auto()
-
-
-class AppearanceTarget(StrEnum):
-    DASHBOARD = auto()
-    CABINET = auto()
-
-
-class AppearanceImageFormat(StrEnum):
-    JPG = auto()
-    PNG = auto()
-    WEBP = auto()
-    SVG = auto()
 
 
 class DialogWindowKind(StrEnum):

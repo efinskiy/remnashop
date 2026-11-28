@@ -6,7 +6,7 @@ from app.core.ports import EventPublisher
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.modules.users.dto import DeleteAdminDto
-from app.modules.users.events import AdminDeletedEvent
+from app.modules.users.events import AdminChangedEvent
 from app.modules.users.ports import PasskeyRevoker, SessionRevoker, SubscriptionRevoker
 from app.modules.users.repository import UserRepository
 
@@ -55,5 +55,7 @@ class DeleteAdminUseCase(UseCase[DeleteAdminDto, None]):
             if deleted is None:
                 raise NotFoundError("Admin not found", code=ErrorCode.ADMIN_NOT_FOUND)
             await self._event_publisher.publish(
-                AdminDeletedEvent(actor=actor, target=target, ip_address=data.client_ip)
+                AdminChangedEvent(
+                    actor=actor, action="delete", target=target, ip_address=data.client_ip
+                )
             )

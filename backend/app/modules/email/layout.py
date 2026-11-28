@@ -2,13 +2,14 @@ import html
 import re
 from typing import Final, Optional, Protocol
 
-from app.core.enums import AppearanceImageKind, AppearanceTarget
 from app.core.exceptions import NotFoundError
 from app.core.utils.telegram_text import premium_emoji_glyphs
 from app.modules.email.dto import EmailBrandDto
 from app.modules.settings import (
     AppearanceImageDto,
+    AppearanceImageKind,
     AppearanceSettingsDto,
+    AppearanceTarget,
     GetPublicAppearanceImageUseCase,
 )
 

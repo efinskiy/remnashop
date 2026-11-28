@@ -1,6 +1,7 @@
 from loguru import logger
 
 from app.core.actor import Actor
+from app.core.constants import EXPIRY_DISABLE_MAX_DAYS
 from app.core.db.uow import UnitOfWork
 from app.core.error_codes import ErrorCode
 from app.core.events import changed_fields
@@ -38,6 +39,16 @@ class UpdateGraceSettingsUseCase(UseCase[UpdateGraceSettingsDto, GraceSettingsDt
         async with self._uow:
             before = await self._settings_repository.get_grace_settings()
             settings = await self._settings_repository.update_grace_settings(data)
+            # checked on the result: a request may send one of the two days alone
+            if not (
+                1 <= settings.expiry_disable_after_days <= EXPIRY_DISABLE_MAX_DAYS
+                and 0 <= settings.expiry_disable_warn_days <= settings.expiry_disable_after_days
+            ):
+                raise ValidationError(
+                    f"expiry_disable_after_days must be 1 to {EXPIRY_DISABLE_MAX_DAYS} and "
+                    "expiry_disable_warn_days between 0 and it",
+                    code=ErrorCode.EXPIRY_DISABLE_SETTINGS_INVALID,
+                )
             await self._event_publisher.publish(
                 GraceSettingsChangedEvent(
                     actor=actor, changed_fields=changed_fields(before, settings, data.fields_set)

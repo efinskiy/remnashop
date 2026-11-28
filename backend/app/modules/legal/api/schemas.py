@@ -3,6 +3,7 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.core.dto import ResponseModel
 from app.core.enums import LegalAcceptanceTrigger, LegalDocumentKind, Locale, PurchaseChannel
 
 
@@ -12,7 +13,7 @@ class LegalTextRequest(BaseModel):
     requires_reacceptance: bool = False
 
 
-class LegalTextResponse(BaseModel):
+class LegalTextResponse(ResponseModel):
     locale: Locale
     channel: Optional[PurchaseChannel]
     title: str
@@ -23,13 +24,13 @@ class LegalTextResponse(BaseModel):
     last_reacceptance_at: Optional[datetime] = None
 
 
-class LegalDocumentResponse(BaseModel):
+class LegalDocumentResponse(ResponseModel):
     kind: LegalDocumentKind
     show_in_bot: bool
     show_in_cabinet: bool
 
 
-class LegalTemplateResponse(BaseModel):
+class LegalTemplateResponse(ResponseModel):
     locale: Locale
     title: str
     body: str
@@ -45,20 +46,20 @@ class UpdateLegalDocumentRequest(BaseModel):
     show_in_cabinet: Optional[bool] = None
 
 
-class LegalDocumentsResponse(BaseModel):
+class LegalDocumentsResponse(ResponseModel):
     items: list[LegalDocumentItemResponse]
     total: int
     locales: list[Locale]
 
 
-class PublicLegalDocumentResponse(BaseModel):
+class PublicLegalDocumentResponse(ResponseModel):
     kind: LegalDocumentKind
     title: str
     body: str
     revision_id: int = Field(validation_alias="id")
 
 
-class LegalDocumentsPublicResponse(BaseModel):
+class LegalDocumentsPublicResponse(ResponseModel):
     items: list[PublicLegalDocumentResponse]
     total: int
 
@@ -67,7 +68,7 @@ class PendingLegalDocumentResponse(PublicLegalDocumentResponse):
     created_at: datetime
 
 
-class PendingLegalResponse(BaseModel):
+class PendingLegalResponse(ResponseModel):
     items: list[PendingLegalDocumentResponse]
     total: int
     is_update: bool
@@ -78,7 +79,7 @@ class AcceptLegalRequest(BaseModel):
     revision_ids: list[int]
 
 
-class LegalAcceptanceResponse(BaseModel):
+class LegalAcceptanceResponse(ResponseModel):
     id: int
     kind: LegalDocumentKind
     locale: Locale
@@ -102,6 +103,6 @@ class LegalAcceptanceResponse(BaseModel):
         }
 
 
-class LegalAcceptancesResponse(BaseModel):
+class LegalAcceptancesResponse(ResponseModel):
     items: list[LegalAcceptanceResponse]
     total: int

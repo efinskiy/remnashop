@@ -1,4 +1,4 @@
-import { Captions, ChevronRight, CircleCheck, Filter, Gauge, Hourglass, Unplug } from "lucide-react";
+import { ArrowDown, ArrowUp, Captions, ChevronRight, CircleCheck, Filter, Gauge, Hourglass, Unplug } from "lucide-react";
 import type { ComponentType } from "react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -13,8 +13,10 @@ import {
   getSubscriptionListStats,
   listSubscriptions,
   SUBSCRIPTION_STATUS_BADGE_TONE,
+  type SubscriptionListFilters,
   type SubscriptionListItem,
   type SubscriptionRow,
+  type SubscriptionSort,
   type SubscriptionStatus,
 } from "@entities/subscriptions/api";
 import { usePermissions } from "@entities/user/use-current-user";
@@ -37,6 +39,7 @@ import { dotIcon } from "@shared/ui/option-icons";
 import { SelectDropdown } from "@shared/ui/SelectDropdown";
 import { LoadMoreButton } from "@shared/ui/LoadMoreButton";
 import { SearchField } from "@shared/ui/SearchField";
+import { Pressable } from "@shared/ui/Pressable";
 import { RefetchSpinner, Spinner } from "@shared/ui/Spinner";
 import { Badge } from "@shared/ui/Badge";
 import { KpiTile } from "@shared/ui/KpiTile";
@@ -44,8 +47,9 @@ import { Collapse } from "@shared/ui/Collapse";
 import { GLASS_LIST_HEAD_CLASS, LIST_BODY_CLASS, LIST_SCROLL_X_CLASS, PAGE_CLASS, PAGE_SCROLL_UNDER_BAR_CLASS, PAGE_TOOLBAR_CLASS, PAGE_TOOLBAR_SEARCH_CLASS } from "@shared/ui/classes";
 import { formatDate } from "@shared/lib/relative-time";
 import { useCollapsedSet } from "@shared/lib/use-collapsed-set";
+import { allValues } from "@shared/lib/all-values";
 
-const STATUSES: SubscriptionStatus[] = ["ACTIVE", "LIMITED", "EXPIRED", "DISABLED", "DELETED"];
+const STATUSES = allValues<SubscriptionStatus>()(["ACTIVE", "LIMITED", "EXPIRED", "DISABLED", "DELETED"]);
 const FILTER_DEBOUNCE_MS = 200;
 const ROW_GRID_CLASSNAME =
   "grid grid-cols-[32px_minmax(0,1fr)_130px_96px_150px_112px_16px] items-center gap-3";
@@ -79,6 +83,7 @@ function expiryGroup(subscription: SubscriptionListItem): ExpiryGroup {
 export function SubscriptionsPage() {
   const { t, i18n } = useTranslation();
   const [status, setStatus] = useState("");
+  const [sort, setSort] = useState<{ by: SubscriptionSort; descending: boolean }>({ by: "created_at", descending: true });
   const [searchInput, setSearchInput] = useUrlSearch();
   const [editingSubscription, setEditingSubscription] = useState<SubscriptionRow | null>(null);
   const [collapsedGroups, toggleGroup] = useCollapsedSet<ExpiryGroup>();
@@ -96,13 +101,37 @@ export function SubscriptionsPage() {
 
   const debouncedSearch = useDebouncedValue(searchInput, FILTER_DEBOUNCE_MS);
   const hasFilters = Boolean(status || debouncedSearch);
-  const baseFilters = useMemo<{ status?: SubscriptionStatus; search?: string }>(
+  const baseFilters = useMemo<SubscriptionListFilters>(
     () => ({
       status: (status || undefined) as SubscriptionStatus | undefined,
       search: debouncedSearch || undefined,
+      sort: sort.by,
+      descending: sort.descending,
     }),
-    [status, debouncedSearch],
+    [status, debouncedSearch, sort],
   );
+
+  // the first click on the expiry puts the longest-expired on top
+  const toggleSort = (by: SubscriptionSort) =>
+    setSort((prev) => ({ by, descending: prev.by === by ? !prev.descending : by === "created_at" }));
+
+  const sortHeader = (by: SubscriptionSort, label: string) => {
+    const isActive = sort.by === by;
+    const Arrow = sort.descending ? ArrowDown : ArrowUp;
+    return (
+      <Pressable
+        type="button"
+        onClick={() => toggleSort(by)}
+        // negative margins: the pill gives the ripple room without shifting the label off its column
+        className={`-mx-2 -my-1 flex items-center gap-1 rounded-full px-2 py-1 uppercase transition-colors hover:text-foreground ${
+          isActive ? "text-foreground" : ""
+        }`}
+      >
+        {label}
+        {isActive && <Arrow className="size-3" />}
+      </Pressable>
+    );
+  };
 
   const { state, setState, isFetching, isLoadingMore, hasMore, loadMore: handleLoadMore, reload } = usePaginatedList(
     (filters, page, signal) => listSubscriptions({ ...filters, page, pageSize: DEFAULT_PAGE_SIZE }, signal),
@@ -239,10 +268,10 @@ export function SubscriptionsPage() {
             <div className={LIST_SCROLL_X_CLASS}>
               <div className="min-w-[840px]">
                 <div className={`${ROW_GRID_CLASSNAME} ${GLASS_LIST_HEAD_CLASS}`}>
-                  <span className="col-span-2">{t("subscriptions.columns.subscription")}</span>
+                  <span className="col-span-2">{sortHeader("created_at", t("subscriptions.columns.subscription"))}</span>
                   <span>{t("subscriptions.fields.traffic")}</span>
                   <span>{t("subscriptions.fields.devices")}</span>
-                  <span>{t("subscriptions.fields.expires")}</span>
+                  <span>{sortHeader("expire_at", t("subscriptions.fields.expires"))}</span>
                   <span>{t("subscriptions.columns.status")}</span>
                   <span />
                 </div>

@@ -160,21 +160,26 @@ async def test_delete_processed_before_nulls_the_audit_link_but_keeps_the_audit_
     assert await session.get(EventLogEntry, audit.id) is not None
 
 
-async def test_count_poisoned_counts_only_unprocessed_rows_at_the_attempt_cap(
+async def test_poisoned_stats_count_only_unprocessed_rows_at_the_attempt_cap(
     session: AsyncSession,
 ) -> None:
     repo = EventOutboxRepository(session)
     now = datetime.now(timezone.utc)
+    oldest = now - timedelta(days=2)
     session.add_all(
         [
-            _make_entry(attempts=5),
-            _make_entry(attempts=5, processed_at=now),
-            _make_entry(attempts=2),
+            _make_entry(attempts=5, occurred_at=oldest),
+            _make_entry(attempts=6, occurred_at=now - timedelta(days=1)),
+            _make_entry(attempts=5, processed_at=now, occurred_at=now - timedelta(days=9)),
+            _make_entry(attempts=2, occurred_at=now - timedelta(days=9)),
         ]
     )
     await session.flush()
 
-    assert await repo.count_poisoned() == 1
+    stats = await repo.get_poisoned_stats()
+
+    assert stats.unprocessed_count == 2
+    assert stats.oldest_occurred_at == oldest
 
 
 async def test_get_lag_stats_returns_zero_and_none_when_empty(session) -> None:

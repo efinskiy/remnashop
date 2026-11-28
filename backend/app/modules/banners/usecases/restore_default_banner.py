@@ -38,6 +38,6 @@ class RestoreDefaultBannerUseCase(UseCase[None, BannerDto]):
                 self._banner_repository, self._config, default_locale
             )
             await self._event_publisher.publish(
-                BannerChangedEvent(actor=actor, action="reset_default", name=DEFAULT_BANNER_NAME)
+                BannerChangedEvent(actor=actor, action="reset", name=DEFAULT_BANNER_NAME)
             )
         return banner

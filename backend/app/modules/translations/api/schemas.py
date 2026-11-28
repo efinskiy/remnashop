@@ -1,9 +1,10 @@
 from pydantic import BaseModel
 
+from app.core.dto import ResponseModel
 from app.core.enums import Locale
 
 
-class TranslationEntryResponse(BaseModel):
+class TranslationEntryResponse(ResponseModel):
     locale: Locale
     message_id: str
     attribute_id: str
@@ -15,7 +16,7 @@ class UpdateTranslationRequest(BaseModel):
     value: str
 
 
-class TranslationTextExportResponse(BaseModel):
+class TranslationTextExportResponse(ResponseModel):
     locale: Locale
     message_id: str
     attribute_id: str
@@ -29,7 +30,7 @@ class TranslationTextImportRequest(BaseModel):
     value: str
 
 
-class TranslationsExportResponse(BaseModel):
+class TranslationsExportResponse(ResponseModel):
     version: int
     texts: list[TranslationTextExportResponse]
 
@@ -39,17 +40,17 @@ class TranslationsImportRequest(BaseModel):
     texts: list[TranslationTextImportRequest]
 
 
-class TranslationsImportResponse(BaseModel):
+class TranslationsImportResponse(ResponseModel):
     applied: int
     skipped: int
 
 
-class TranslationEntryListResponse(BaseModel):
+class TranslationEntryListResponse(ResponseModel):
     items: list[TranslationEntryResponse]
     total: int
 
 
-class ActiveLocalesResponse(BaseModel):
+class ActiveLocalesResponse(ResponseModel):
     active: list[Locale]
     available: list[Locale]
     default: Locale

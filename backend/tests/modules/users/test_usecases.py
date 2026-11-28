@@ -9,7 +9,7 @@ from app.core.actor import SyntheticActor
 from app.core.config import AppConfig
 from app.core.db.models import EventOutboxEntry, User
 from app.core.db.uow import UnitOfWork
-from app.core.enums import BlacklistKind, Locale, OAuthProvider, Role, SessionAudience
+from app.core.enums import Locale, OAuthProvider, Role, SessionAudience
 from app.core.exceptions import ConflictError, NotFoundError, PermissionDeniedError, ValidationError
 from app.core.ports import EventPublisher
 from app.core.security import hash_password
@@ -21,7 +21,7 @@ from app.modules.auth.dto import CreateSessionDto
 from app.modules.auth.repository import SessionRepository
 from app.modules.auth.session_issuer import SessionIssuer
 from app.modules.blacklist import BlacklistRepository
-from app.modules.blacklist.dto import AddBlacklistSourceDto, ParsedSourceList
+from app.modules.blacklist.dto import AddBlacklistSourceDto, BlacklistKind, ParsedSourceList
 from app.modules.oauth.dto import CreateOAuthIdentityDto
 from app.modules.oauth.repository import OAuthIdentityRepository
 from app.modules.passkeys.dto import CreatePasskeyCredentialDto
@@ -46,11 +46,7 @@ from app.modules.users.dto import (
     UserDto,
 )
 from app.modules.users.events import (
-    AdminCreatedEvent,
-    AdminDeletedEvent,
-    AdminDemotedEvent,
-    AdminPermissionsUpdatedEvent,
-    AdminPromotedEvent,
+    AdminChangedEvent,
     TelegramRegistrationBlockedEvent,
     TelegramUserRegisteredEvent,
     UserDeletedEvent,
@@ -105,13 +101,16 @@ async def _seed_actor_row(session: AsyncSession) -> None:
     await session.flush()
 
 
-async def _outbox_rows(session: AsyncSession, event_type: str) -> list[EventOutboxEntry]:
+async def _outbox_rows(
+    session: AsyncSession, event_type: str, action: Optional[str] = None
+) -> list[EventOutboxEntry]:
+    filters = [EventOutboxEntry.event_type == event_type]
+    if action is not None:
+        filters.append(EventOutboxEntry.payload["action"].astext == action)
     return list(
         (
             await session.scalars(
-                select(EventOutboxEntry)
-                .where(EventOutboxEntry.event_type == event_type)
-                .order_by(EventOutboxEntry.id)
+                select(EventOutboxEntry).where(*filters).order_by(EventOutboxEntry.id)
             )
         ).all()
     )
@@ -493,7 +492,7 @@ async def test_update_admin_omitted_field_leaves_it_unchanged(
 
     assert updated.permission_grants == [Permission.OAUTH_SETTINGS_MANAGE]
     assert updated.permission_revokes == [Permission.BOT_SETTINGS_MANAGE]
-    rows = await _outbox_rows(session, AdminPermissionsUpdatedEvent.__name__)
+    rows = await _outbox_rows(session, AdminChangedEvent.__name__, "permissions")
     assert len(rows) == 1
     assert rows[0].payload["permission_grants"] is None
     assert rows[0].payload["permission_revokes"] is None
@@ -1033,7 +1032,7 @@ async def test_create_admin_publishes_admin_created_event(
     use_case = CreateAdminUseCase(user_repository, uow, config, event_publisher)
     admin = (await use_case(OWNER, CreateAdminDto(client_ip="127.0.0.1", login="eventtest1"))).admin
 
-    rows = await _outbox_rows(session, AdminCreatedEvent.__name__)
+    rows = await _outbox_rows(session, AdminChangedEvent.__name__, "create")
     assert len(rows) == 1
     assert rows[0].actor_login == OWNER.login
     assert rows[0].payload["target"]["id"] == admin.id
@@ -1060,7 +1059,7 @@ async def test_promote_publishes_admin_promoted_event(
         PromoteToAdminDto(client_ip="127.0.0.1", user_id=target.id, login="evt2-admin"),
     )
 
-    rows = await _outbox_rows(session, AdminPromotedEvent.__name__)
+    rows = await _outbox_rows(session, AdminChangedEvent.__name__, "promote")
     assert len(rows) == 1
     assert rows[0].payload["target"]["id"] == target.id
 
@@ -1088,7 +1087,7 @@ async def test_update_admin_publishes_permissions_updated_event(
         ),
     )
 
-    rows = await _outbox_rows(session, AdminPermissionsUpdatedEvent.__name__)
+    rows = await _outbox_rows(session, AdminChangedEvent.__name__, "permissions")
     assert len(rows) == 1
     assert rows[0].payload["permission_grants"] == ["OAUTH_SETTINGS_MANAGE"]
 
@@ -1112,7 +1111,7 @@ async def test_demote_admin_publishes_admin_demoted_event(
     )
     await demote_use_case(OWNER, DemoteAdminDto(user_id=admin.id, client_ip="127.0.0.1"))
 
-    rows = await _outbox_rows(session, AdminDemotedEvent.__name__)
+    rows = await _outbox_rows(session, AdminChangedEvent.__name__, "demote")
     assert len(rows) == 1
     assert rows[0].payload["target"]["id"] == admin.id
 
@@ -1542,7 +1541,7 @@ async def test_delete_admin_publishes_admin_deleted_event(
     )
     await delete_use_case(OWNER, DeleteAdminDto(user_id=admin.id, client_ip="127.0.0.1"))
 
-    rows = await _outbox_rows(session, AdminDeletedEvent.__name__)
+    rows = await _outbox_rows(session, AdminChangedEvent.__name__, "delete")
     assert len(rows) == 1
     assert rows[0].payload["target"]["login"] == "evtdel1"
 

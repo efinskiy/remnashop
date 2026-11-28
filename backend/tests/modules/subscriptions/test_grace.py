@@ -216,3 +216,95 @@ async def test_grace_candidates_and_ended(
     candidates = await subscription_repository.list_grace_entry_candidates(now, 10)
     assert [s.id for s in candidates] == [fresh]
     assert [s.id for s in await subscription_repository.list_grace_ended(now, 10)] == [ended]
+
+
+async def _grace_plan(plans: PlanRepository, code: str, price: str, **overrides: Any) -> PlanDto:
+    plan = await plans.create(
+        CreatePlanDto(
+            public_code=code,
+            name=code,
+            type=PlanType.BOTH,
+            traffic_limit=100,
+            device_limit=3,
+            **overrides,
+        )
+    )
+    return await plans.set_durations(
+        SetPlanDurationsDto(
+            plan_id=plan.id,
+            durations=[SetPlanDurationDto(days=30, order_index=0, base_price=Decimal(price))],
+        )
+    )
+
+
+async def test_grace_candidates_hold_every_subscription_the_rule_lets_in(
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    plan_repository: PlanRepository,
+) -> None:
+    # the query only narrows the sweep's batch, grace_entry_allowed decides:
+    # a row the query drops never gets its grace
+    now = datetime.now(timezone.utc)
+    plans = [
+        await _grace_plan(plan_repository, "parity-paid", "500"),
+        await _grace_plan(plan_repository, "parity-free", "0"),
+        await _grace_plan(plan_repository, "parity-closed", "500", allow_renewal=False),
+        await _grace_plan(plan_repository, "parity-trial", "500", is_trial=True),
+    ]
+    statuses = [
+        SubscriptionStatus.EXPIRED,
+        SubscriptionStatus.ACTIVE,
+        SubscriptionStatus.LIMITED,
+        SubscriptionStatus.DISABLED,
+    ]
+    expiries = [now - timedelta(hours=2), now + timedelta(days=1), now - timedelta(hours=25)]
+    tg = 95_000
+    for plan in plans:
+        for status in statuses:
+            for expire_at in expiries:
+                tg += 1
+                await _create(
+                    subscription_repository,
+                    user_repository,
+                    tg,
+                    status=status,
+                    expire_at=expire_at,
+                    plan_snapshot=make_plan_snapshot(plan_id=plan.id),
+                )
+    paid = make_plan_snapshot(plan_id=plans[0].id)
+    expire_at = now - timedelta(hours=2)
+    in_grace = await _create(
+        subscription_repository, user_repository, tg + 1, plan_snapshot=paid, expire_at=expire_at
+    )
+    await subscription_repository.set_grace_until(in_grace, now + timedelta(days=1))
+    for offset, ended_at in enumerate([expire_at, expire_at - timedelta(days=1)], start=2):
+        sub_id = await _create(
+            subscription_repository,
+            user_repository,
+            tg + offset,
+            plan_snapshot=paid,
+            expire_at=expire_at,
+        )
+        await subscription_repository.set_grace_until(sub_id, ended_at)
+        await subscription_repository.end_grace(sub_id)
+    await _create(
+        subscription_repository,
+        user_repository,
+        tg + 4,
+        plan_snapshot=paid,
+        expire_at=expire_at,
+        is_trial=True,
+    )
+
+    candidates = {s.id for s in await subscription_repository.list_grace_entry_candidates(now, 500)}
+    plans_by_id = {plan.id: plan for plan in plans}
+    allowed = {
+        subscription.id
+        for subscription in await subscription_repository.list_all()
+        if grace_entry_allowed(
+            subscription, plans_by_id.get(subscription.plan_snapshot.plan_id), _settings(), now
+        )
+    }
+
+    assert allowed  # not vacuous
+    assert allowed <= candidates

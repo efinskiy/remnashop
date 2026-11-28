@@ -1,18 +1,9 @@
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "@shared/api/http";
-import type { ListResponse } from "@shared/api/http";
+import type { ApiSchema } from "@shared/api/schemas";
 
-export type DialogWindowKind = "seed" | "custom";
-export type DialogFlow =
-  | "menu"
-  | "purchase"
-  | "renewal"
-  | "change"
-  | "subscription"
-  | "promocode"
-  | "referrals"
-  | "custom";
-export type ButtonLinkType = "action" | "navigate" | "url" | "web_app";
-export type ButtonStyleKind = "primary" | "success" | "danger";
+export type DialogFlow = ApiSchema<"DialogFlow">;
+export type ButtonLinkType = ApiSchema<"ButtonLinkType">;
+export type ButtonStyleKind = ApiSchema<"ButtonStyleKind">;
 
 export interface DialogButtonItem {
   /** Null for a button added in the editor and not saved yet. */
@@ -31,51 +22,13 @@ export interface DialogButtonItem {
   is_required: boolean;
 }
 
-export interface DialogWindow {
-  key: string;
-  kind: DialogWindowKind;
-  flow: DialogFlow;
-  banner_name: string | null;
-  name: string | null;
-  is_enabled: boolean;
-  position: number;
-  text_keys: string[];
-  buttons: DialogButtonItem[];
-}
+export type DialogWindow = ApiSchema<"DialogWindowResponse">;
 
-export interface DialogCatalog {
-  action_keys: string[];
-  condition_keys: string[];
-  variable_keys: string[];
-  text_variable_keys: string[];
-  /** A window's own variables, on top of text_variable_keys. */
-  window_text_variable_keys: Record<string, string[]>;
-  /** variable -> its picker group: "user", "subscription", ... */
-  variable_categories: Record<string, string>;
-  seed_window_keys: string[];
-  navigable_window_keys: string[];
-  custom_window_limit: number;
-}
+export type DialogCatalog = ApiSchema<"DialogCatalogResponse">;
 
-export interface DialogTextEntry {
-  locale: string;
-  message_id: string;
-  value: string;
-  default_value: string;
-}
+export type DialogTextEntry = ApiSchema<"DialogTextResponse">;
 
-export interface DialogButtonInput {
-  row: number;
-  column: number;
-  text_key: string;
-  link_type: ButtonLinkType;
-  style?: ButtonStyleKind | null;
-  visibility_condition?: string | null;
-  action_key?: string | null;
-  target_window_key?: string | null;
-  url_value?: string | null;
-  is_hidden?: boolean;
-}
+export type DialogButtonInput = ApiSchema<"DialogButtonRequest">;
 
 export function toButtonInput(button: DialogButtonItem): DialogButtonInput {
   return {
@@ -281,7 +234,7 @@ export function splitTextKey(key: string): { messageId: string; attributeId: str
 }
 
 export function listWindows(signal?: AbortSignal): Promise<DialogWindow[]> {
-  return apiGet<ListResponse<DialogWindow>>("/dialogs/windows", signal).then((response) => response.items);
+  return apiGet<ApiSchema<"DialogWindowListResponse">>("/dialogs/windows", signal).then((response) => response.items);
 }
 
 export function getCatalog(signal?: AbortSignal): Promise<DialogCatalog> {
@@ -290,13 +243,13 @@ export function getCatalog(signal?: AbortSignal): Promise<DialogCatalog> {
 
 export function updateWindow(
   key: string,
-  data: { banner_name?: string | null; is_enabled?: boolean; name?: string },
+  data: ApiSchema<"UpdateDialogWindowRequest">,
 ): Promise<DialogWindow> {
-  return apiPatch<DialogWindow, typeof data>(`/dialogs/windows/${encodeURIComponent(key)}`, data);
+  return apiPatch<DialogWindow, ApiSchema<"UpdateDialogWindowRequest">>(`/dialogs/windows/${encodeURIComponent(key)}`, data);
 }
 
 export function replaceButtons(key: string, buttons: DialogButtonInput[]): Promise<DialogWindow> {
-  return apiPut<DialogWindow, { buttons: DialogButtonInput[] }>(
+  return apiPut<DialogWindow, ApiSchema<"ReplaceButtonsRequest">>(
     `/dialogs/windows/${encodeURIComponent(key)}/buttons`,
     { buttons },
   );
@@ -305,7 +258,7 @@ export function replaceButtons(key: string, buttons: DialogButtonInput[]): Promi
 /** The banner is deliberately not sent: the backend then starts the window on
  * the shared one, which is what every window gets until an admin says otherwise. */
 export function createCustomWindow(name: string): Promise<DialogWindow> {
-  return apiPost<DialogWindow, { name: string }>("/dialogs/windows", {
+  return apiPost<DialogWindow, ApiSchema<"CreateCustomWindowRequest">>("/dialogs/windows", {
     name,
   });
 }
@@ -328,7 +281,7 @@ export interface DialogExportPayload {
 }
 
 export function exportDialogs(): Promise<DialogExportPayload> {
-  return apiGet<DialogExportPayload>("/dialogs/export");
+  return apiGet<ApiSchema<"DialogExportResponse">>("/dialogs/export");
 }
 
 export function importDialogs(payload: DialogExportPayload): Promise<null> {
@@ -336,7 +289,7 @@ export function importDialogs(payload: DialogExportPayload): Promise<null> {
 }
 
 export function resetAll(): Promise<DialogWindow[]> {
-  return apiPost<ListResponse<DialogWindow>, Record<string, never>>("/dialogs/actions/reset-all", {}).then(
+  return apiPost<ApiSchema<"DialogWindowListResponse">, Record<string, never>>("/dialogs/actions/reset-all", {}).then(
     (response) => response.items,
   );
 }
@@ -348,7 +301,7 @@ export function updateDialogText(
   value: string,
 ): Promise<DialogTextEntry> {
   const query = attributeId ? `?attribute_id=${encodeURIComponent(attributeId)}` : "";
-  return apiPut<DialogTextEntry, { value: string }>(
+  return apiPut<DialogTextEntry, ApiSchema<"UpdateDialogTextRequest">>(
     `/dialogs/text/${locale}/${encodeURIComponent(messageId)}${query}`,
     { value },
   );

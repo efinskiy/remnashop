@@ -66,6 +66,14 @@ class Subscription(BaseSql, TimestampMixin):
     link_reset_at: Mapped[Optional[datetime]]
     # disabled because the customer left the required channel; only these come back on rejoin
     paused_by_channel_leave: Mapped[bool] = mapped_column(default=False, server_default="false")
+    # switched off by the expiry rule, not by an admin: a renewal turns it back on. Set only
+    # once the rule's switch-off went through, cleared as soon as the row leaves DISABLED
+    expiry_disabled_at: Mapped[Optional[datetime]]
+    # the expiry rule is done with the expiry before it: claimed by a run, given up on a
+    # panel refusal, or turned back on by an admin. A later expiry is the rule's again
+    expiry_disable_handled_at: Mapped[Optional[datetime]]
+    # the expiry rule's warning went out; one per expiry, compared with it
+    expiry_disable_warned_at: Mapped[Optional[datetime]]
     # set while the grace period holds the panel user active past expiry; cleared on renewal
     grace_until: Mapped[Optional[datetime]]
     # the grace entry finished (pushed, traffic reset, customer told); a claim without it
@@ -86,3 +94,6 @@ class Subscription(BaseSql, TimestampMixin):
     # day of the month calendar terms land on: started on the 31st, back on the 31st
     # after a shorter month cut a term to the 28th
     term_anchor_day: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    # the subscription a plan change replaced with this one was paid: the new row's
+    # snapshot may say 0, and only live segments come over
+    replaced_paid: Mapped[bool] = mapped_column(default=False, server_default="false")

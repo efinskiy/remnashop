@@ -52,7 +52,7 @@ class ListExpiringCustomersUseCase(UseCase[ListExpiringCustomersDto, ExpiringCus
             live = await self._subscription_stats.list_live(
                 expiring_from=now, expiring_before=expiring_horizon(now)
             )
-            expiring = [row for row in live if not row.is_trial]
+            expiring = [row for row in live if row.is_paid]
             summaries = await self._transaction_stats.payer_summaries(
                 now, user_ids={row.user_id for row in expiring}
             )

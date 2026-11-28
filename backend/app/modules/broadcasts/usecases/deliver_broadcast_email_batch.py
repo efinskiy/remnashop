@@ -14,12 +14,7 @@ from app.core.actor import Actor
 from app.core.config import AppConfig
 from app.core.constants import REDIS_KEY_PREFIX
 from app.core.db.uow import UnitOfWork
-from app.core.enums import (
-    BroadcastCategory,
-    BroadcastRecipientStatus,
-    BroadcastStatus,
-    EmailOutcome,
-)
+from app.core.enums import BroadcastCategory, BroadcastRecipientStatus, BroadcastStatus
 from app.core.exceptions import NotFoundError
 from app.core.ports import EventPublisher
 from app.core.usecase import UseCase
@@ -27,6 +22,7 @@ from app.core.utils.time import datetime_now
 from app.modules.broadcasts.completion import complete_broadcast, fail_broadcast
 from app.modules.broadcasts.dispatch import DeliverBroadcastEmailDispatch
 from app.modules.broadcasts.dto import (
+    BroadcastRecipientError,
     PendingEmailRecipientDto,
     RecipientContextDto,
 )
@@ -40,10 +36,7 @@ from app.modules.broadcasts.pacing import (
     GROUP_SIZE,
     MAX_ATTEMPTS,
 )
-from app.modules.broadcasts.recipient_repository import (
-    UNDELIVERABLE_ERROR,
-    BroadcastRecipientRepository,
-)
+from app.modules.broadcasts.recipient_repository import BroadcastRecipientRepository
 from app.modules.broadcasts.referral import cabinet_links_allowed, referral_link_bases
 from app.modules.broadcasts.render import load_unsubscribe_labels
 from app.modules.broadcasts.repository import BroadcastRepository
@@ -51,6 +44,7 @@ from app.modules.broadcasts.validation import promocode_is_usable
 from app.modules.email import (
     SMTP_PAUSE_SECONDS,
     EmailDeliveryDto,
+    EmailOutcome,
     EmailSendError,
     InlineImageDto,
     OutgoingEmailDto,
@@ -73,7 +67,6 @@ from app.modules.users import UserRepository
 _NOT_CONFIGURED: Final[str] = "SMTP is not configured"
 _AUTH_FAILED: Final[str] = "SMTP authentication failed"
 _IMAGE_MISSING: Final[str] = "Email image is missing"
-_USER_GONE: Final[str] = "user gone"
 
 
 class DeliverBroadcastEmailBatchUseCase(UseCase[int, None]):
@@ -183,6 +176,7 @@ class DeliverBroadcastEmailBatchUseCase(UseCase[int, None]):
                 broadcast, self._referral_repository, self._settings_repository
             )
             bot = await self._settings_repository.get_bot_settings()
+            zone = (await self._settings_repository.get_shop_settings()).zone
             labels = await load_unsubscribe_labels(
                 self._translation_repository,
                 sorted({c.language for c in contexts.values()} | {broadcast.default_locale}),
@@ -213,6 +207,7 @@ class DeliverBroadcastEmailBatchUseCase(UseCase[int, None]):
         renderer = BroadcastEmailRenderer(
             broadcast,
             promocode_code=code,
+            zone=zone,
             brand=brand,
             unsubscribe=(
                 unsubscribe_links(cabinet_url, self._config.crypt_key.get_secret_value())
@@ -331,7 +326,9 @@ class DeliverBroadcastEmailBatchUseCase(UseCase[int, None]):
         # None result: the user is gone; returns the metric label, if any
         if result is None:
             await self._recipient_repository.mark_recipient(
-                recipient.id, BroadcastRecipientStatus.FAILED, error=_USER_GONE
+                recipient.id,
+                BroadcastRecipientStatus.FAILED,
+                error=BroadcastRecipientError.USER_GONE,
             )
             return "failed"
         if result.outcome is EmailOutcome.SENT:
@@ -341,12 +338,14 @@ class DeliverBroadcastEmailBatchUseCase(UseCase[int, None]):
             return "sent"
         if result.outcome is EmailOutcome.REFUSED:
             await self._recipient_repository.mark_recipient(
-                recipient.id, BroadcastRecipientStatus.FAILED, error=UNDELIVERABLE_ERROR
+                recipient.id,
+                BroadcastRecipientStatus.FAILED,
+                error=BroadcastRecipientError.UNDELIVERABLE,
             )
             await self._user_repository.set_email_undeliverable(recipient.user_id, datetime_now())
             return "undeliverable"
         await self._recipient_repository.bump_attempt(
-            recipient.id, MAX_ATTEMPTS, result.error or "retry"
+            recipient.id, MAX_ATTEMPTS, result.error or BroadcastRecipientError.NO_DETAILS
         )
         # counted once, by the bump that gives up on the row
         return "failed" if recipient.attempts + 1 >= MAX_ATTEMPTS else None

@@ -16,6 +16,7 @@ from app.modules.analytics.dto import AnalyticsPeriodQueryDto
 from app.modules.analytics.usecases import GetTrialUseCase
 from app.modules.analytics.usecases.get_trial import _day_ranges, _time_to_pay_key, _trial_day_key
 from app.modules.pricing.repository import PricingRepository
+from app.modules.settings.repository import SettingsRepository
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.stats_repository import SubscriptionStatsRepository
 from app.modules.transactions.repository import TransactionRepository
@@ -42,6 +43,7 @@ def _use_case(
         pricing_repository,
         uow,
         PassThroughAnalyticsCache(),
+        SettingsRepository(session),
     )
 
 

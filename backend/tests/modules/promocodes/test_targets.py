@@ -74,6 +74,15 @@ def test_duration_reward_skips_an_unlimited_subscription() -> None:
     assert _takes(forever, DEVICES, -1)
 
 
+def test_days_bring_back_a_subscription_the_expiry_rule_switched_off() -> None:
+    switched_off = _sub(
+        SubscriptionStatus.DISABLED, expire_at=NOW - timedelta(days=40), expiry_disabled_at=NOW
+    )
+
+    assert _takes(switched_off, DURATION, 10)
+    assert not _takes(_sub(SubscriptionStatus.DISABLED), DURATION, 10)
+
+
 def test_days_bring_back_an_expired_subscription_with_traffic_left() -> None:
     expired = _sub(SubscriptionStatus.EXPIRED, expire_at=NOW - timedelta(days=40))
     assert _takes(expired, DURATION, 99.9)

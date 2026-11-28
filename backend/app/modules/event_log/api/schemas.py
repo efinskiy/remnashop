@@ -1,12 +1,11 @@
 from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel
-
+from app.core.dto import ResponseModel
 from app.core.events import EventCategory
 
 
-class EventLogEntryResponse(BaseModel):
+class EventLogEntryResponse(ResponseModel):
     id: int
     category: EventCategory
     event_type: str
@@ -18,12 +17,12 @@ class EventLogEntryResponse(BaseModel):
     payload: dict[str, Any]
 
 
-class EventLogPageResponse(BaseModel):
+class EventLogPageResponse(ResponseModel):
     items: list[EventLogEntryResponse]
     total: int
 
 
-class NotificationsResponse(BaseModel):
+class NotificationsResponse(ResponseModel):
     items: list[EventLogEntryResponse]
     total: int
     unread_count: int

@@ -4,13 +4,18 @@ from app.modules.account_merge import AccountsMergedEvent
 from app.modules.cabinet_auth import CabinetNewDeviceSignInEvent
 from app.modules.customer_notifications.waitlist import PAYMENTS_RESTORED
 from app.modules.promocodes import PromocodeDiscountExpiringEvent
-from app.modules.referrals import InviteeRewardIssuedEvent, ReferralRewardIssuedEvent
+from app.modules.referrals import (
+    InviteeRewardIssuedEvent,
+    ReferralAttachedEvent,
+    ReferralRewardIssuedEvent,
+)
 from app.modules.subscriptions import (
     SubscriptionAddOnGrantedEvent,
     SubscriptionChangedEvent,
     SubscriptionExpiredAgoEvent,
     SubscriptionExpiredEvent,
     SubscriptionExpiringEvent,
+    SubscriptionExpiryDisableWarningEvent,
     SubscriptionGraceStartedEvent,
     SubscriptionGrantedEvent,
     SubscriptionNotConnectedEvent,
@@ -31,6 +36,7 @@ _FIXED: Final[dict[str, str]] = {
     CabinetNewDeviceSignInEvent.__name__: "/profile?signout=others",
     AccountsMergedEvent.__name__: "/profile?support=1",
     ReferralRewardIssuedEvent.__name__: "/invite/friends",
+    ReferralAttachedEvent.__name__: "/invite/friends",
     InviteeRewardIssuedEvent.__name__: "/profile",
     PromocodeDiscountExpiringEvent.__name__: "/purchase",
     PAYMENTS_RESTORED: "/purchase",
@@ -52,6 +58,7 @@ _RENEW: Final[frozenset[str]] = frozenset(
         SubscriptionExpiringEvent,
         SubscriptionExpiredEvent,
         SubscriptionGraceStartedEvent,
+        SubscriptionExpiryDisableWarningEvent,
         SubscriptionExpiredAgoEvent,
         SubscriptionTrafficLimitedEvent,
         SubscriptionTrafficThresholdEvent,

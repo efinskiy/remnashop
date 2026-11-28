@@ -88,6 +88,7 @@ async def test_block_user_role_guard(
         target.id,
         PromoteAdminDto(
             login="target-admin",
+            name="b",
             password_hash="hash",
             password_change_required=False,
         ),

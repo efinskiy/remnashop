@@ -12,4 +12,4 @@ class LegalDocumentChangedEvent(ActorEvent):
     kind: LegalDocumentKind
     locale: Optional[Locale] = None
     channel: Optional[PurchaseChannel] = None
-    changed: list[str]
+    changed_fields: list[str]

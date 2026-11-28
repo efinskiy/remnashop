@@ -1,9 +1,8 @@
-from datetime import date, datetime, time
+from datetime import date, datetime, time, tzinfo
 from functools import partial
 from typing import Final
 
 from app.core.actor import Actor
-from app.core.constants import TIMEZONE
 from app.core.db.uow import UnitOfWork
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
@@ -11,6 +10,7 @@ from app.core.utils.time import datetime_now
 from app.modules.analytics.cache import AnalyticsCache
 from app.modules.analytics.coverage import is_covered, paid_coverage, shift_months
 from app.modules.analytics.dto import CohortRowDto, CohortsDto
+from app.modules.settings import SettingsRepository
 from app.modules.transactions import TransactionRepository
 
 _COHORT_MONTHS: Final[int] = 12
@@ -39,29 +39,33 @@ class GetCohortRetentionUseCase(UseCase[None, CohortsDto]):
         transaction_repository: TransactionRepository,
         uow: UnitOfWork,
         cache: AnalyticsCache,
+        settings_repository: SettingsRepository,
     ) -> None:
+        self._settings_repository = settings_repository
         self._transaction_repository = transaction_repository
         self._uow = uow
         self._cache = cache
 
     async def _execute(self, actor: Actor, data: None) -> CohortsDto:
+        async with self._uow:
+            zone = (await self._settings_repository.get_shop_settings()).zone
         return await self._cache.get_or_compute(
-            "get_cohort_retention", data, CohortsDto, partial(self._compute, data)
+            "get_cohort_retention", data, CohortsDto, partial(self._compute, data, zone), zone=zone
         )
 
-    async def _compute(self, data: None) -> CohortsDto:
+    async def _compute(self, data: None, zone: tzinfo) -> CohortsDto:
         async with self._uow:
             now = datetime_now()
-            today = now.date()
+            today = now.astimezone(zone).date()
             this_month = _start_of_month(today)
             earliest_month = _add_months(this_month, -(_COHORT_MONTHS - 1))
 
             first_paid = await self._transaction_repository.first_paid_at_since(
-                _month_start(earliest_month)
+                _month_start(earliest_month, zone)
             )
             cohorts: dict[str, set[int]] = {}
             for user_id, paid_at in first_paid.items():
-                key = paid_at.astimezone(TIMEZONE).strftime("%Y-%m")
+                key = paid_at.astimezone(zone).strftime("%Y-%m")
                 cohorts.setdefault(key, set()).add(user_id)
 
             payments: dict[int, list[tuple[datetime, int]]] = {}
@@ -81,9 +85,7 @@ class GetCohortRetentionUseCase(UseCase[None, CohortsDto]):
                         # one point per user: a month-overlap check counts any 30-day plan in M1
                         active = 0
                         for user_id in users:
-                            point = min(
-                                shift_months(first_paid[user_id].astimezone(TIMEZONE), m), now
-                            )
+                            point = min(shift_months(first_paid[user_id].astimezone(zone), m), now)
                             active += is_covered(coverage.get(user_id, []), point)
                         retention.append(active / len(users))
                 rows.append(
@@ -96,5 +98,5 @@ class GetCohortRetentionUseCase(UseCase[None, CohortsDto]):
             return CohortsDto(cohorts=rows)
 
 
-def _month_start(d: date) -> datetime:
-    return datetime.combine(d, time.min, tzinfo=TIMEZONE)
+def _month_start(d: date, zone: tzinfo) -> datetime:
+    return datetime.combine(d, time.min, tzinfo=zone)

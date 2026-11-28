@@ -7,19 +7,18 @@ from pydantic import BaseModel, Field, StringConstraints, field_validator, model
 from remnapy.enums import TrafficLimitStrategy
 
 from app.core.constants import PANEL_TAG_MAX_LENGTH, PANEL_TAG_PATTERN
+from app.core.dto import ResponseModel
 from app.core.enums import (
     AddOnType,
     Currency,
     Locale,
-    PinnedPriceAction,
     PlanAvailability,
     PlanBadge,
     PlanType,
-    PriceAdjustMode,
-    PriceAdjustScope,
     RoundingMode,
 )
 from app.modules.plans.dto import DEFAULT_PLAN_ICON_EMOJI_FALLBACK, DEFAULT_PLAN_ICON_EMOJI_ID
+from app.modules.pricing import PinnedPriceAction, PriceAdjustMode, PriceAdjustScope
 
 MATRIX_MAX_EDITS: Final[int] = 2000
 LADDER_MAX_MARKUP: Final[int] = 1000
@@ -31,7 +30,7 @@ PLAN_NAME_MAX_LENGTH: Final[int] = 32
 PLAN_DESCRIPTION_MAX_LENGTH: Final[int] = 1024
 
 
-class PlanPriceResponse(BaseModel):
+class PlanPriceResponse(ResponseModel):
     currency: Currency
     price: Decimal
 
@@ -44,14 +43,14 @@ class PlanDurationRequest(BaseModel):
     base_price: Decimal = Field(ge=0)
 
 
-class PlanDurationResponse(BaseModel):
+class PlanDurationResponse(ResponseModel):
     days: int
     order_index: int
     base_price: Decimal
     overrides: list[PlanPriceResponse]
 
 
-class PlanShareUrlsResponse(BaseModel):
+class PlanShareUrlsResponse(ResponseModel):
     bot_url: Optional[str] = None
     webcabinet_url: Optional[str] = None
 
@@ -65,7 +64,7 @@ class PlanTranslationRequest(BaseModel):
     description: Optional[str] = Field(default=None, max_length=PLAN_DESCRIPTION_MAX_LENGTH)
 
 
-class PlanTranslationResponse(BaseModel):
+class PlanTranslationResponse(ResponseModel):
     locale: Locale
     name: str
     description: Optional[str] = None
@@ -81,7 +80,7 @@ def _one_per_locale(
     return translations
 
 
-class PlanResponse(BaseModel):
+class PlanResponse(ResponseModel):
     id: int
     public_code: str
     name: str
@@ -186,14 +185,6 @@ class SetPlanDurationsRequest(BaseModel):
     durations: list[PlanDurationRequest]
 
 
-class SetPlanPriceOverrideRequest(BaseModel):
-    price: Optional[Decimal] = Field(default=None, gt=0)
-
-
-class SetPlanDurationBasePriceRequest(BaseModel):
-    base_price: Decimal = Field(gt=0)
-
-
 class UpdatePlanAccessRequest(BaseModel):
     availability: PlanAvailability
     allowed_telegram_ids: list[int] = Field(default_factory=list)
@@ -215,17 +206,17 @@ class ReorderPlansRequest(BaseModel):
     plan_ids: list[int]
 
 
-class PlanListResponse(BaseModel):
+class PlanListResponse(ResponseModel):
     items: list[PlanResponse]
     total: int
 
 
-class AddOnPriceResponse(BaseModel):
+class AddOnPriceResponse(ResponseModel):
     currency: Currency
     price: Decimal
 
 
-class AddOnResponse(BaseModel):
+class AddOnResponse(ResponseModel):
     id: int
     name: str
     type: AddOnType
@@ -250,20 +241,12 @@ class UpdateAddOnRequest(BaseModel):
     is_active: Optional[bool] = None
 
 
-class SetAddOnBasePriceRequest(BaseModel):
-    base_price: Decimal = Field(gt=0)
-
-
-class SetAddOnPriceOverrideRequest(BaseModel):
-    price: Optional[Decimal] = Field(default=None, gt=0)
-
-
-class AddOnListResponse(BaseModel):
+class AddOnListResponse(ResponseModel):
     items: list[AddOnResponse]
     total: int
 
 
-class CurrencyRateResponse(BaseModel):
+class CurrencyRateResponse(ResponseModel):
     currency: Currency
     rate: Decimal
     rounding_mode: RoundingMode
@@ -271,17 +254,17 @@ class CurrencyRateResponse(BaseModel):
     min_amount: Decimal
 
 
-class PricingSettingsResponse(BaseModel):
+class PricingSettingsResponse(ResponseModel):
     anchor_currency: Currency
 
 
-class PriceBookCellResponse(BaseModel):
+class PriceBookCellResponse(ResponseModel):
     currency: Currency
     amount: Decimal
     is_pinned: bool
 
 
-class PriceBookRowResponse(BaseModel):
+class PriceBookRowResponse(ResponseModel):
     kind: Literal["plan_duration", "addon"]
     ref_id: int
     plan_id: Optional[int] = None
@@ -292,7 +275,7 @@ class PriceBookRowResponse(BaseModel):
     is_free_trial: bool
 
 
-class PriceBookResponse(BaseModel):
+class PriceBookResponse(ResponseModel):
     rate_table: list[CurrencyRateResponse]
     settings: PricingSettingsResponse
     plans: list[PriceBookRowResponse]
@@ -388,7 +371,7 @@ class PreviewPricingChangeRequest(BaseModel):
     adjust: Optional[AdjustBasePricesRequest] = None
 
 
-class PricingDiffRowResponse(BaseModel):
+class PricingDiffRowResponse(ResponseModel):
     name: str
     days: Optional[int] = None
     currency: Currency
@@ -396,12 +379,12 @@ class PricingDiffRowResponse(BaseModel):
     new: Decimal
 
 
-class ScaledAmountResponse(BaseModel):
+class ScaledAmountResponse(ResponseModel):
     old: Decimal
     new: Decimal
 
 
-class PricingDiffResponse(BaseModel):
+class PricingDiffResponse(ResponseModel):
     changes: list[PricingDiffRowResponse]
     affected_count: int
     loyalty_thresholds: list[ScaledAmountResponse]

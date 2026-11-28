@@ -107,7 +107,7 @@ async def test_get_event_log_filters_by_category(
     await event_log_repository.create(
         EventLogEntryDto(
             category=EventCategory.ADMIN_MANAGEMENT,
-            event_type="AdminCreatedEvent",
+            event_type="AdminChangedEvent",
             occurred_at=datetime.datetime.now(datetime.timezone.utc),
             payload={},
         )

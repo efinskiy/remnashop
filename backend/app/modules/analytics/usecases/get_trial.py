@@ -1,5 +1,5 @@
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, tzinfo
 from decimal import Decimal
 from functools import partial
 from typing import Final, Optional
@@ -24,6 +24,7 @@ from app.modules.analytics.dto import (
 )
 from app.modules.analytics.period import AnalyticsPeriod, resolve_period
 from app.modules.pricing import PricingRepository
+from app.modules.settings import SettingsRepository
 from app.modules.subscriptions import SubscriptionStatsRepository
 from app.modules.transactions import PaidTransactionDto, TransactionStatsRepository
 from app.modules.users import UserRepository, UserStatsRepository
@@ -193,7 +194,9 @@ class GetTrialUseCase(UseCase[AnalyticsPeriodQueryDto, TrialDto]):
         pricing_repository: PricingRepository,
         uow: UnitOfWork,
         cache: AnalyticsCache,
+        settings_repository: SettingsRepository,
     ) -> None:
+        self._settings_repository = settings_repository
         self._user_stats = user_stats
         self._user_repository = user_repository
         self._subscription_stats = subscription_stats
@@ -229,18 +232,21 @@ class GetTrialUseCase(UseCase[AnalyticsPeriodQueryDto, TrialDto]):
         return first_paid, registered, await self._subscription_stats.list_user_ids_with_trial(ids)
 
     async def _execute(self, actor: Actor, data: AnalyticsPeriodQueryDto) -> TrialDto:
+        async with self._uow:
+            zone = (await self._settings_repository.get_shop_settings()).zone
         return await self._cache.get_or_compute(
-            "get_trial", data, TrialDto, partial(self._compute, data)
+            "get_trial", data, TrialDto, partial(self._compute, data, zone), zone=zone
         )
 
-    async def _compute(self, data: AnalyticsPeriodQueryDto) -> TrialDto:
+    async def _compute(self, data: AnalyticsPeriodQueryDto, zone: tzinfo) -> TrialDto:
         async with self._uow:
             now = datetime_now()
             period = resolve_period(
                 data.period_from,
                 data.period_to,
-                earliest=await self._user_stats.earliest_registration(Role.USER),
+                earliest=await self._user_stats.earliest_registration(Role.USER, zone),
                 now=now,
+                zone=zone,
             )
             rates = await self._pricing_repository.get_rate_table()
             cohort, paid = await self._cohort(period, now)

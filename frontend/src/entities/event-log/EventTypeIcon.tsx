@@ -56,6 +56,7 @@ import {
   Percent,
   Plug,
   Power,
+  PowerOff,
   Receipt,
   RefreshCcw,
   RotateCcw,
@@ -102,41 +103,31 @@ const EVENT_ICONS: Record<string, LucideIcon> = {
   OAuthLoginSucceededEvent: LogIn,
   OAuthLoginFailedEvent: ShieldX,
   EmailCodeAttemptsExhaustedEvent: ShieldX,
-  OAuthIdentityConnectedEvent: Link,
-  OAuthIdentityDisconnectedEvent: Unlink,
+  OAuthIdentityLinkedEvent: Link,
+  OAuthIdentityUnlinkedEvent: Unlink,
   SignInMethodLinkedEvent: Link,
   SignInMethodUnlinkedEvent: Unlink,
   SessionRevokedEvent: LogOut,
   OtherSessionsRevokedEvent: LogOut,
   SessionTheftDetectedEvent: Siren,
   UserSessionRevokedByAdminEvent: LogOut,
-  AdminCreatedEvent: UserPlus,
-  AdminPromotedEvent: ShieldPlus,
-  AdminPermissionsUpdatedEvent: UserCog,
-  AdminDemotedEvent: ShieldMinus,
-  AdminDeletedEvent: UserMinus,
-  TelegramIdBoundEvent: Link,
-  TelegramIdUnboundEvent: Unlink,
+  AdminChangedEvent: UserPlus,
+  TelegramIdChangedEvent: Link,
   UserDeletedEvent: UserX,
   CabinetUserRegisteredEvent: UserPlus,
   TelegramUserRegisteredEvent: UserPlus,
-  LocaleActivatedEvent: Languages,
-  LocaleDeactivatedEvent: Languages,
-  DefaultLocaleChangedEvent: Languages,
+  LocaleChangedEvent: Languages,
   AnchorSwitchedEvent: Anchor,
   UnratedAnchorAmountsRatedEvent: History,
   BasePricesAdjustedEvent: Tags,
-  ApiTokenCreatedEvent: KeyRound,
-  ApiTokenRevokedEvent: KeyRound,
-  BlacklistEntryAddedEvent: ListPlus,
-  BlacklistEntryRemovedEvent: ListMinus,
+  ApiTokenChangedEvent: KeyRound,
+  BlacklistEntryChangedEvent: ListPlus,
   BlacklistReconciledEvent: Ban,
   CurrencyRateChangedEvent: Coins,
   OidcIssuerChangedEvent: KeyRound,
   PasskeyLoginFailedEvent: ShieldX,
   PasskeyLoginSucceededEvent: Fingerprint,
-  PasskeyRegisteredEvent: Fingerprint,
-  PasskeyRemovedEvent: Fingerprint,
+  PasskeyChangedEvent: Fingerprint,
   PlanChangedEvent: Package,
   BonusDaysRedeemedEvent: CalendarPlus,
   PromocodeActivatedEvent: TicketCheck,
@@ -156,13 +147,12 @@ const EVENT_ICONS: Record<string, LucideIcon> = {
   CabinetRegistrationBlockedEvent: ShieldBan,
   CabinetNewDeviceSignInEvent: MonitorSmartphone,
   AccountsMergedEvent: Merge,
-  UserBlockedEvent: Lock,
+  UserBlockChangedEvent: Lock,
   UserPointsAdjustedEvent: Star,
   UserBonusDaysAdjustedEvent: CalendarPlus,
   UserPersonalDiscountChangedEvent: Percent,
   UserMarkupChangedEvent: Percent,
   UserPurchaseDiscountChangedEvent: Percent,
-  UserUnblockedEvent: LockOpen,
   UserEmailUndeliverableClearedEvent: MailCheck,
   UserBotMenuResetEvent: RotateCcw,
   UserTrialAvailabilityChangedEvent: Gift,
@@ -175,12 +165,9 @@ const EVENT_ICONS: Record<string, LucideIcon> = {
   BackupFailedEvent: TriangleAlert,
   BonusDaysRenewalStuckEvent: TriangleAlert,
   BroadcastChangedEvent: Megaphone,
-  BroadcastScheduledEvent: CalendarClock,
   BroadcastStartedEvent: Send,
   BroadcastCompletedEvent: CheckCircle2,
   BroadcastFailedEvent: TriangleAlert,
-  BroadcastCanceledEvent: Ban,
-  BroadcastRecalledEvent: Undo2,
   VapidKeysGeneratedEvent: KeyRound,
   GatewayChangedEvent: CreditCard,
   PricingSettingsChangedEvent: Coins,
@@ -199,6 +186,8 @@ const EVENT_ICONS: Record<string, LucideIcon> = {
   SubscriptionExpiringEvent: Clock,
   SubscriptionExpiredEvent: CalendarX,
   SubscriptionGraceStartedEvent: Hourglass,
+  SubscriptionExpiryDisableWarningEvent: CalendarClock,
+  SubscriptionExpiryDisabledEvent: PowerOff,
   SubscriptionTrafficLimitedEvent: Gauge,
   SubscriptionTrafficThresholdEvent: GaugeCircle,
   SubscriptionPlanChangedByAdminEvent: ArrowLeftRight,
@@ -237,6 +226,7 @@ const EVENT_ICONS: Record<string, LucideIcon> = {
   RemnawaveVersionMismatchEvent: TriangleAlert,
   SystemHealthDegradedEvent: HeartPulse,
   SystemHealthRestoredEvent: Activity,
+  OutboxEntryPoisonedEvent: TriangleAlert,
   BotStartedEvent: Bot,
   BotStoppedEvent: BotOff,
   TelegramWebhookFailedEvent: TriangleAlert,
@@ -247,7 +237,6 @@ const EVENT_ICONS: Record<string, LucideIcon> = {
   TransactionExpiredEvent: Clock,
   MarketingOptOutChangedEvent: MailX,
   BotBlockedByUserEvent: Ban,
-  PasskeyRenamedEvent: Fingerprint,
   AdLinkAttributedEvent: Megaphone,
   BackupCompletedEvent: DatabaseBackup,
   DailyReportEvent: ChartColumn,
@@ -258,6 +247,15 @@ const EVENT_ICONS: Record<string, LucideIcon> = {
   SubscriptionConfigSyncedEvent: RefreshCcw,
 };
 
+// one type, several actions: the action picks the icon
+const ACTION_ICONS: Record<string, Record<string, LucideIcon>> = {
+  AdminChangedEvent: { create: UserPlus, promote: ShieldPlus, permissions: UserCog, demote: ShieldMinus, delete: UserMinus },
+  TelegramIdChangedEvent: { link: Link, unlink: Unlink },
+  BlacklistEntryChangedEvent: { create: ListPlus, delete: ListMinus },
+  UserBlockChangedEvent: { block: Lock, unblock: LockOpen },
+  BroadcastChangedEvent: { schedule: CalendarClock, cancel: Ban, recall: Undo2 },
+};
+
 export function EventTypeIcon({
   entry,
   className,
@@ -265,6 +263,11 @@ export function EventTypeIcon({
   entry: Pick<EventLogEntry, "event_type" | "payload">;
   className?: string;
 }) {
-  const Icon = isTrialActivation(entry) ? Gift : (EVENT_ICONS[entry.event_type] ?? History);
+  const action = entry.payload?.action;
+  const Icon = isTrialActivation(entry)
+    ? Gift
+    : ((typeof action === "string" ? ACTION_ICONS[entry.event_type]?.[action] : undefined) ??
+      EVENT_ICONS[entry.event_type] ??
+      History);
   return <Icon className={className} />;
 }

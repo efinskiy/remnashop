@@ -2,7 +2,7 @@ import { CircleHelp } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
-import { ERROR_HINT_BUBBLE_CLASS, HINT_BUBBLE_CLASS } from "@shared/ui/hint-bubble";
+import { ERROR_HINT_BUBBLE_CLASS, HINT_BUBBLE_CLASS, WIDE_HINT_BUBBLE_CLASS } from "@shared/ui/hint-bubble";
 
 interface FieldHintProps {
   text: string;
@@ -30,6 +30,14 @@ function boundsRect(anchor?: HTMLElement): { left: number; top: number; right: n
   const panel = document.querySelector("[data-dashboard-panel]")?.getBoundingClientRect();
   if (panel && panel.width > 0) return panel;
   return { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
+}
+
+// past this a hint reads as a paragraph, and the 256px bubble stretches it into a column
+const WIDE_HINT_MIN_LENGTH = 150;
+
+function bubbleClass(text: string | undefined, error: boolean): string {
+  if (error) return ERROR_HINT_BUBBLE_CLASS;
+  return (text?.length ?? 0) > WIDE_HINT_MIN_LENGTH ? WIDE_HINT_BUBBLE_CLASS : HINT_BUBBLE_CLASS;
 }
 
 // Portalled to the body, so no scroll container or overflow-hidden panel clips the bubble.
@@ -124,7 +132,7 @@ export function FieldHint({ text, content, side = "top", align = "center", error
         <span
           ref={bubbleRef}
           // above everything: Modal (z-50), PortalPopover (z-60), toasts and the debug bar (z-50)
-          className={`${error ? ERROR_HINT_BUBBLE_CLASS : HINT_BUBBLE_CLASS} z-100 cursor-text select-text whitespace-pre-line`}
+          className={`${bubbleClass(text, error)} z-100 cursor-text select-text whitespace-pre-line`}
           // open, it takes the pointer: hovering it keeps it, its text can be selected
           style={{ position: "fixed", ...position, opacity: open ? 1 : 0, pointerEvents: open ? "auto" : "none" }}
           onPointerEnter={(event) => event.pointerType === "mouse" && show()}

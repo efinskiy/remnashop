@@ -5,7 +5,7 @@ from app.core.ports import EventPublisher
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.modules.translations.dto import ActiveLocalesDto
-from app.modules.translations.events import LocaleActivatedEvent
+from app.modules.translations.events import LocaleChangedEvent
 from app.modules.translations.ports import BotCommandsSync
 from app.modules.translations.repository import TranslationRepository
 
@@ -35,6 +35,8 @@ class AddLocaleUseCase(UseCase[Locale, ActiveLocalesDto]):
             # the translations right away and would find the new locale empty
             await self._translation_repository.copy_locale_from(Locale.EN, data)
             locales = await self._translation_repository.get_locales()
-            await self._event_publisher.publish(LocaleActivatedEvent(actor=actor, locale=data))
+            await self._event_publisher.publish(
+                LocaleChangedEvent(actor=actor, action="activate", locale=data)
+            )
         await self._bot_commands.push()
         return locales

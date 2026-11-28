@@ -30,8 +30,9 @@ import { Legend } from "@pages/analytics/charts";
 import { useAnalyticsPeriod } from "@pages/analytics/period";
 import { previousPeriodHint, relativeTrend } from "@pages/analytics/trends";
 import { ListRow } from "@shared/ui/ListRow";
+import { allValues } from "@shared/lib/all-values";
 
-const KINDS: SourceKind[] = ["organic", "ad_link", "referral"];
+const KINDS = allValues<SourceKind>()(["organic", "ad_link", "referral"]);
 const KIND_KEY = {
   organic: "organic",
   ad_link: "adLink",

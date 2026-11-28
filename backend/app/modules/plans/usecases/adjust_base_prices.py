@@ -2,7 +2,6 @@ from loguru import logger
 
 from app.core.actor import Actor
 from app.core.db.uow import UnitOfWork
-from app.core.enums import PriceAdjustMode
 from app.core.ports import EventPublisher
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
@@ -13,6 +12,7 @@ from app.modules.plans.price_projection import adjusted_base_prices
 from app.modules.plans.repository import PlanRepository
 from app.modules.pricing import (
     BasePricesAdjustedEvent,
+    PriceAdjustMode,
     PricingRepository,
 )
 

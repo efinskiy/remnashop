@@ -3,6 +3,7 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 from app.core.constants import BANNER_NAME_PATTERN, DEFAULT_BANNER_NAME
+from app.core.dto import ResponseModel
 from app.core.enums import (
     ButtonLinkType,
     ButtonStyleKind,
@@ -12,7 +13,7 @@ from app.core.enums import (
 )
 
 
-class DialogButtonResponse(BaseModel):
+class DialogButtonResponse(ResponseModel):
     id: int
     row: int
     column: int
@@ -28,7 +29,7 @@ class DialogButtonResponse(BaseModel):
     is_required: bool = False
 
 
-class DialogWindowResponse(BaseModel):
+class DialogWindowResponse(ResponseModel):
     key: str
     kind: DialogWindowKind
     flow: DialogFlow
@@ -40,7 +41,7 @@ class DialogWindowResponse(BaseModel):
     buttons: list[DialogButtonResponse]
 
 
-class DialogCatalogResponse(BaseModel):
+class DialogCatalogResponse(ResponseModel):
     action_keys: list[str]
     condition_keys: list[str]
     variable_keys: list[str]
@@ -90,7 +91,7 @@ class DialogTextImportRequest(BaseModel):
     value: str = Field(max_length=4096)
 
 
-class DialogTextExportResponse(BaseModel):
+class DialogTextExportResponse(ResponseModel):
     locale: Locale
     message_id: str
     attribute_id: str
@@ -107,7 +108,7 @@ class DialogWindowImportRequest(BaseModel):
     buttons: list[DialogButtonRequest] = Field(default_factory=list)
 
 
-class DialogButtonExportResponse(BaseModel):
+class DialogButtonExportResponse(ResponseModel):
     row: int
     column: int
     text_key: str
@@ -120,7 +121,7 @@ class DialogButtonExportResponse(BaseModel):
     is_hidden: bool
 
 
-class DialogWindowExportResponse(BaseModel):
+class DialogWindowExportResponse(ResponseModel):
     key: str
     kind: DialogWindowKind
     banner_name: Optional[str] = None
@@ -130,7 +131,7 @@ class DialogWindowExportResponse(BaseModel):
     buttons: list[DialogButtonExportResponse]
 
 
-class DialogExportResponse(BaseModel):
+class DialogExportResponse(ResponseModel):
     version: int
     windows: list[DialogWindowExportResponse]
     texts: list[DialogTextExportResponse]
@@ -146,13 +147,13 @@ class UpdateDialogTextRequest(BaseModel):
     value: str = Field(max_length=4096)
 
 
-class DialogTextResponse(BaseModel):
+class DialogTextResponse(ResponseModel):
     locale: Locale
     message_id: str
     value: str
     default_value: str
 
 
-class DialogWindowListResponse(BaseModel):
+class DialogWindowListResponse(ResponseModel):
     items: list[DialogWindowResponse]
     total: int

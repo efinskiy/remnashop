@@ -5,9 +5,10 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-from app.core.enums import Currency, PaymentGatewayType, PromocodeRewardType, PromocodeStatus
-from app.modules.analytics.aggregates import Granularity
+from app.core.enums import Currency, PaymentGatewayType, PromocodeRewardType
+from app.modules.analytics.aggregates import RevenueGranularity
 from app.modules.analytics.sources import SourceKind
+from app.modules.promocodes import PromocodeStatus
 
 
 class AnalyticsPeriodInfoDto(BaseModel):
@@ -318,7 +319,7 @@ class AnalyticsPeriodQueryDto:
 
 @dataclass(frozen=True, kw_only=True)
 class GetRevenueDto(AnalyticsPeriodQueryDto):
-    granularity: Granularity = "day"
+    granularity: RevenueGranularity = RevenueGranularity.DAY
 
 
 class RewardTypeCountDto(BaseModel):

@@ -33,6 +33,7 @@ from app.modules.overview.usecases.send_daily_report import (
 )
 from app.modules.pricing.repository import PricingRepository
 from app.modules.referrals.repository import ReferralRepository
+from app.modules.settings.repository import SettingsRepository
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.stats_repository import SubscriptionStatsRepository
 from app.modules.transactions.dto import CreateTransactionDto
@@ -116,7 +117,7 @@ async def test_report_counts_the_day_once(
     monkeypatch.setattr(send_daily_report, "datetime_now", lambda: tomorrow)
     async with uow:
         await notification_repository.update_settings(
-            UpdateNotificationSettingsDto(report_timezone="UTC", daily_report_hour=tomorrow.hour)
+            UpdateNotificationSettingsDto(daily_report_hour=tomorrow.hour)
         )
     session = user_repository.session
     publisher = RecordingEventPublisher()
@@ -130,6 +131,7 @@ async def test_report_counts_the_day_once(
         publisher,
         redis,
         uow,
+        SettingsRepository(session),
     )
 
     await use_case.system()
@@ -149,6 +151,15 @@ async def test_report_counts_the_day_once(
         transaction_repository, uow, trial.user_id, plan_id, PurchaseType.RENEW, "300", "dr-2"
     )
     await _pay(transaction_repository, uow, trial.user_id, plan_id, PurchaseType.NEW, "0", "dr-3")
+    # one paid and one free active subscription: only the paid one is "active paid"
+    for telegram_id, price in ((880_005, "100"), (880_006, "0")):
+        await create_subscription(
+            subscription_repository,
+            user_repository,
+            telegram_id=telegram_id,
+            remnawave_user_id=telegram_id,
+            price_paid=Decimal(price),
+        )
     invited = await user_repository.create(CreateUserDto(name="Invited", telegram_id=880_002))
     unnamed = await user_repository.create(CreateUserDto(name="", telegram_id=880_003))
     invited_by_unnamed = await user_repository.create(
@@ -169,12 +180,13 @@ async def test_report_counts_the_day_once(
     report = publisher.events[-1]
     assert isinstance(report, DailyReportEvent)
     assert report.day == (tomorrow.date() - timedelta(days=1)).isoformat()
-    assert report.new_users == before.new_users + 4
+    assert report.new_users == before.new_users + 6
     assert report.new_trials == before.new_trials + 1
     assert report.new_payers == before.new_payers + 1
     assert report.trial_conversions == before.trial_conversions + 1
     assert report.purchases == before.purchases + 1
     assert report.renewals == before.renewals + 1
+    assert report.active_paid == before.active_paid + 1
     assert Decimal(report.revenue) == Decimal(before.revenue) + Decimal("800")
     assert (trial.user_id, "buyer", 1) in report.top_referrers
     assert (unnamed.id, "", 1) in report.top_referrers

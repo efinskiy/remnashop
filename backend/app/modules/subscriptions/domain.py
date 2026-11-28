@@ -110,15 +110,20 @@ class SubscriptionState:
             return self
         return replace(self, expire_at=new_expire_at)
 
-    def reactivate_on_renew(self, new_expire_at: datetime) -> SubscriptionState:
-        """Extends expire_at and brings an EXPIRED subscription back to ACTIVE.
-        LIMITED/DISABLED stay: a payment doesn't resolve traffic exhaustion or an
-        admin's action, and the next sync corrects them once the panel agrees."""
+    def reactivate_on_renew(
+        self, new_expire_at: datetime, *, disabled_by_expiry: bool = False
+    ) -> SubscriptionState:
+        """Extends expire_at and brings an EXPIRED subscription back to ACTIVE, and one
+        the expiry rule switched off. LIMITED/DISABLED stay: a payment doesn't resolve
+        traffic exhaustion or an admin's action, and the next sync corrects them once
+        the panel agrees."""
         if self.status is SubscriptionStatus.DELETED:
             raise ValidationError(
                 "Cannot renew a deleted subscription", code=ErrorCode.SUBSCRIPTION_DELETED
             )
-        is_expired = self.status is SubscriptionStatus.EXPIRED
+        is_expired = self.status is SubscriptionStatus.EXPIRED or (
+            disabled_by_expiry and self.status is SubscriptionStatus.DISABLED
+        )
         target = SubscriptionStatus.ACTIVE if is_expired else self.status
         assert_transition(self.status, target)
         return replace(self, status=target, expire_at=new_expire_at)

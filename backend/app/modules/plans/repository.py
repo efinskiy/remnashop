@@ -15,7 +15,7 @@ from app.core.db.models.plan_translation import PlanTranslation
 from app.core.db.partial_update import apply_partial_update
 from app.core.enums import Currency, PlanAvailability
 from app.core.error_codes import ErrorCode
-from app.core.exceptions import ConflictError, NotFoundError, ValidationError
+from app.core.exceptions import ConflictError, NotFoundError
 from app.modules.plans.dto import (
     CreatePlanDto,
     PlanDto,
@@ -208,9 +208,7 @@ class PlanRepository:
         return await self._hydrate(row)
 
     async def create(self, data: CreatePlanDto) -> PlanDto:
-        await self.session.execute(select(func.pg_advisory_xact_lock(_PLAN_ORDER_LOCK_KEY)))
-        count_result = await self.session.execute(select(func.count()).select_from(Plan))
-        next_order_index = count_result.scalar_one()
+        next_order_index = len(await self.lock_order())
 
         assert data.public_code is not None  # filled in by CreatePlanUseCase
         row = Plan(
@@ -280,6 +278,8 @@ class PlanRepository:
         return await self._hydrate(row)
 
     async def delete(self, plan_id: int) -> None:
+        # a reorder checks its list against the plan ids, then writes
+        await self._lock_plan_set()
         await self._get_or_raise(plan_id)
         try:
             await self.session.execute(delete(Plan).where(Plan.id == plan_id))
@@ -445,16 +445,19 @@ class PlanRepository:
         await self.session.refresh(row)
         return await self._hydrate(row)
 
-    async def reorder(self, data: ReorderPlansDto) -> list[PlanDto]:
+    async def _lock_plan_set(self) -> None:
+        # held until the transaction ends by everything that adds, removes or orders plans
         await self.session.execute(select(func.pg_advisory_xact_lock(_PLAN_ORDER_LOCK_KEY)))
+
+    async def lock_order(self) -> set[int]:
+        """Every plan id, with the plan set locked until the transaction ends."""
+        await self._lock_plan_set()
+        return set(await self.session.scalars(select(Plan.id)))
+
+    async def reorder(self, data: ReorderPlansDto) -> list[PlanDto]:
+        # under lock_order, with every plan id
         result = await self.session.execute(select(Plan))
         rows = {row.id: row for row in result.scalars()}
-
-        if set(data.plan_ids) != set(rows) or len(data.plan_ids) != len(rows):
-            raise ValidationError(
-                "Reorder must include every existing plan id exactly once",
-                code=ErrorCode.PLAN_REORDER_INCOMPLETE,
-            )
 
         for index, plan_id in enumerate(data.plan_ids):
             rows[plan_id].order_index = index

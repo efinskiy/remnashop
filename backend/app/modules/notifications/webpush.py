@@ -8,17 +8,19 @@ from pywebpush import WebPushException, webpush
 
 from app.core.constants import TTL_1D
 from app.core.db.uow import UnitOfWork
-from app.core.enums import AppearanceTarget, SessionAudience
+from app.core.enums import SessionAudience
 from app.core.utils.telegram_text import premium_emoji_glyphs
 from app.modules.notifications.dto import PushMessage, PushSubscriptionDto
 from app.modules.notifications.repository import NotificationRepository
-from app.modules.settings import SettingsRepository, push_icon_path
+from app.modules.settings import AppearanceTarget, SettingsRepository, push_icon_path
 
 _TTL_SECONDS: Final[int] = TTL_1D
 _TIMEOUT_SECONDS: Final[float] = 10.0
 _GONE_STATUSES: Final[frozenset[int]] = frozenset({404, 410})
 # our payload was too big, not the device's fault
 _PAYLOAD_TOO_LARGE: Final[int] = 413
+# failures in a row before a device is dropped
+_MAX_PUSH_FAILURES: Final[int] = 3
 _APPEARANCE_BY_AUDIENCE: Final[dict[SessionAudience, AppearanceTarget]] = {
     SessionAudience.DASHBOARD: AppearanceTarget.DASHBOARD,
     SessionAudience.CABINET: AppearanceTarget.CABINET,
@@ -68,9 +70,9 @@ class WebPushSender:
                     await self._repository.record_push_success(subscription.id)
                     delivered += 1
                 elif status != _PAYLOAD_TOO_LARGE:
-                    await self._repository.record_push_failure(
-                        subscription.id, gone=status in _GONE_STATUSES
-                    )
+                    failures = await self._repository.record_push_failure(subscription.id)
+                    if status in _GONE_STATUSES or failures >= _MAX_PUSH_FAILURES:
+                        await self._repository.drop_push_subscription(subscription.id)
         return delivered
 
     async def _send_one(

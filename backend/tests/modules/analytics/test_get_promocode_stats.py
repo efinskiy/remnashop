@@ -15,7 +15,6 @@ from app.core.enums import (
     Locale,
     PaymentGatewayType,
     PromocodeRewardType,
-    PromocodeStatus,
     PurchaseChannel,
     PurchaseType,
     Role,
@@ -26,8 +25,9 @@ from app.core.utils.time import datetime_now
 from app.modules.analytics.dto import AnalyticsPeriodQueryDto
 from app.modules.analytics.usecases import GetPromocodeStatsUseCase
 from app.modules.pricing.repository import PricingRepository
-from app.modules.promocodes.dto import CreatePromocodeDto
+from app.modules.promocodes.dto import CreatePromocodeDto, PromocodeStatus
 from app.modules.promocodes.repository import PromocodeRepository
+from app.modules.settings.repository import SettingsRepository
 from app.modules.transactions.dto import CreateTransactionDto
 from app.modules.transactions.repository import TransactionRepository
 from app.modules.transactions.stats_repository import TransactionStatsRepository
@@ -53,6 +53,7 @@ def _use_case(
         pricing,
         uow,
         PassThroughAnalyticsCache(),
+        SettingsRepository(session),
     )
 
 
@@ -103,7 +104,7 @@ async def _activate(
     user_id: int,
     at: datetime,
 ) -> None:
-    activation = await promocodes.claim_activation(promocode_id, user_id, None)
+    activation = await promocodes.add_activation(promocode_id, user_id, None)
     await session.execute(
         update(PromocodeActivation)
         .where(PromocodeActivation.id == activation.id)

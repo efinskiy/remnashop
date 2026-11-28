@@ -1,9 +1,9 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, tzinfo
 from functools import partial
 from typing import Final
 
 from app.core.actor import Actor
-from app.core.constants import TIMEZONE, ZERO_AMOUNT
+from app.core.constants import ZERO_AMOUNT
 from app.core.db.uow import UnitOfWork
 from app.core.enums import Role, SubscriptionStatus
 from app.core.security.permissions import Permission
@@ -21,6 +21,7 @@ from app.modules.analytics.dto import (
 )
 from app.modules.analytics.period import CONVERSION_WINDOW_DAYS, AnalyticsPeriod, resolve_period
 from app.modules.pricing import PricingRepository
+from app.modules.settings import SettingsRepository
 from app.modules.subscriptions import SubscriptionStatsRepository
 from app.modules.transactions import PaidTotalsDto, TransactionStatsRepository
 from app.modules.users import UserStatsRepository
@@ -44,6 +45,7 @@ def _period_kpi(
     covered: dict[datetime, set[int]],
     registrations: list[tuple[int, datetime]],
     now: datetime,
+    zone: tzinfo,
 ) -> PeriodKpiDto:
     # registrations shifted back by the window, so each had all of it to pay
     window = timedelta(days=CONVERSION_WINDOW_DAYS)
@@ -57,8 +59,7 @@ def _period_kpi(
         for user_id, registered_at in cohort.items()
         if user_id in first_paid
         and (
-            first_paid[user_id].astimezone(TIMEZONE).date()
-            - registered_at.astimezone(TIMEZONE).date()
+            first_paid[user_id].astimezone(zone).date() - registered_at.astimezone(zone).date()
         ).days
         <= CONVERSION_WINDOW_DAYS
     )
@@ -91,7 +92,9 @@ class GetAnalyticsUseCase(UseCase[AnalyticsPeriodQueryDto, AnalyticsDto]):
         pricing_repository: PricingRepository,
         uow: UnitOfWork,
         cache: AnalyticsCache,
+        settings_repository: SettingsRepository,
     ) -> None:
+        self._settings_repository = settings_repository
         self._user_stats = user_stats
         self._subscription_stats = subscription_stats
         self._transaction_stats = transaction_stats
@@ -100,18 +103,21 @@ class GetAnalyticsUseCase(UseCase[AnalyticsPeriodQueryDto, AnalyticsDto]):
         self._cache = cache
 
     async def _execute(self, actor: Actor, data: AnalyticsPeriodQueryDto) -> AnalyticsDto:
+        async with self._uow:
+            zone = (await self._settings_repository.get_shop_settings()).zone
         return await self._cache.get_or_compute(
-            "get_analytics", data, AnalyticsDto, partial(self._compute, data)
+            "get_analytics", data, AnalyticsDto, partial(self._compute, data, zone), zone=zone
         )
 
-    async def _compute(self, data: AnalyticsPeriodQueryDto) -> AnalyticsDto:
+    async def _compute(self, data: AnalyticsPeriodQueryDto, zone: tzinfo) -> AnalyticsDto:
         async with self._uow:
             now = datetime_now()
             period = resolve_period(
                 data.period_from,
                 data.period_to,
-                earliest=await self._user_stats.earliest_registration(Role.USER),
+                earliest=await self._user_stats.earliest_registration(Role.USER, zone),
                 now=now,
+                zone=zone,
             )
             previous = period.previous
             rates = await self._pricing_repository.get_rate_table()
@@ -135,6 +141,7 @@ class GetAnalyticsUseCase(UseCase[AnalyticsPeriodQueryDto, AnalyticsDto]):
                     covered=covered,
                     registrations=registrations,
                     now=now,
+                    zone=zone,
                 )
                 for p in (period, previous)
             }
@@ -152,7 +159,7 @@ class GetAnalyticsUseCase(UseCase[AnalyticsPeriodQueryDto, AnalyticsDto]):
             )
 
             live = await self._subscription_stats.list_live()
-            paid = [row for row in live if not row.is_trial]
+            paid = [row for row in live if row.is_paid]
             expiring = [
                 row
                 for row in paid

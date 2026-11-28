@@ -3,8 +3,10 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.core.dto import ResponseModel
 
-class PasskeyResponse(BaseModel):
+
+class PasskeyResponse(ResponseModel):
     id: int
     name: str
     device_type: str
@@ -31,6 +33,6 @@ class VerifyPasskeyAuthenticationRequest(BaseModel):
     credential: dict[str, Any]
 
 
-class PasskeyListResponse(BaseModel):
+class PasskeyListResponse(ResponseModel):
     items: list[PasskeyResponse]
     total: int

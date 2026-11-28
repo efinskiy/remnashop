@@ -4,11 +4,15 @@ from loguru import logger
 
 from app.core.actor import Actor
 from app.core.db.uow import UnitOfWork
-from app.core.enums import ReferralLevel, ReferralRewardType
+from app.core.enums import ReferralRewardType
 from app.core.exceptions import ConflictError
 from app.core.ports import EventPublisher
 from app.core.usecase import UseCase
-from app.modules.referrals.dto import AttachReferralOnRegistrationDto, ReferralSettingsDto
+from app.modules.referrals.dto import (
+    AttachReferralOnRegistrationDto,
+    ReferralLevel,
+    ReferralSettingsDto,
+)
 from app.modules.referrals.events import InviteeRewardIssuedEvent, ReferralAttachedEvent
 from app.modules.referrals.repository import ReferralRepository
 from app.modules.users import UserDto, UserRepository

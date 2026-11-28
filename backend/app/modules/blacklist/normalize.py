@@ -3,7 +3,7 @@ from typing import Final, Optional
 from urllib.parse import urlsplit
 
 from app.core.constants import INT64_MAX
-from app.core.enums import BlacklistKind
+from app.modules.blacklist.dto import BlacklistKind
 
 _MAX_VALUE_LEN: Final[int] = 254
 # local@domain.tld: a dotted domain with no empty labels

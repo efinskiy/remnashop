@@ -9,8 +9,8 @@ from app.core.ports import EventPublisher
 from app.core.security import generate_password, hash_password
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
-from app.modules.users.dto import AdminWithPasswordDto, PromoteAdminDto, PromoteToAdminDto
-from app.modules.users.events import AdminPromotedEvent
+from app.modules.users.dto import AdminWithPasswordDto, PromoteAdminDto, PromoteToAdminDto, UserDto
+from app.modules.users.events import AdminChangedEvent
 from app.modules.users.repository import UserRepository
 
 
@@ -55,23 +55,27 @@ class PromoteToAdminUseCase(UseCase[PromoteToAdminDto, AdminWithPasswordDto]):
             password_hash = existing_password_hash
 
         async with self._uow:
-            await self._lock_unchanged(target.id, existing_password_hash)
+            fresh = await self._lock_unchanged(target.id, existing_password_hash)
             updated = await self._user_repository.promote_to_admin(
                 target.id,
                 PromoteAdminDto(
                     login=login,
+                    # staff go by their login until they set a name
+                    name=fresh.name or login,
                     password_hash=password_hash,
                     password_change_required=password is not None,
                 ),
             )
             assert updated is not None
             await self._event_publisher.publish(
-                AdminPromotedEvent(actor=actor, target=updated, ip_address=data.client_ip)
+                AdminChangedEvent(
+                    actor=actor, action="promote", target=updated, ip_address=data.client_ip
+                )
             )
 
         return AdminWithPasswordDto(admin=updated, password=password)
 
-    async def _lock_unchanged(self, user_id: int, password_hash: Optional[str]) -> None:
+    async def _lock_unchanged(self, user_id: int, password_hash: Optional[str]) -> UserDto:
         # the hash took a while: re-check under the lock that nothing moved meanwhile
         fresh = await self._user_repository.find_live_for_update(user_id)
         if fresh is None:
@@ -84,3 +88,4 @@ class PromoteToAdminUseCase(UseCase[PromoteToAdminDto, AdminWithPasswordDto]):
             raise ConflictError(
                 "User changed while being promoted", code=ErrorCode.PROMOTE_TARGET_CHANGED
             )
+        return fresh

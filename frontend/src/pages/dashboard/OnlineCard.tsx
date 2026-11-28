@@ -12,7 +12,7 @@ import { ErrorState } from "@shared/ui/glass/EmptyState";
 import { SegmentedPills } from "@shared/ui/SegmentedPills";
 import { Spinner } from "@shared/ui/Spinner";
 import { Tag } from "@shared/ui/Tag";
-import { fillDailySeries, formatChartDay, formatChartDayLong, useChart } from "@pages/dashboard/chart-data";
+import { formatChartDay, formatChartDayLong, useChart } from "@pages/dashboard/chart-data";
 import { TrendChart } from "@pages/dashboard/charts";
 
 type View = "hours" | 7 | 30;
@@ -91,7 +91,7 @@ function DailyBody({ days, refreshKey }: { days: 7 | 30; refreshKey: number }) {
   if (state.kind === "loading") return <Spinner size="card" />;
   if (state.kind === "error") return <ErrorState text={t("common.loadError")} />;
 
-  const series = fillDailySeries(state.data.daily_peak, state.data.days, (day) => ({ day, count: 0 }));
+  const series = state.data.daily_peak;
   return (
     <OnlineView
       current={state.data.current}

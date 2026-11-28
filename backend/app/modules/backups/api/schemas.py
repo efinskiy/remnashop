@@ -3,10 +3,11 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from app.core.dto import ResponseModel
 from app.core.enums import BackupKind, BackupRunStatus
 
 
-class BackupSettingsResponse(BaseModel):
+class BackupSettingsResponse(ResponseModel):
     enabled: bool
     interval_hours: int
     max_files: int
@@ -22,7 +23,7 @@ class CreateBackupRunRequest(BaseModel):
     kind: BackupKind
 
 
-class BackupRunResponse(BaseModel):
+class BackupRunResponse(ResponseModel):
     id: int
     kind: BackupKind
     status: BackupRunStatus
@@ -34,12 +35,12 @@ class BackupRunResponse(BaseModel):
     finished_at: Optional[datetime] = None
 
 
-class BackupRunPageResponse(BaseModel):
+class BackupRunPageResponse(ResponseModel):
     items: list[BackupRunResponse]
     total: int
 
 
-class BackupStatsResponse(BaseModel):
+class BackupStatsResponse(ResponseModel):
     completed_count: int
     failed_count: int
     total_size_bytes: int

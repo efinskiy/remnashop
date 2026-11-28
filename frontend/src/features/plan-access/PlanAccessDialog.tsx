@@ -16,8 +16,9 @@ import { DialogHeader } from "@shared/ui/glass/DialogHeader";
 import { Field } from "@shared/ui/glass/Field";
 import { Tag } from "@shared/ui/Tag";
 import { Pressable } from "@shared/ui/Pressable";
+import { allValues } from "@shared/lib/all-values";
 
-const AVAILABILITIES: PlanAvailability[] = ["ALL", "NEW", "EXISTING", "INVITED", "ALLOWED", "LINK"];
+const AVAILABILITIES = allValues<PlanAvailability>()(["ALL", "NEW", "EXISTING", "INVITED", "ALLOWED", "LINK"]);
 
 interface PlanAccessDialogProps {
   plan: Plan;

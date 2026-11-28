@@ -37,13 +37,13 @@ async def test_create_and_list(event_log_repository: EventLogRepository) -> None
 async def test_list_filters_by_category(event_log_repository: EventLogRepository) -> None:
     await event_log_repository.create(_entry(category=EventCategory.AUTH))
     await event_log_repository.create(
-        _entry(category=EventCategory.ADMIN_MANAGEMENT, event_type="AdminCreatedEvent")
+        _entry(category=EventCategory.ADMIN_MANAGEMENT, event_type="AdminChangedEvent")
     )
 
     items, total = await event_log_repository.list(category=EventCategory.ADMIN_MANAGEMENT)
 
     assert total == 1
-    assert items[0].event_type == "AdminCreatedEvent"
+    assert items[0].event_type == "AdminChangedEvent"
 
 
 async def test_list_filters_by_search_login(
@@ -205,7 +205,9 @@ async def test_list_filters_by_target_id_and_event_type(
     await event_log_repository.create(
         _entry(event_type="UserPointsAdjustedEvent", target_id=first.id)
     )
-    await event_log_repository.create(_entry(event_type="UserBlockedEvent", target_id=first.id))
+    await event_log_repository.create(
+        _entry(event_type="UserBlockChangedEvent", target_id=first.id)
+    )
     await event_log_repository.create(
         _entry(event_type="UserPointsAdjustedEvent", target_id=second.id)
     )

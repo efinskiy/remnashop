@@ -393,6 +393,29 @@ async def test_delete_media_clears_fields_and_file(
     assert not media_path(media_config.media_dir, broadcast.id, 1, "jpg").exists()
 
 
+async def test_deleting_media_of_scheduled_returns_to_draft(
+    media_use_case: SetBroadcastMediaUseCase,
+    broadcast_repository: BroadcastRepository,
+    media_config: AppConfig,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    admin: UserDto,
+) -> None:
+    broadcast = await _make(broadcast_repository)
+    await media_use_case(admin, _photo(broadcast.id))
+    await set_broadcast(
+        broadcast_repository.session,
+        broadcast.id,
+        status=BroadcastStatus.SCHEDULED,
+        scheduled_at=datetime_now(),
+    )
+    cleared = await DeleteBroadcastMediaUseCase(
+        broadcast_repository, media_config, uow, event_publisher
+    )(admin, broadcast.id)
+    assert cleared.status is BroadcastStatus.DRAFT
+    assert cleared.scheduled_at is None
+
+
 async def test_delete_removes_media_file(
     delete_use_case: DeleteBroadcastUseCase,
     media_use_case: SetBroadcastMediaUseCase,
@@ -432,7 +455,10 @@ async def test_preview_counts_by_locale(
     b = await make_customer(user_repository, session, telegram_id=9202, language=Locale.EN)
     c = await make_customer(user_repository, session, telegram_id=9203, language=Locale.RU)
     preview = await PreviewBroadcastAudienceUseCase(
-        broadcast_repository, broadcast_recipient_repository, uow
+        broadcast_repository,
+        broadcast_recipient_repository,
+        uow,
+        SettingsRepository(broadcast_repository.session),
     )(
         admin,
         PreviewAudienceDto(

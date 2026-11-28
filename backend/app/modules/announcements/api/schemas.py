@@ -3,15 +3,17 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from app.core.dto import ResponseModel
 
-class SlideResponse(BaseModel):
+
+class SlideResponse(ResponseModel):
     image_url: Optional[str]
     text: dict[str, str]
     url: Optional[str]
     url_label: dict[str, str]
 
 
-class AnnouncementResponse(BaseModel):
+class AnnouncementResponse(ResponseModel):
     id: str
     icon: str
     severity: str
@@ -25,7 +27,7 @@ class AnnouncementResponse(BaseModel):
     seen: bool
 
 
-class AnnouncementListResponse(BaseModel):
+class AnnouncementListResponse(ResponseModel):
     items: list[AnnouncementResponse]
     total: int
 

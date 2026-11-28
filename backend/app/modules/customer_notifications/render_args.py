@@ -1,16 +1,47 @@
-from datetime import datetime, timezone
+from datetime import datetime, tzinfo
 from typing import Final, Optional, Union
 
-from app.core.constants import DATETIME_FORMAT, GB_TO_BYTES, MB_TO_BYTES
+from app.core.constants import DATE_FORMAT, DATETIME_FORMAT, GB_TO_BYTES, MB_TO_BYTES
 from app.core.enums import Locale
 from app.core.utils.money import format_money
 from app.modules.subscriptions import (
+    SubscriptionChangedEvent,
     SubscriptionGraceStartedEvent,
     SubscriptionGrantedEvent,
     SubscriptionTrafficThresholdEvent,
 )
 
 _MB_PER_GB: Final[int] = GB_TO_BYTES // MB_TO_BYTES
+# the text names the plan the subscription now has
+NAMES_PLAN: Final[frozenset[str]] = frozenset(
+    {SubscriptionGrantedEvent.__name__, SubscriptionChangedEvent.__name__}
+)
+
+
+# args that arrive as ISO moments and are shown as the shop's date, or date and time
+_DATE_ARGS: Final[dict[str, str]] = {
+    "grace_until": DATE_FORMAT,
+    "disable_date": DATE_FORMAT,
+    "reset_date": DATE_FORMAT,
+    "scheduled_at": DATETIME_FORMAT,
+    "next_attempt_at": DATETIME_FORMAT,
+}
+
+
+def shop_dates(args: dict[str, Union[str, int]], zone: tzinfo) -> dict[str, Union[str, int]]:
+    """Date args as the shop's day; a value already written as a date (a task queued
+    before this was) or "none" stays as it is."""
+    dated = dict(args)
+    for name, date_format in _DATE_ARGS.items():
+        value = args.get(name)
+        if not isinstance(value, str):
+            continue
+        try:
+            moment = datetime.fromisoformat(value)
+        except ValueError:
+            continue
+        dated[name] = moment.astimezone(zone).strftime(date_format)
+    return dated
 
 
 def customer_render_args(
@@ -27,7 +58,7 @@ def customer_render_args(
     minutes = args.get("minutes")
     if isinstance(minutes, int):
         rendered["span_unit"], rendered["span"] = "minute", minutes
-    if event_type == SubscriptionGrantedEvent.__name__:
+    if event_type in NAMES_PLAN:
         # a feed row stored before the plan name was has none
         rendered["has_plan_name"] = "yes" if args.get("plan_name") else "no"
     if event_type == SubscriptionTrafficThresholdEvent.__name__:
@@ -46,18 +77,4 @@ def customer_render_args(
             rendered["traffic_unit"], rendered["traffic_value"] = "mb", str(mb)
     if "amount" in args and "currency" in args:
         rendered["money"] = format_money(str(args["amount"]), str(args["currency"]), locale)
-    _format_instants(rendered)
     return rendered
-
-
-def _format_instants(rendered: dict[str, Union[str, int]]) -> None:
-    for key in ("scheduled_at", "next_attempt_at"):
-        value = rendered.get(key)
-        if isinstance(value, str) and value:
-            try:
-                instant = datetime.fromisoformat(value)
-                if instant.tzinfo is None:
-                    raise ValueError("A notification timestamp requires a timezone")
-                rendered[key] = f"{instant.astimezone(timezone.utc):{DATETIME_FORMAT}} UTC"
-            except ValueError:
-                rendered[key] = "—"

@@ -274,7 +274,7 @@ def test_retry_notice_shows_the_reason_and_actual_next_attempt():
     text = _auto_renew_block(state, hub.get_translator_by_locale(Locale.RU.value))
     assert "повторная оплата" in text
     assert "недостаточно средств" in text
-    assert "15.11.2026 13:00 UTC" in text
+    assert "15.11.2026 13:00." in text
 
 
 async def test_paused_subscription_keeps_the_withdrawal_button(monkeypatch):
@@ -345,6 +345,7 @@ def _device(hwid: str, name: Optional[str]) -> DeviceDto:
         app="Happ 2.1.0",
         user_agent="Happ/2.1.0/ios",
         created_at=datetime(2026, 11, 12, tzinfo=timezone.utc),
+        last_fetched_at=datetime(2026, 11, 20, tzinfo=timezone.utc),
     )
 
 

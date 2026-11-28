@@ -1,8 +1,8 @@
 from dataclasses import dataclass, field
+from enum import auto
 from typing import Any, ClassVar, Literal, Optional, TypeAlias
 
-from app.core.actor import Actor
-from app.core.enums import AddOnType, PanelSyncDirection, PurchaseType, SubscriptionStatus
+from app.core.enums import AddOnType, PurchaseType, SubscriptionStatus, UpperStrEnum
 from app.core.events import (
     ActorEvent,
     ActorTargetEvent,
@@ -26,6 +26,12 @@ SubscriptionEditAction: TypeAlias = Literal[
     "squads",
     "update",
 ]
+
+
+class PanelSyncDirection(UpperStrEnum):
+    FROM_PANEL = auto()
+    TO_PANEL = auto()
+
 
 StatusSyncSource: TypeAlias = Literal["admin_pull", "panel_sync", "webhook", "grace_sweep"]
 
@@ -65,10 +71,8 @@ class SubscriptionChangedEvent(UserEvent):
 
 
 @dataclass(frozen=True, kw_only=True)
-class SubscriptionAddOnGrantedEvent(UserEvent):
+class SubscriptionAddOnGrantedEvent(ActorTargetEvent):
     category: ClassVar[EventCategory] = EventCategory.SUBSCRIPTION
-    # the subscription's owner; `user` is the system actor on the promocode path
-    target: Optional[Actor]
     subscription_id: int
     addon_id: int
     addon_type: AddOnType
@@ -132,6 +136,21 @@ class SubscriptionExpiringEvent(UserEvent):
 class SubscriptionExpiredEvent(UserEvent):
     category: ClassVar[EventCategory] = EventCategory.SUBSCRIPTION
     subscription_id: int
+
+
+@dataclass(frozen=True, kw_only=True)
+class SubscriptionExpiryDisableWarningEvent(UserEvent):
+    category: ClassVar[EventCategory] = EventCategory.SUBSCRIPTION
+    subscription_id: int
+    # ISO 8601, as event payloads carry dates
+    disable_at: str
+
+
+@dataclass(frozen=True, kw_only=True)
+class SubscriptionExpiryDisabledEvent(SystemEvent):
+    category: ClassVar[EventCategory] = EventCategory.SUBSCRIPTION
+    subscription_id: int
+    user_id: int
 
 
 @dataclass(frozen=True, kw_only=True)

@@ -160,7 +160,7 @@ class AssignReferralRewardsUseCase(UseCase[AssignReferralRewardsDto, None]):
         # third subscription get here too, and FIRST_PAYMENT would pay for each.
         # A trial converted in place doesn't count, its row is a trial.
         if is_first_payment_only and (
-            await self._subscription_repository.has_paid_subscription_before(
+            await self._subscription_repository.has_bought_subscription_before(
                 data.user_id, data.subscription_id
             )
         ):
@@ -195,9 +195,7 @@ class AssignReferralRewardsUseCase(UseCase[AssignReferralRewardsDto, None]):
             if (
                 reward_type is ReferralRewardType.EXTRA_DAYS
                 and settings.days_require_paid_subscription
-                and not await self._subscription_repository.has_paid_subscription_before(
-                    hop.referrer_id
-                )
+                and not await self._subscription_repository.has_paid_subscription(hop.referrer_id)
             ):
                 logger.info(
                     f"Day reward skipped: referrer '{hop.referrer_id}' never paid for a plan"

@@ -11,7 +11,14 @@ from remnapy.enums import ErrorCode as RemnawaveErrorCode
 from remnapy.enums import UserStatus
 from remnapy.exceptions import ApiError as RemnawaveApiError
 from remnapy.exceptions import NotFoundError as RemnawaveNotFoundError
-from remnapy.models import CreateUserRequestDto, UpdateUserRequestDto, UserResponseDto
+from remnapy.models import (
+    CreateUserRequestDto,
+    DropByUserIds,
+    DropConnectionsRequestDto,
+    TargetAllNodes,
+    UpdateUserRequestDto,
+    UserResponseDto,
+)
 
 from app.core.constants import GB_TO_BYTES, INT32_MAX, INT64_MAX, MB_TO_BYTES, WEB_PREFIX
 from app.core.db.uow import UnitOfWork
@@ -200,6 +207,45 @@ def panel_refused(error: Exception) -> bool:
     return isinstance(error, RemnawaveApiError) and error.status_code in _REFUSAL_STATUSES
 
 
+async def drop_connections(remnawave_sdk: RemnawaveSDK, remnawave_user_id: int) -> None:
+    # nodes keep serving a disabled or reissued user over connections already open;
+    # the panel drops them asynchronously, and the cut-off itself already happened
+    try:
+        await remnawave_sdk.connections.drop_connections(
+            DropConnectionsRequestDto(
+                drop_by=DropByUserIds(user_ids=[remnawave_user_id]),
+                target_nodes=TargetAllNodes(),
+            )
+        )
+    except Exception:
+        logger.exception(f"Failed to drop connections of panel user '{remnawave_user_id}'")
+
+
+async def restore_expiry_switch_off(
+    sdk: RemnawaveSDK,
+    repository: SubscriptionRepository,
+    lifecycle: SubscriptionLifecycleService,
+    uow: UnitOfWork,
+    subscription: SubscriptionDto,
+) -> None:
+    """Best effort: a renewal or plan change of a subscription the expiry rule switched off
+    that didn't go through leaves it off, and still the rule's for the next payment."""
+    try:
+        await sdk.users.disable_user(subscription.remnawave_user_id)
+    except Exception as error:
+        # refused as already disabled: the row still has to say so
+        if not panel_refused(error):
+            logger.exception(f"Failed to disable subscription '{subscription.id}' again")
+            return
+    async with uow:
+        current = await repository.get_by_id_for_update(subscription.id)
+        if current.status is SubscriptionStatus.DELETED:
+            return
+        # turning it on for the payment may have synced it out of DISABLED already
+        await lifecycle.sync_status(subscription.id, SubscriptionStatus.DISABLED)
+        await repository.set_expiry_disabled_at(subscription.id, datetime_now())
+
+
 def restore(
     subscription: SubscriptionDto,
     owner: Optional[UserDto] = None,
@@ -272,6 +318,7 @@ def subscription_row(
     expire_at: Optional[datetime] = None,
     status: SubscriptionStatus = SubscriptionStatus.ACTIVE,
     term_anchor_day: Optional[int] = None,
+    replaced_paid: bool = False,
 ) -> CreateSubscriptionDto:
     plan = data.plan_snapshot
     return CreateSubscriptionDto(
@@ -290,6 +337,7 @@ def subscription_row(
         plan_snapshot=plan,
         panel_created_at=panel_user.created_at,
         term_anchor_day=term_anchor_day,
+        replaced_paid=replaced_paid,
     )
 
 

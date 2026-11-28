@@ -22,7 +22,6 @@ from app.core.enums import (
     BroadcastStatus,
     FulfillmentHold,
     Locale,
-    PanelSyncDirection,
     PlanType,
     Role,
     SubscriptionStatus,
@@ -53,6 +52,7 @@ from app.modules.plans.repository import PlanRepository
 from app.modules.settings import SettingsRepository
 from app.modules.settings.dto import BotStatusDto, UpdateBotSettingsDto
 from app.modules.subscriptions.dto import PanelSyncResultDto
+from app.modules.subscriptions.events import PanelSyncDirection
 from app.modules.subscriptions.panel_sync import finish_panel_sync
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.stats_repository import SubscriptionStatsRepository
@@ -155,6 +155,7 @@ async def _seed(
             remnawave_user_id=840_100 + n,
             status=SubscriptionStatus.ACTIVE,
             expire_at=now + delta,
+            price_paid=Decimal("100"),
         )
 
 
@@ -444,7 +445,7 @@ async def test_process_without_a_heartbeat_is_down(
     assert items["process_down"][0].severity == "critical"
 
 
-async def test_outbox_entry_waiting_over_five_minutes_is_stuck_unless_poisoned(
+async def test_outbox_entry_waiting_over_five_minutes_is_stuck_unless_poisoned_then_listed_apart(
     session: AsyncSession,
     settings_repository: SettingsRepository,
     uow: UnitOfWork,
@@ -466,6 +467,8 @@ async def test_outbox_entry_waiting_over_five_minutes_is_stuck_unless_poisoned(
     items = await _kinds(session, settings_repository, uow, redis_alive)
 
     assert items["outbox_stuck"][0].count == 1
+    [poisoned] = items["outbox_poisoned"]
+    assert (poisoned.count, poisoned.since) == (1, now - timedelta(minutes=30))
 
 
 async def test_smtp_failure_is_reported_per_profile(

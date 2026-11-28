@@ -73,7 +73,7 @@ async def test_list_event_log_passes_filters_through(
     await event_log_repository.create(
         EventLogEntryDto(
             category=EventCategory.ADMIN_MANAGEMENT,
-            event_type="AdminCreatedEvent",
+            event_type="AdminChangedEvent",
             occurred_at=datetime.datetime.now(datetime.timezone.utc),
             payload={},
         )
@@ -91,7 +91,7 @@ async def test_list_event_log_passes_filters_through(
     items, total = await use_case(OWNER, ListEventLogDto(category=EventCategory.ADMIN_MANAGEMENT))
 
     assert total == 1
-    assert items[0].event_type == "AdminCreatedEvent"
+    assert items[0].event_type == "AdminChangedEvent"
 
 
 async def test_list_event_log_masks_staff_ips_from_admins(

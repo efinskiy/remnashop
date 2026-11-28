@@ -1,16 +1,12 @@
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
-from app.core.enums import (
-    BroadcastButtonKind,
-    BroadcastCategory,
-    BroadcastMediaType,
-    BroadcastStatus,
-    Locale,
-)
+from app.core.enums import BroadcastCategory, BroadcastMediaType, BroadcastStatus, Locale
 from app.modules.broadcasts.dto import (
     BroadcastAudienceDto,
     BroadcastButtonDto,
+    BroadcastButtonKind,
     BroadcastContentDto,
     BroadcastDto,
     RecipientContextDto,
@@ -164,6 +160,14 @@ def test_outgoing_media_path_includes_the_version() -> None:
     media = outgoing_media(Path("/media"), broadcast)
     assert media is not None
     assert media.path == Path("/media/broadcasts/7_3.jpg")
+
+
+def test_expiry_date_is_the_shops_day() -> None:
+    # 22:30 UTC on the 7th is already the 8th in Moscow
+    late = datetime(2026, 10, 7, 22, 30, tzinfo=timezone.utc)
+    values = recipient_values(_ctx(expire_at=late), NOW, None, zone=ZoneInfo("Europe/Moscow"))
+
+    assert values["expire_date"] == "08.10.2026"
 
 
 def test_an_unlimited_subscription_has_no_expiry_variables() -> None:

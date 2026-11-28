@@ -1,8 +1,7 @@
 from collections import defaultdict
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, tzinfo
 from decimal import Decimal
 from typing import Final, Optional
-from zoneinfo import ZoneInfo
 
 from loguru import logger
 from redis.asyncio import Redis
@@ -10,7 +9,7 @@ from redis.asyncio import Redis
 from app.core.actor import Actor
 from app.core.constants import REDIS_KEY_PREFIX, TTL_7D, ZERO_AMOUNT
 from app.core.db.uow import UnitOfWork
-from app.core.enums import PurchaseType, Role
+from app.core.enums import PurchaseType, Role, SubscriptionStatus
 from app.core.ports import EventPublisher
 from app.core.usecase import UseCase
 from app.core.utils.money import round_cents
@@ -19,6 +18,7 @@ from app.modules.notifications import NotificationRepository
 from app.modules.overview.events import DailyReportEvent
 from app.modules.pricing import PricingRepository
 from app.modules.referrals import ReferralRepository
+from app.modules.settings import SettingsRepository
 from app.modules.subscriptions import SubscriptionStatsRepository
 from app.modules.transactions import TransactionStatsRepository
 from app.modules.users import UserStatsRepository
@@ -27,7 +27,7 @@ _SENT_KEY: Final[str] = f"{REDIS_KEY_PREFIX}daily_report_sent"
 _TOP_REFERRERS: Final[int] = 5
 
 
-def report_day(now: datetime, zone: ZoneInfo, hour: int) -> Optional[date]:
+def report_day(now: datetime, zone: tzinfo, hour: int) -> Optional[date]:
     """The local day to report on, when `now` falls in the configured local hour."""
     local = now.astimezone(zone)
     if local.hour != hour:
@@ -35,7 +35,7 @@ def report_day(now: datetime, zone: ZoneInfo, hour: int) -> Optional[date]:
     return local.date() - timedelta(days=1)
 
 
-def day_bounds(day: date, zone: ZoneInfo) -> tuple[datetime, datetime]:
+def day_bounds(day: date, zone: tzinfo) -> tuple[datetime, datetime]:
     start = datetime.combine(day, time(), tzinfo=zone)
     end = datetime.combine(day + timedelta(days=1), time(), tzinfo=zone)
     return start, end
@@ -55,7 +55,9 @@ class SendDailyReportUseCase(UseCase[None, None]):
         event_publisher: EventPublisher,
         redis: Redis,
         uow: UnitOfWork,
+        settings_repository: SettingsRepository,
     ) -> None:
+        self._settings_repository = settings_repository
         self._notification_repository = notification_repository
         self._user_stats = user_stats
         self._subscription_stats = subscription_stats
@@ -70,7 +72,7 @@ class SendDailyReportUseCase(UseCase[None, None]):
         now = datetime_now()
         async with self._uow:
             settings = await self._notification_repository.get_settings()
-        zone = ZoneInfo(settings.report_timezone)
+            zone = (await self._settings_repository.get_shop_settings()).zone
         day = report_day(now, zone, settings.daily_report_hour)
         if day is None:
             return
@@ -86,7 +88,7 @@ class SendDailyReportUseCase(UseCase[None, None]):
             raise
         logger.info(f"Daily report for {day} published")
 
-    async def _publish(self, day: date, zone: ZoneInfo, now: datetime) -> None:
+    async def _publish(self, day: date, zone: tzinfo, now: datetime) -> None:
         start, end = day_bounds(day, zone)
         async with self._uow:
             currency = (await self._pricing_repository.get_rate_table()).anchor
@@ -97,6 +99,9 @@ class SendDailyReportUseCase(UseCase[None, None]):
             payments = await self._transaction_stats.list_paid(start, end)
             subscriptions = await self._subscription_stats.overview_counts(now, now)
             never_connected = await self._subscription_stats.count_paying_never_connected()
+            active_paid = await self._subscription_stats.count_paying(
+                status=SubscriptionStatus.ACTIVE
+            )
             referrers = await self._referral_repository.top_referrers(start, end, _TOP_REFERRERS)
 
             counts: dict[PurchaseType, int] = defaultdict(int)
@@ -117,7 +122,7 @@ class SendDailyReportUseCase(UseCase[None, None]):
                     currency=currency.value,
                     revenue=str(round_cents(sum(amounts.values(), ZERO_AMOUNT))),
                     active_trials=subscriptions.active_trials,
-                    active_paid=subscriptions.paid_active,
+                    active_paid=active_paid,
                     purchases=counts[PurchaseType.NEW],
                     purchases_amount=str(round_cents(amounts[PurchaseType.NEW])),
                     renewals=counts[PurchaseType.RENEW],

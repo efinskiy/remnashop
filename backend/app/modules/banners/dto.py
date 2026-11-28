@@ -1,7 +1,16 @@
 from dataclasses import dataclass
+from enum import StrEnum, auto
 
 from app.core.dto import BaseDto, TimestampMixin
 from app.core.enums import Locale
+
+
+class BannerFormat(StrEnum):
+    JPG = auto()
+    JPEG = auto()
+    PNG = auto()
+    GIF = auto()
+    WEBP = auto()
 
 
 class BannerDto(BaseDto, TimestampMixin):

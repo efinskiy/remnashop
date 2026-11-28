@@ -41,7 +41,6 @@ from app.modules.notifications.usecases import (
 from app.modules.plans.usecases import (
     GetAddOnUseCase,
     GetPlanUseCase,
-    SetPlanDurationBasePriceUseCase,
 )
 from app.modules.promocodes.usecases import GetPromocodeUseCase
 from app.modules.recurring_payments.usecases import (
@@ -117,10 +116,6 @@ from app.modules.users.usecases import GetUserUseCase, SetUserDiscountUseCase
         (GetTransactionUseCase, Permission.TRANSACTIONS_DETAIL_VIEW),
         (FulfillTransactionUseCase, Permission.TRANSACTIONS_FULFILL),
         (CheckTransactionPaymentUseCase, Permission.TRANSACTIONS_PAYMENT_CHECK),
-        (
-            SetPlanDurationBasePriceUseCase,
-            Permission.PLANS_DURATION_BASE_PRICE_MANAGE,
-        ),
         (ListDialogWindowsUseCase, Permission.DIALOGS_WINDOWS_VIEW),
         (GetDialogCatalogUseCase, Permission.DIALOGS_CATALOG_VIEW),
         (UpdateDialogWindowUseCase, Permission.DIALOGS_WINDOWS_UPDATE),

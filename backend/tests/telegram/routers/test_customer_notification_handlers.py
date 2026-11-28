@@ -7,8 +7,11 @@ from aiogram.types import CallbackQuery
 from app.core.enums import PurchaseType
 from app.modules.users import UserDto
 from app.telegram.dialogs.context import SELECTED_SUBSCRIPTION_KEY
-from app.telegram.routers.customer_notifications.handlers import on_notification_renew
-from app.telegram.states import Purchase
+from app.telegram.routers.customer_notifications.handlers import (
+    on_notification_menu,
+    on_notification_renew,
+)
+from app.telegram.states import MainMenu, Purchase
 
 
 async def _press(data: str, subscriptions: list[Any]) -> dict[str, Any]:
@@ -42,3 +45,14 @@ async def test_renew_button_renews_only_an_owned_paid_subscription(
         else {"purchase_type": PurchaseType.NEW.value}
     )
     assert data == expected
+
+
+async def test_menu_button_opens_the_main_menu_without_starting_a_purchase() -> None:
+    callback = MagicMock(spec=CallbackQuery)
+    callback.answer = AsyncMock()
+    dialog_manager = MagicMock(start=AsyncMock())
+
+    await on_notification_menu(callback, dialog_manager)
+
+    (call,) = dialog_manager.start.await_args_list
+    assert call.args == (MainMenu.MAIN,)

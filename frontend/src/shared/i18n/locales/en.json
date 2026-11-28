@@ -11,6 +11,7 @@
     "continueButton": "Continue"
   },
   "common": {
+    "daysSuffix": "days",
     "today": "Today",
     "yesterday": "Yesterday",
     "cancel": "Cancel",
@@ -165,6 +166,14 @@
         "what": "Shop events have been waiting for processing for over 5 minutes.",
         "why": "Until the queue is processed, the event log is not updated, admin and customer notifications are not sent, referral rewards are not granted and loyalty discounts are not recalculated.",
         "fix": "The most likely cause is a stopped worker. If it is running, check its logs for event processing errors. Events are not lost and will be processed once the queue recovers."
+      },
+      "outboxPoisoned": {
+        "title": "Events failed to process",
+        "sub_one": "{{formatted}} event left unprocessed after 5 attempts",
+        "sub_other": "{{formatted}} events left unprocessed after 5 attempts",
+        "what": "Processing these events failed 5 times in a row, and the queue stopped retrying them.",
+        "why": "Until they are processed, what was meant to follow them has not run: admin and customer notifications, referral rewards, loyalty discount recalculation. Some of them may be missing from the event log too.",
+        "fix": "Find the error in the worker logs by the event type from the notification (“Event handler … failed” or “Failed to process outbox entry”) and report it to the developers. These events are not retried, so what they missed will not happen: grant a missed reward or subscription by hand. Hide the item once handled; it comes back if more events fail."
       },
       "panelUnavailable": {
         "title": "Connection to Remnawave lost",
@@ -716,7 +725,6 @@
       "categoryPayment": "Payments",
       "categoryBroadcast": "Broadcasts",
       "categoryInfrastructure": "Infrastructure",
-      "actor": "Initiator",
       "actorPlaceholder": "Name, @username, ID or email",
       "dateFrom": "From",
       "dateTo": "To"
@@ -773,41 +781,31 @@
       "OAuthLoginSucceededEvent": "Dashboard sign-in (OAuth)",
       "OAuthLoginFailedEvent": "Dashboard sign-in failed (OAuth)",
       "EmailCodeAttemptsExhaustedEvent": "Email code attempts exhausted",
-      "OAuthIdentityConnectedEvent": "OAuth account linked",
-      "OAuthIdentityDisconnectedEvent": "OAuth account unlinked",
+      "OAuthIdentityLinkedEvent": "OAuth account linked",
+      "OAuthIdentityUnlinkedEvent": "OAuth account unlinked",
       "SignInMethodLinkedEvent": "Sign-in method linked",
       "SignInMethodUnlinkedEvent": "Sign-in method unlinked",
       "SessionRevokedEvent": "Session revoked",
       "OtherSessionsRevokedEvent": "Other sessions revoked",
-      "SessionTheftDetectedEvent": "Session theft",
+      "SessionTheftDetectedEvent": "Session theft detected",
       "UserSessionRevokedByAdminEvent": "Session revoked by admin",
-      "AdminCreatedEvent": "Admin created",
-      "AdminPromotedEvent": "Admin appointed",
-      "AdminPermissionsUpdatedEvent": "Admin permissions changed",
-      "AdminDemotedEvent": "Admin demoted",
-      "AdminDeletedEvent": "Admin deleted",
-      "TelegramIdBoundEvent": "Telegram ID linked",
-      "TelegramIdUnboundEvent": "Telegram ID unlinked",
+      "AdminChangedEvent": "Admin changed",
+      "TelegramIdChangedEvent": "Telegram ID changed",
       "UserDeletedEvent": "User deleted",
       "CabinetUserRegisteredEvent": "Cabinet sign-up",
       "TelegramUserRegisteredEvent": "Bot sign-up",
-      "LocaleActivatedEvent": "Language added",
-      "LocaleDeactivatedEvent": "Language removed",
-      "DefaultLocaleChangedEvent": "Default language changed",
+      "LocaleChangedEvent": "Language changed",
       "AnchorSwitchedEvent": "Anchor currency changed",
       "UnratedAnchorAmountsRatedEvent": "Old payments converted at current rates",
       "BasePricesAdjustedEvent": "Base prices changed",
-      "ApiTokenCreatedEvent": "API token created",
-      "ApiTokenRevokedEvent": "API token revoked",
-      "BlacklistEntryAddedEvent": "Blacklist entry added",
-      "BlacklistEntryRemovedEvent": "Blacklist entry removed",
+      "ApiTokenChangedEvent": "API token changed",
+      "BlacklistEntryChangedEvent": "Blacklist entry changed",
       "BlacklistReconciledEvent": "Blacklist auto-block",
       "CurrencyRateChangedEvent": "Currency rate changed",
       "OidcIssuerChangedEvent": "OIDC issuer changed",
       "PasskeyLoginFailedEvent": "Dashboard sign-in failed (passkey)",
       "PasskeyLoginSucceededEvent": "Dashboard sign-in (passkey)",
-      "PasskeyRegisteredEvent": "Passkey added",
-      "PasskeyRemovedEvent": "Passkey removed",
+      "PasskeyChangedEvent": "Passkey changed",
       "PlanChangedEvent": "Plan changed",
       "BonusDaysRedeemedEvent": "Bonus days redeemed",
       "PromocodeActivatedEvent": "Promocode activated",
@@ -827,13 +825,12 @@
       "CabinetRegistrationBlockedEvent": "Cabinet sign-up blocked",
       "CabinetNewDeviceSignInEvent": "Cabinet sign-in from a new device",
       "AccountsMergedEvent": "Accounts merged",
-      "UserBlockedEvent": "User blocked",
+      "UserBlockChangedEvent": "User block changed",
       "UserPointsAdjustedEvent": "Points adjusted",
       "UserBonusDaysAdjustedEvent": "Bonus days adjusted",
       "UserPersonalDiscountChangedEvent": "Personal discount changed",
       "UserMarkupChangedEvent": "Markup changed",
       "UserPurchaseDiscountChangedEvent": "Purchase discount changed",
-      "UserUnblockedEvent": "User unblocked",
       "UserBotMenuResetEvent": "Customer’s bot menu reset",
       "UserEmailUndeliverableClearedEvent": "Undeliverable email mark cleared",
       "UserTrialAvailabilityChangedEvent": "Trial availability changed",
@@ -850,12 +847,9 @@
       "BackupFailedEvent": "Backup failed",
       "BonusDaysRenewalStuckEvent": "Bonus days not applied",
       "BroadcastChangedEvent": "Broadcast changed",
-      "BroadcastScheduledEvent": "Broadcast scheduled",
       "BroadcastStartedEvent": "Broadcast started",
       "BroadcastCompletedEvent": "Broadcast finished",
       "BroadcastFailedEvent": "Broadcast failed",
-      "BroadcastCanceledEvent": "Broadcast canceled",
-      "BroadcastRecalledEvent": "Broadcast recalled",
       "VapidKeysGeneratedEvent": "Push notification keys generated",
       "GatewayChangedEvent": "Payment gateway changed",
       "PricingSettingsChangedEvent": "Pricing settings changed",
@@ -865,6 +859,8 @@
       "SubscriptionExpiringEvent": "Subscription expiring",
       "SubscriptionExpiredEvent": "Subscription expired",
       "SubscriptionGraceStartedEvent": "Grace period started",
+      "SubscriptionExpiryDisableWarningEvent": "Customer warned of expired subscription switch-off",
+      "SubscriptionExpiryDisabledEvent": "Expired subscription switched off",
       "SubscriptionTrafficLimitedEvent": "Traffic limit reached",
       "SubscriptionTrafficThresholdEvent": "Traffic threshold reached",
       "SubscriptionPlanChangedByAdminEvent": "Subscription plan changed by admin",
@@ -901,7 +897,7 @@
       "TorrentBlockerReportEvent": "Torrent traffic blocked",
       "NodeConnectionLostEvent": "Connection to node lost",
       "NodeConnectionRestoredEvent": "Connection to node restored",
-      "NodeTrafficReachedEvent": "Node traffic limit reached",
+      "NodeTrafficReachedEvent": "Node reached its traffic limit",
       "NodeBillingDueEvent": "Node payment due",
       "PanelStartedEvent": "Remnawave started",
       "PanelLoginFailedEvent": "Remnawave sign-in failed",
@@ -912,6 +908,7 @@
       "RemnawaveVersionMismatchEvent": "Unsupported Remnawave version",
       "SystemHealthDegradedEvent": "Critical system state",
       "SystemHealthRestoredEvent": "System state restored",
+      "OutboxEntryPoisonedEvent": "Event failed to process",
       "BotStartedEvent": "Bot started",
       "BotStoppedEvent": "Bot stopped",
       "TelegramWebhookFailedEvent": "Telegram webhook error",
@@ -922,7 +919,6 @@
       "TransactionExpiredEvent": "Unpaid order expired",
       "MarketingOptOutChangedEvent": "Marketing consent changed",
       "BotBlockedByUserEvent": "Bot blocked by user",
-      "PasskeyRenamedEvent": "Passkey renamed",
       "AdLinkAttributedEvent": "Ad link visit",
       "BackupCompletedEvent": "Backup completed",
       "DailyReportEvent": "Daily report",
@@ -935,6 +931,10 @@
     },
     "eventVariants": {
       "trialActivated": "Trial activated",
+      "SubscriptionPurchasedEvent": {
+        "RENEW": "Subscription renewed",
+        "CHANGE": "Subscription plan changed"
+      },
       "CabinetUserRegisteredEvent": {
         "EMAIL": "Cabinet sign-up (Email)",
         "GOOGLE": "Cabinet sign-up (Google)",
@@ -964,11 +964,11 @@
       "BannerChangedEvent": {
         "upload": "Banner uploaded",
         "delete": "Banner deleted",
-        "reset_default": "Banner reset"
+        "reset": "Banner reset"
       },
       "BlacklistSourceChangedEvent": {
-        "add": "Blacklist source added",
-        "remove": "Blacklist source removed",
+        "create": "Blacklist source added",
+        "delete": "Blacklist source removed",
         "enable": "Blacklist source enabled",
         "disable": "Blacklist source disabled",
         "sync": "Blacklist synced"
@@ -981,7 +981,10 @@
         "set_media": "Broadcast media changed",
         "delete_media": "Broadcast media removed",
         "add_email_image": "Email image added",
-        "duplicate": "Broadcast copied"
+        "duplicate": "Broadcast copied",
+        "schedule": "Broadcast scheduled",
+        "cancel": "Broadcast canceled",
+        "recall": "Broadcast recalled"
       },
       "ConnectGuideChangedEvent": {
         "update": "Connect guide changed",
@@ -1081,6 +1084,39 @@
         "import": "Translations imported",
         "reset": "Translation reset",
         "reset_all": "All translations reset"
+      },
+      "LocaleChangedEvent": {
+        "activate": "Language added",
+        "deactivate": "Language removed",
+        "set_default": "Default language changed"
+      },
+      "BlacklistEntryChangedEvent": {
+        "create": "Blacklist entry added",
+        "delete": "Blacklist entry removed"
+      },
+      "AdminChangedEvent": {
+        "create": "Admin created",
+        "promote": "Admin appointed",
+        "demote": "Admin demoted",
+        "delete": "Admin deleted",
+        "permissions": "Admin permissions changed"
+      },
+      "UserBlockChangedEvent": {
+        "block": "User blocked",
+        "unblock": "User unblocked"
+      },
+      "PasskeyChangedEvent": {
+        "create": "Passkey added",
+        "delete": "Passkey removed",
+        "rename": "Passkey renamed"
+      },
+      "ApiTokenChangedEvent": {
+        "create": "API token created",
+        "delete": "API token revoked"
+      },
+      "TelegramIdChangedEvent": {
+        "link": "Telegram ID linked",
+        "unlink": "Telegram ID unlinked"
       }
     }
   },
@@ -1161,7 +1197,6 @@
     "empty": "No users",
     "noMatches": "Nothing found",
     "filters": {
-      "search": "Search",
       "searchPlaceholder": "Name, ID or email",
       "blockedByAll": "Blocked: all",
       "blockedByManual": "Blocked manually",
@@ -1640,11 +1675,21 @@
         "MB": "MB",
         "GB": "GB"
       },
-      "durationLabel": "Duration, days",
+      "durationLabel": "Duration",
       "internalSquadsHint": "Leave empty to keep the subscription’s own squads.",
       "externalSquadHint": "“None” keeps the subscription’s own external squad.",
       "tagHint": "Leave empty to keep the subscription’s tag. Capital Latin letters, digits and “_”.",
       "durationUnlimited": "No end"
+    },
+    "expiryDisable": {
+      "title": "Switching off expired subscriptions",
+      "description": "Cuts access off completely when a subscription stays unrenewed",
+      "enabledLabel": "Switch off expired subscriptions",
+      "enabledHint": "The given number of days after a subscription ends (after the grace period, if there was one), the customer’s panel profile is disabled. The panel may still give an expired profile limited access; a disabled one gets nothing. The link and devices stay: a renewal or plan change turns the profile back on.\n\nTo the customer the subscription stays expired, with a renew button. A renewal doesn’t turn on a subscription an admin disabled. A subscription the rule switched off and an admin turned back on is left alone until it expires again.",
+      "afterDaysLabel": "Switch off after",
+      "afterDaysHint": "Counted from the subscription’s end, or from the grace period’s end if there was one.",
+      "warnDaysLabel": "Warn the customer before",
+      "warnDaysHint": "The customer gets a Telegram or email message with the date and a renew button. 0 means no warning. Subscriptions already past their switch-off date when the rule is turned on get no warning: they are switched off at once."
     },
     "shop": {
       "title": "Subscriptions and limits",
@@ -1705,7 +1750,8 @@
         "SEVERPAY": "Must match the merchant currency. Defaults to RUB.",
         "CLOUDPAYMENTS": "Defaults to RUB.",
         "PAYPALYCH": "Must match the shop currency. Defaults to RUB.",
-        "CISPAY": "USD means crypto (USDT) only. Defaults to RUB: the customer picks SBP, card or crypto on the cisPay page."
+        "CISPAY": "USD means crypto (USDT) only. Defaults to RUB: the customer picks SBP, card or crypto on the cisPay page.",
+        "PAY_2328": "Defaults to RUB."
       },
       "channels": {
         "title": "Availability channels",
@@ -1766,6 +1812,7 @@
         "ROLLYPAY": "RollyPay",
         "ANTILOPAY": "Antilopay",
         "AURAPAY": "AuraPay",
+        "PAY_2328": "2328.io",
         "CISPAY": "cisPay",
         "CLOUDPAYMENTS": "CloudPayments",
         "LAVA": "Lava",
@@ -1789,6 +1836,7 @@
         "payment_system_id": "Payment system ID",
         "private_key": "Private key",
         "project_id": "Project ID",
+        "project_uuid": "Project UUID",
         "public_id": "Public ID",
         "public_key": "Public key",
         "require_paid_purchase": "Only after a paid purchase",
@@ -1847,11 +1895,11 @@
       "confirm": "Push subscriptions will be deleted for everyone, both admins and customers. This can’t be undone. Until someone turns push back on on their device, they won’t get push notifications there. Emails and Telegram messages keep arriving as usual.",
       "generated": "Keys generated."
     },
-    "dailyReport": {
-      "title": "Daily report",
-      "description": "Sent to admins who turned on “Reports” in their profile",
-      "timezone": "Time zone",
-      "hour": "Send at"
+    "time": {
+      "title": "Time zone and daily report",
+      "description": "Day boundaries on the overview, in analytics and in the report, and when the report is sent",
+      "timezone": "Shop time zone",
+      "reportHour": "Report sent at"
     },
     "access": {
       "title": "Service availability",
@@ -3114,8 +3162,6 @@
       "description": "Locales, notifications, errors and other messages",
       "languages": "Languages · {{total}}",
       "defaultLanguageHint": "★ marks the default language: users whose language isn’t enabled get it.",
-      "localeSource": "source · {{total}}",
-      "localeTranslated": "{{translated}} / {{total}}",
       "importConfirm": "Replace the translations with this file? Strings of active locales are overwritten, the rest are skipped.",
       "imported": "Imported {{applied}} strings, skipped {{skipped}}.",
       "importInvalid": "This file is not a translations export.",
@@ -3176,9 +3222,6 @@
         "referrals": "Referrals",
         "custom": "Custom"
       },
-      "seedBadge": "built-in",
-      "disabledBadge": "off",
-      "unlinkedBadge": "unlinked",
       "windows": {
         "menu": {
           "main": "Main menu",
@@ -3274,7 +3317,6 @@
         "symbols": "Symbols",
         "flags": "Flags"
       },
-      "dirtyTitle": "Unsaved changes",
       "disabledNote": "The window is off: the bot doesn’t show it.",
       "unlinkedNote": "No button leads to this window, so users can’t reach it.",
       "bannerHintShared": "The shared banner is one for every window; the file is for “{{locale}}”.",
@@ -3425,7 +3467,6 @@
       "level": "Level {{level}}",
       "levelBadge": "Lvl {{level}}",
       "levelHint": "Users at level {{level}}: {{count}}",
-      "search": "User",
       "searchPlaceholder": "Name, @username, ID or email",
       "rewardStatusAll": "All statuses",
       "rewardStatusWith": "With rewards",
@@ -3732,7 +3773,6 @@
       }
     },
     "delete": {
-      "button": "Delete plan",
       "confirmTitle": "Delete plan?",
       "confirm": "Permanently delete “{{name}}”? This cannot be undone. Promocodes limited to this plan alone will be disabled.",
       "error": "Failed to delete the plan."
@@ -3991,6 +4031,7 @@
     "trial": "Trial",
     "grace": "Grace period",
     "graceUntil": "Grace period until {{date}}",
+    "disabledByExpiry": "Switched off after expiry",
     "unlimited": "Unlimited",
     "trafficUnlimited": "Traffic ∞",
     "devicesUnlimited": "Devices ∞",
@@ -3998,7 +4039,6 @@
     "devicesCount_other": "{{count}} devices",
     "until": "until {{date}}",
     "filters": {
-      "search": "Search",
       "searchPlaceholder": "Subscription ID, user ID, tag or plan",
       "all": "All statuses"
     },
@@ -4126,6 +4166,16 @@
     },
     "devices": {
       "empty": "No connected devices",
+      "added": "Added {{date}}",
+      "details": {
+        "hwid": "HWID",
+        "app": "App",
+        "platform": "Platform",
+        "model": "Model",
+        "userAgent": "User-Agent",
+        "added": "Added",
+        "lastFetched": "Last request"
+      },
       "deleted": "Device deleted.",
       "deleteAll": "Delete all devices",
       "deleteAllTitle": "Delete all devices?",
@@ -4379,7 +4429,7 @@
         "dialogHeader": "Every glass dialog’s header: icon or glyph, subtitle, danger/warning tone, actions, close.",
         "modal": "Dialog shell: sm and lg.",
         "confirm": "Confirmation: regular and destructive.",
-        "fieldHint": "Hint icon by a label: up, down, at the right edge.",
+        "fieldHint": "Hint icon by a label: up, down, at the right edge; long text opens wider.",
         "tooltip": "Label for a button or badge on hover, from any side.",
         "actionMenu": "Row actions menu in a list.",
         "popover": "Menu shells: glass (1.5 and 3 padding) and solid — emoji and toasts.",
@@ -4472,6 +4522,8 @@
         "error": "Failed to load plans.",
         "copy": "Copy",
         "hintShort": "A short hint.",
+        "hintWide": "Long, wider",
+        "hintParagraph": "A hint over 150 characters — a paragraph or two — opens wider, up to 448px: at 256px it would stretch into a narrow column.\n\nShort hints keep to their text’s width, up to 256px.",
         "hintLong": "The new interval counts from the last successful backup. A shorter interval means more backups and more disk space.",
         "hintTop": "Up (default)",
         "hintBottom": "Down",
@@ -4905,6 +4957,7 @@
     "SESSION_AUDIENCE_MISMATCH": "This session can’t be used here. Sign in again.",
     "SESSION_NOT_FOUND": "Session not found.",
     "GRACE_SETTINGS_INVALID": "The grace period settings are invalid.",
+    "EXPIRY_DISABLE_SETTINGS_INVALID": "The settings for switching off expired subscriptions are invalid.",
     "SHOP_SUBSCRIPTION_LIMIT_INVALID": "The limit must be positive, or empty for unlimited.",
     "SUBSCRIPTION_DELETED": "The subscription has been deleted.",
     "SUBSCRIPTION_DISABLED": "This subscription is disabled.",
@@ -5314,7 +5367,12 @@
       "reasons": {
         "noTelegram": "No Telegram account",
         "optedOut": "Opted out of promotional broadcasts",
-        "blocked": "Blocked by an admin",
+        "blocked": "Account blocked",
+        "noEmail": "No email address",
+        "undeliverable": "Mailbox refuses delivery",
+        "botBlocked": "Blocked the bot",
+        "userGone": "Account deleted",
+        "noDetails": "No details",
         "recallFailed": "Recall failed: {{reason}}"
       },
       "params": {

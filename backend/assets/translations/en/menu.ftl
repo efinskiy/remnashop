@@ -554,6 +554,7 @@ gateway-name =
     .CLOUDPAYMENTS = CloudPayments
     .PAYPEAR = PayPear
     .CISPAY = cisPay
+    .PAY_2328 = 2328.io
 
 ntf-referrals =
     .disabled = ❌ The referral program isn't running right now.
@@ -710,8 +711,8 @@ frg-subscription-recurring-retrying = <b>Auto-renewal enabled, awaiting another 
 frg-subscription-recurring-pending = <b>Automatic payment is being processed</b>. Awaiting YooKassa confirmation. Disabling stops new charges; a submitted payment may still complete.
 frg-subscription-recurring-in-flight = <b>The automatic payment was sent to YooKassa</b> and may still complete. Disabling auto-renewal stops only future charges.
 frg-subscription-recurring-reason = Reason: { $reason }.
-frg-subscription-recurring-next-retry = Next payment attempt: { $when } UTC.
-frg-subscription-recurring-next-check = Next payment check: { $when } UTC.
+frg-subscription-recurring-next-retry = Next payment attempt: { $when }.
+frg-subscription-recurring-next-check = Next payment check: { $when }.
 
 frg-purchase-recurring-preserved = A one-time payment does not cancel previously enabled auto-renewal. You can disable it in your subscription settings.
 

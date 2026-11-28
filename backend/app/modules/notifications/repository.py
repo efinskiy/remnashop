@@ -1,6 +1,6 @@
-from typing import Final, Optional
+from typing import Optional
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,8 +15,6 @@ from app.modules.notifications.dto import (
     PushSubscriptionDto,
     UpdateNotificationSettingsDto,
 )
-
-_MAX_PUSH_FAILURES: Final[int] = 3
 
 
 class NotificationRepository:
@@ -49,8 +47,6 @@ class NotificationRepository:
         row = await get_or_create_singleton(self.session, NotificationSettings, SINGLETON_ID)
         if data.vapid_contact is not None:
             row.vapid_contact = data.vapid_contact or None
-        if data.report_timezone is not None:
-            row.report_timezone = data.report_timezone
         if data.daily_report_hour is not None:
             row.daily_report_hour = data.daily_report_hour
         await self.session.flush()
@@ -125,11 +121,20 @@ class NotificationRepository:
             row.last_seen_at = datetime_now()
             await self.session.flush()
 
-    async def record_push_failure(self, subscription_id: int, *, gone: bool) -> None:
+    async def record_push_failure(self, subscription_id: int) -> int:
+        """Failures in a row so far, 0 when the subscription is gone."""
+        # in SQL: two sends to one device failing at once both count
+        failures = await self.session.scalar(
+            update(PushSubscription)
+            .where(PushSubscription.id == subscription_id)
+            .values(failure_count=PushSubscription.failure_count + 1)
+            .returning(PushSubscription.failure_count)
+            .execution_options(synchronize_session="fetch")
+        )
+        return failures or 0
+
+    async def drop_push_subscription(self, subscription_id: int) -> None:
         row = await self.session.get(PushSubscription, subscription_id)
-        if row is None:
-            return
-        row.failure_count += 1
-        if gone or row.failure_count >= _MAX_PUSH_FAILURES:
+        if row is not None:
             await self.session.delete(row)
-        await self.session.flush()
+            await self.session.flush()

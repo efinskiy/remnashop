@@ -54,6 +54,7 @@ PROMOCODE_START_PREFIX: Final[str] = "promo_"
 CUSTOMER_NOTIFICATION_CLOSE_CALLBACK: Final[str] = "cn:close"
 CUSTOMER_NOTIFICATION_RENEW_PREFIX: Final[str] = "cn:renew:"
 CUSTOMER_NOTIFICATION_BUY_CALLBACK: Final[str] = "cn:buy"
+CUSTOMER_NOTIFICATION_MENU_CALLBACK: Final[str] = "cn:menu"
 CUSTOMER_NOTIFICATION_REVOKE_SESSIONS_CALLBACK: Final[str] = "cn:revoke-sessions"
 
 REDIS_KEY_PREFIX: Final[str] = "remnashop:"
@@ -144,6 +145,10 @@ MB_TO_BYTES: Final[int] = 1024**2
 GRACE_ENTRY_WINDOW: Final[timedelta] = timedelta(hours=24)
 # switching grace on alone must not hand out indefinite grace (0 days)
 GRACE_DEFAULT_DURATION_DAYS: Final[int] = 3
+EXPIRY_DISABLE_DEFAULT_AFTER_DAYS: Final[int] = 7
+EXPIRY_DISABLE_DEFAULT_WARN_DAYS: Final[int] = 2
+# ten years: far enough for "practically never", short of a date overflow
+EXPIRY_DISABLE_MAX_DAYS: Final[int] = 3650
 
 # what Remnawave accepts as a user tag (CreateUserRequestDto.tag); a plan's tag goes
 # onto every panel user it provisions

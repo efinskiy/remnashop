@@ -25,11 +25,13 @@ from app.modules.subscriptions.eligibility import (
     get_owned_target,
 )
 from app.modules.subscriptions.events import (
+    PanelSyncDirection,
     SubscriptionAddOnGrantedEvent,
     SubscriptionChangedEvent,
     SubscriptionExpiredAgoEvent,
     SubscriptionExpiredEvent,
     SubscriptionExpiringEvent,
+    SubscriptionExpiryDisableWarningEvent,
     SubscriptionGraceStartedEvent,
     SubscriptionGrantedEvent,
     SubscriptionNotConnectedEvent,
@@ -57,7 +59,6 @@ from app.modules.subscriptions.ports import (
     PaidOrderHold,
     RecurringPaymentCloser,
     ReferrerLookup,
-    SpentPurchaseDiscount,
 )
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.rollback import PurchaseRollbackService
@@ -109,6 +110,7 @@ __all__ = [
     "OrderFailer",
     "PaidOrderHold",
     "PanelSquadCatalog",
+    "PanelSyncDirection",
     "PanelTrafficUsage",
     "PlanCatalogDto",
     "PlanSnapshot",
@@ -126,13 +128,13 @@ __all__ = [
     "RenameDeviceDto",
     "RenameDeviceUseCase",
     "RollbackPreviewDto",
-    "SpentPurchaseDiscount",
     "SubscriptionAddOnGrantedEvent",
     "SubscriptionChangedEvent",
     "SubscriptionDto",
     "SubscriptionExpiredAgoEvent",
     "SubscriptionExpiredEvent",
     "SubscriptionExpiringEvent",
+    "SubscriptionExpiryDisableWarningEvent",
     "SubscriptionGraceStartedEvent",
     "SubscriptionGrantedEvent",
     "SubscriptionNotConnectedEvent",

@@ -4,9 +4,8 @@ from typing import Final
 
 import httpx
 
-from app.core.enums import BlacklistKind
 from app.core.utils.http import assert_public_https_host
-from app.modules.blacklist.dto import ParsedSourceList
+from app.modules.blacklist.dto import BlacklistKind, ParsedSourceList
 from app.modules.blacklist.normalize import normalize_identity
 
 _TIMEOUT_S: Final[float] = 10.0

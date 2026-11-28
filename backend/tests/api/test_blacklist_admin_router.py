@@ -6,9 +6,11 @@ import httpx
 import pytest
 from dishka import AsyncContainer
 from fastapi import FastAPI
+from sqlalchemy import select
 
 from app.core.config import AppConfig
 from app.core.constants import API_V1
+from app.core.db.models import EventOutboxEntry
 from app.core.db.uow import UnitOfWork
 from app.core.enums import Locale, Role, SessionAudience
 from app.core.security import create_access_token, hash_password, hash_refresh_token
@@ -93,6 +95,30 @@ async def test_add_and_list_entry(
     list_response = await client.get(f"{API_V1}/blacklist", headers=headers)
     assert list_response.status_code == 200
     assert list_response.json()["telegram_ids"] == [42]
+
+
+async def test_admin_write_records_the_request_address(
+    client: httpx.AsyncClient,
+    user_repository: UserRepository,
+    session_repository: SessionRepository,
+    uow: UnitOfWork,
+    config: AppConfig,
+) -> None:
+    headers = await _owner_headers(user_repository, session_repository, uow, config)
+    headers["X-Forwarded-For"] = "203.0.113.9"
+
+    response = await client.put(f"{API_V1}/blacklist/entries/TELEGRAM_ID/77", headers=headers)
+    assert response.status_code == 200
+
+    row = (
+        await uow.session.scalars(
+            select(EventOutboxEntry).where(
+                EventOutboxEntry.event_type == "BlacklistEntryChangedEvent"
+            )
+        )
+    ).one()
+    assert row.payload["action"] == "create"
+    assert row.ip_address == "203.0.113.9"
 
 
 async def test_remove_entry(

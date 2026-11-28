@@ -29,10 +29,11 @@ import { StatusPill } from "@shared/ui/glass/StatusPill";
 import { PillTabs } from "@shared/ui/PillTabs";
 import { SaveFooter } from "@shared/ui/SaveFooter";
 import { Spinner } from "@shared/ui/Spinner";
+import { allValues } from "@shared/lib/all-values";
 
 const MIN_RATE = 1;
 const MAX_RATE = 1000;
-const SECURITY_OPTIONS: SmtpSecurity[] = ["STARTTLS", "TLS", "NONE"];
+const SECURITY_OPTIONS = allValues<SmtpSecurity>()(["STARTTLS", "TLS", "NONE"]);
 const MAX_PORT = 65535;
 type LabelField = "host" | "port" | "security" | "username" | "password" | "fromAddress" | "fromName";
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;

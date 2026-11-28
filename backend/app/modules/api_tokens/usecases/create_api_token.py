@@ -12,7 +12,7 @@ from app.modules.api_tokens.dto import (
     CreatedApiTokenDto,
     IssueApiTokenDto,
 )
-from app.modules.api_tokens.events import ApiTokenCreatedEvent
+from app.modules.api_tokens.events import ApiTokenChangedEvent
 from app.modules.api_tokens.repository import ApiTokenRepository
 
 
@@ -49,8 +49,12 @@ class CreateApiTokenUseCase(UseCase[IssueApiTokenDto, CreatedApiTokenDto]):
                 )
             )
             await self._event_publisher.publish(
-                ApiTokenCreatedEvent(
-                    actor=actor, token_id=token.id, name=token.name, ip_address=data.client_ip
+                ApiTokenChangedEvent(
+                    actor=actor,
+                    action="create",
+                    token_id=token.id,
+                    name=token.name,
+                    ip_address=data.client_ip,
                 )
             )
 

@@ -1,61 +1,20 @@
 import { apiGet, apiPost } from "@shared/api/http";
+import type { ApiSchema } from "@shared/api/schemas";
+import { allValues } from "@shared/lib/all-values";
 
-export type RecurringState = "enabled" | "disabled" | "pending" | "retrying" | "attention";
+export type RecurringState = ApiSchema<"RecurringState">;
 
-export const RECURRING_STATES: readonly RecurringState[] = ["attention", "pending", "retrying", "enabled", "disabled"];
+export const RECURRING_STATES = allValues<RecurringState>()(["attention", "pending", "retrying", "enabled", "disabled"]);
 
 const RECURRING_PAGE_SIZE = 25;
 
-export interface RecurringPaymentItem {
-  subscription_id: number;
-  user_id: number;
-  user_name: string | null;
-  plan_name: string;
-  enabled: boolean;
-  customer_disabled: boolean;
-  state: RecurringState;
-  last_error: string | null;
-  next_attempt_at: string | null;
-  submitted_at: string | null;
-  pending_transaction_id: number | null;
-  external_payment_id: string | null;
-  can_check: boolean;
-  can_close: boolean;
-  can_retry: boolean;
-  retry_count: number;
-  first_failure_at: string | null;
-  amount_limit: string | null;
-  currency: string | null;
-  duration_days: number | null;
-  has_saved_method: boolean;
-  expire_at: string;
-}
+export type RecurringPaymentItem = ApiSchema<"RecurringPaymentAdminItemResponse">;
 
-export interface RecurringPaymentSummary {
-  total: number;
-  enabled: number;
-  disabled: number;
-  pending: number;
-  retrying: number;
-  attention: number;
-  paid_renewals: number;
-  failed_renewals: number;
-  revenue: string;
-  currency: string;
-}
+export type RecurringPaymentSummary = ApiSchema<"RecurringPaymentSummaryResponse">;
 
-export interface RecurringPaymentPage {
-  items: RecurringPaymentItem[];
-  total: number;
-}
+type RecurringPaymentPage = ApiSchema<"RecurringPaymentPageResponse">;
 
-export interface RecurringConsent {
-  channel: "BOT" | "CABINET";
-  accepted_at: string;
-  revoked_at: string | null;
-  revoked_channel: string | null;
-  terms: { text: string; amount_limit: string; currency: string; duration_days: number; max_overdue_hours: number };
-}
+export type RecurringConsent = ApiSchema<"RecurringConsentResponse">;
 
 export type RecurringAction = "check" | "close" | "retry";
 
@@ -84,7 +43,7 @@ export function runRecurringAction(
   action: RecurringAction,
   expectedPendingId: number | null,
 ): Promise<void> {
-  return apiPost<void, { expected_pending_transaction_id: number | null }>(
+  return apiPost<void, ApiSchema<"RecurringAdminActionRequest">>(
     `/transactions/recurring/${subscriptionId}/actions/${action}`,
     { expected_pending_transaction_id: expectedPendingId },
   );

@@ -9,6 +9,7 @@ import { EmptyState } from "@shared/ui/glass/EmptyState";
 import { FieldHint } from "@shared/ui/FieldHint";
 import { PURCHASE_TYPE_BAR_CLASS } from "@features/user-details/purchase-type";
 import { addTerm, DAY_MS } from "@shared/lib/period";
+import { allValues } from "@shared/lib/all-values";
 
 const UNLIMITED_TAIL_DAYS = 30;
 
@@ -16,7 +17,7 @@ const UNLIMITED_TAIL_DAYS = 30;
 const MIN_LABEL_PCT = 10;
 const MAX_MONTH_TICKS = 8;
 
-const LEGEND_TYPES: readonly PurchaseType[] = ["NEW", "RENEW", "CHANGE"];
+const LEGEND_TYPES = allValues<PurchaseType>()(["NEW", "RENEW", "CHANGE"]);
 
 // one lane per row of bars: a bar's label sits above it, the next lane starts right under it
 const LANE_PX = 44;

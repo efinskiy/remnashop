@@ -1,21 +1,39 @@
 from dataclasses import dataclass
-from enum import auto
+from datetime import tzinfo
+from enum import StrEnum, auto
 from typing import Optional
 from uuid import UUID
 
 from pydantic import Field, SecretStr
 from remnapy.enums import TrafficLimitStrategy
 
-from app.core.constants import DEFAULT_ALLOWED_EMAIL_DOMAINS, GRACE_DEFAULT_DURATION_DAYS
-from app.core.dto import BaseDto, TimestampMixin
-from app.core.enums import (
-    AccessMode,
-    AppearanceTarget,
-    CaptchaProvider,
-    OAuthProvider,
-    SmtpSecurity,
-    UpperStrEnum,
+from app.core.constants import (
+    DEFAULT_ALLOWED_EMAIL_DOMAINS,
+    EXPIRY_DISABLE_DEFAULT_AFTER_DAYS,
+    EXPIRY_DISABLE_DEFAULT_WARN_DAYS,
+    GRACE_DEFAULT_DURATION_DAYS,
 )
+from app.core.dto import BaseDto, TimestampMixin
+from app.core.enums import AccessMode, CaptchaProvider, OAuthProvider, SmtpSecurity, UpperStrEnum
+from app.core.utils.time import time_zone
+
+
+class AppearanceTarget(StrEnum):
+    DASHBOARD = auto()
+    CABINET = auto()
+
+
+class AppearanceImageFormat(StrEnum):
+    JPG = auto()
+    PNG = auto()
+    WEBP = auto()
+    SVG = auto()
+
+
+class AppearanceImageKind(StrEnum):
+    LOGO = auto()
+    FAVICON = auto()
+    APP_ICON = auto()
 
 
 class BotSettingsDto(BaseDto, TimestampMixin):
@@ -77,12 +95,22 @@ class ShopSettingsDto(BaseDto, TimestampMixin):
     payment_email: Optional[str] = None
     plan_change_credit_enabled: bool = True
     plan_change_traffic_cap_enabled: bool = True
+    timezone: str = "UTC"
+
+    @property
+    def zone(self) -> tzinfo:
+        return time_zone(self.timezone)
 
     @property
     def support_link(self) -> Optional[str]:
         if self.support_telegram:
             return f"https://t.me/{self.support_telegram}"
         return self.support_url
+
+
+@dataclass(frozen=True, kw_only=True)
+class ShopTimezoneDto:
+    timezone: str
 
 
 class GraceSettingsDto(BaseDto, TimestampMixin):
@@ -93,6 +121,9 @@ class GraceSettingsDto(BaseDto, TimestampMixin):
     traffic_limit_strategy: TrafficLimitStrategy = TrafficLimitStrategy.NO_RESET
     tag: Optional[str] = None
     duration_days: int = GRACE_DEFAULT_DURATION_DAYS
+    expiry_disable_enabled: bool = False
+    expiry_disable_after_days: int = EXPIRY_DISABLE_DEFAULT_AFTER_DAYS
+    expiry_disable_warn_days: int = EXPIRY_DISABLE_DEFAULT_WARN_DAYS
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -132,6 +163,7 @@ class UpdateShopSettingsDto:
     payment_email: Optional[str] = None
     plan_change_credit_enabled: Optional[bool] = None
     plan_change_traffic_cap_enabled: Optional[bool] = None
+    timezone: Optional[str] = None
     fields_set: frozenset[str] = frozenset()
 
 
@@ -145,6 +177,9 @@ class UpdateGraceSettingsDto:
     traffic_limit_strategy: Optional[TrafficLimitStrategy] = None
     tag: Optional[str] = None
     duration_days: Optional[int] = None
+    expiry_disable_enabled: Optional[bool] = None
+    expiry_disable_after_days: Optional[int] = None
+    expiry_disable_warn_days: Optional[int] = None
     fields_set: frozenset[str] = frozenset()
 
 

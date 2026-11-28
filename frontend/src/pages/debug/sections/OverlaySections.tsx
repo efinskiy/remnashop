@@ -218,6 +218,10 @@ export function HintsSection() {
           <span className="text-sm text-foreground/80">{k("s.hintEnd")}</span>
           <FieldHint text={long} side="bottom" align="end" />
         </div>
+        <span className="flex items-center gap-1.5 text-sm font-medium text-foreground/80">
+          {k("s.hintWide")}
+          <FieldHint text={k("s.hintParagraph")} side="bottom" />
+        </span>
       </Specimen>
       <Specimen name='Tooltip side="…"' usage={k("u.tooltip")} wide>
         <div className="flex flex-wrap items-center justify-center gap-6 px-24 py-8">

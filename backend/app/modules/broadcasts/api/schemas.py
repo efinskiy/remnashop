@@ -3,6 +3,7 @@ from typing import Optional
 
 from pydantic import AwareDatetime, BaseModel, Field
 
+from app.core.dto import ResponseModel
 from app.core.enums import (
     BroadcastCategory,
     BroadcastChannel,
@@ -35,7 +36,7 @@ class BroadcastRequest(BaseModel):
     email_contents: dict[Locale, BroadcastEmailContentDto] = {}
 
 
-class BroadcastResponse(BaseModel):
+class BroadcastResponse(ResponseModel):
     id: int
     title: Optional[str] = None
     status: BroadcastStatus
@@ -69,18 +70,18 @@ class BroadcastResponse(BaseModel):
     updated_at: Optional[datetime] = None
 
 
-class BroadcastEmailImageResponse(BaseModel):
+class BroadcastEmailImageResponse(ResponseModel):
     id: int
     content_type: str
     size_bytes: int
 
 
-class BroadcastPageResponse(BaseModel):
+class BroadcastPageResponse(ResponseModel):
     items: list[BroadcastResponse]
     total: int
 
 
-class BroadcastRecipientResponse(BaseModel):
+class BroadcastRecipientResponse(ResponseModel):
     id: int
     user_id: int
     channel: BroadcastChannel
@@ -95,7 +96,7 @@ class BroadcastRecipientResponse(BaseModel):
     language: Locale
 
 
-class BroadcastRecipientPageResponse(BaseModel):
+class BroadcastRecipientPageResponse(ResponseModel):
     items: list[BroadcastRecipientResponse]
     total: int
 
@@ -107,7 +108,7 @@ class PreviewAudienceRequest(BaseModel):
     email_fallback: bool = False
 
 
-class AudiencePreviewResponse(BaseModel):
+class AudiencePreviewResponse(ResponseModel):
     total: int
     by_locale: dict[Locale, int]
     by_channel: dict[BroadcastChannel, int]
@@ -122,7 +123,7 @@ class SendTestBroadcastEmailRequest(BaseModel):
     to: str = Field(pattern=r"^[^@\s]+@[^@\s]+$", max_length=255)
 
 
-class BroadcastEmailPreviewResponse(BaseModel):
+class BroadcastEmailPreviewResponse(ResponseModel):
     subject: str
     html: str
     text: str
@@ -132,7 +133,7 @@ class SendBroadcastRequest(BaseModel):
     scheduled_at: Optional[AwareDatetime] = None
 
 
-class BroadcastSummaryResponse(BaseModel):
+class BroadcastSummaryResponse(ResponseModel):
     by_status: dict[BroadcastStatus, int]
     next_scheduled_at: Optional[datetime] = None
     delivered_30d: int

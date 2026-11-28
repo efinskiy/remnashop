@@ -1,11 +1,12 @@
 from collections.abc import Sequence
-from datetime import date, datetime
+from datetime import date, datetime, tzinfo
 from decimal import Decimal
-from typing import Optional, cast
+from typing import Optional
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.constants import TIMEZONE
 from app.core.db.models.user import User
 from app.core.enums import Role
 from app.modules.users.dto import UserCountsDto, UserListStatsDto
@@ -63,13 +64,12 @@ class UserStatsRepository:
         ).one()
         return UserCountsDto(total=row[0], new=row[1])
 
-    async def earliest_registration(self, role: Role) -> Optional[date]:
+    async def earliest_registration(self, role: Role, zone: tzinfo = TIMEZONE) -> Optional[date]:
+        # the zone is applied here, not by Postgres, whose zone names may lag Python's
         earliest = await self.session.scalar(
-            select(func.min(func.date(func.timezone("UTC", User.created_at)))).where(
-                User.role == role
-            )
+            select(func.min(User.created_at)).where(User.role == role)
         )
-        return cast(Optional[date], earliest)
+        return earliest.astimezone(zone).date() if earliest is not None else None
 
     async def balance_totals(self) -> tuple[Decimal, int]:
         """Points and bonus days customers hold, not yet spent."""

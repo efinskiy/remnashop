@@ -68,6 +68,7 @@ from app.modules.plans.dto import (
 )
 from app.modules.plans.repository import PlanRepository
 from app.modules.pricing import PricingRepository
+from app.modules.promocodes.availability import PromocodeLivenessCheck
 from app.modules.promocodes.dto import CreatePromocodeDto, UpdatePromocodeDto
 from app.modules.promocodes.repository import PromocodeRepository
 from app.modules.referrals import ReferralRepository
@@ -194,7 +195,7 @@ def create_checkout_use_case(
             make_eligibility(plan_repository.session),
             pricing_repository,
             uow,
-            promocode_repository,
+            PromocodeLivenessCheck(promocode_repository),
             subscription_repository,
             SettingsRepository(plan_repository.session),
             make_change_credit_calculator(plan_repository.session, remnawave_sdk),
@@ -479,7 +480,7 @@ async def test_concurrent_free_checkouts_stop_at_the_cap(
                 make_eligibility(session),
                 PricingRepository(session),
                 uow,
-                PromocodeRepository(session),
+                PromocodeLivenessCheck(PromocodeRepository(session)),
                 SubscriptionRepository(session),
                 SettingsRepository(session),
                 # a fixed-term checkout never reads the panel for its credit
@@ -1551,6 +1552,27 @@ async def test_create_checkout_renew_refuses_a_disabled_subscription(
     assert error.value.code is ErrorCode.SUBSCRIPTION_DISABLED
 
 
+async def test_create_checkout_renews_a_subscription_the_expiry_rule_switched_off(
+    create_checkout_use_case: CreateCheckoutUseCase,
+    _active_yookassa: None,
+    actor: UserDto,
+    plan: PlanDto,
+    subscription_repository: SubscriptionRepository,
+) -> None:
+    subscription_id = await _seed_subscription(
+        subscription_repository, user_id=actor.id, remnawave_user_id=820_111, plan_id=plan.id
+    )
+    await subscription_repository.session.execute(
+        update(Subscription)
+        .where(Subscription.id == subscription_id)
+        .values(status=SubscriptionStatus.DISABLED, expiry_disabled_at=datetime_now())
+    )
+
+    result = await create_checkout_use_case(actor, _renew_dto(plan, subscription_id))
+
+    assert result.order_id > 0
+
+
 async def test_create_checkout_refuses_to_renew_an_unlimited_subscription(
     create_checkout_use_case: CreateCheckoutUseCase,
     _active_yookassa: None,
@@ -1836,7 +1858,7 @@ async def test_checkout_with_payments_off_refuses_and_waitlists_the_buyer(
         assert error.value.code is ErrorCode.PAYMENTS_DISABLED
 
     async with uow:
-        assert await waitlist_repository.claim_batch(100, set()) == [actor.id]
+        assert await waitlist_repository.claim_batch(100) == [actor.id]
 
 
 async def test_payments_gate_fires_before_pricing_for_a_full_discount_order(

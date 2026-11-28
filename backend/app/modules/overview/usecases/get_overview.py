@@ -18,7 +18,7 @@ from app.core.runtime_heartbeat import (
 from app.core.security.permissions import Permission, PermissionPolicy
 from app.core.usecase import UseCase
 from app.core.utils.money import round_cents
-from app.core.utils.time import datetime_now
+from app.core.utils.time import datetime_now, day_start
 from app.modules.overview.dto import (
     HostMemoryDto,
     HostStatsDto,
@@ -30,6 +30,7 @@ from app.modules.overview.dto import (
     RuntimeProcessDto,
 )
 from app.modules.pricing import PricingRepository
+from app.modules.settings import SettingsRepository
 from app.modules.subscriptions import SubscriptionStatsRepository
 from app.modules.transactions import TransactionStatsRepository
 from app.modules.users import UserRepository, UserStatsRepository
@@ -51,7 +52,9 @@ class GetOverviewUseCase(UseCase[None, OverviewDto]):
         pricing_repository: PricingRepository,
         redis: Redis,
         uow: UnitOfWork,
+        settings_repository: SettingsRepository,
     ) -> None:
+        self._settings_repository = settings_repository
         self._user_stats = user_stats
         self._subscription_stats = subscription_stats
         self._transaction_stats = transaction_stats
@@ -62,8 +65,9 @@ class GetOverviewUseCase(UseCase[None, OverviewDto]):
 
     async def _execute(self, actor: Actor, data: None) -> OverviewDto:
         perms = PermissionPolicy.effective_permissions(actor)
-        today_start = datetime_now().replace(hour=0, minute=0, second=0, microsecond=0)
         async with self._uow:
+            zone = (await self._settings_repository.get_shop_settings()).zone
+            today_start = day_start(datetime_now(), zone)
             users = await self._users(today_start) if Permission.USERS_VIEW in perms else None
             subscriptions = (
                 await self._subscriptions(today_start)
@@ -113,7 +117,8 @@ class GetOverviewUseCase(UseCase[None, OverviewDto]):
         today = sum(
             (r.anchor_final_price for r in paid if r.paid_at >= today_start), start=ZERO_AMOUNT
         )
-        same_time_cutoff = now - timedelta(days=1)
+        # a wall-clock day back, so a DST switch doesn't stretch yesterday's window
+        same_time_cutoff = now.astimezone(today_start.tzinfo) - timedelta(days=1)
         yesterday = sum(
             (r.anchor_final_price for r in paid if r.paid_at < same_time_cutoff),
             start=ZERO_AMOUNT,

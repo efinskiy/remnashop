@@ -11,6 +11,7 @@
     "continueButton": "Продолжить"
   },
   "common": {
+    "daysSuffix": "дн.",
     "today": "Сегодня",
     "yesterday": "Вчера",
     "cancel": "Отмена",
@@ -171,6 +172,16 @@
         "what": "События магазина ожидают обработки более 5 минут.",
         "why": "Пока очередь не обрабатывается, журнал событий не пополняется, уведомления администраторам и клиентам не отправляются, награды за приглашения не начисляются, скидки лояльности не пересчитываются.",
         "fix": "Наиболее вероятная причина — остановлен worker. Если он работает, проверьте его логи на ошибки обработки событий. События не теряются и будут обработаны после восстановления очереди."
+      },
+      "outboxPoisoned": {
+        "title": "События не обработаны",
+        "sub_one": "{{formatted}} событие не обработано за 5 попыток",
+        "sub_few": "{{formatted}} события не обработаны за 5 попыток",
+        "sub_many": "{{formatted}} событий не обработано за 5 попыток",
+        "sub_other": "{{formatted}} события не обработаны за 5 попыток",
+        "what": "Обработка этих событий 5 раз подряд завершилась ошибкой, и очередь перестала их повторять.",
+        "why": "Пока события не обработаны, не выполнено то, что должно было за ними последовать: уведомления администраторам и клиентам, награды за приглашения, пересчёт скидок лояльности. Часть из них может отсутствовать и в журнале событий.",
+        "fix": "Найдите ошибку в логах worker по типу события из уведомления («Event handler … failed» или «Failed to process outbox entry») и сообщите о ней разработчикам. Эти события не повторяются, и то, что за ними не выполнилось, уже не наступит: пропущенную награду или подписку выдайте вручную. Разобравшись, скройте пункт — он вернётся, если появятся новые."
       },
       "panelUnavailable": {
         "title": "Соединение с Remnawave потеряно",
@@ -786,7 +797,6 @@
       "categoryPayment": "Платежи",
       "categoryBroadcast": "Рассылки",
       "categoryInfrastructure": "Инфраструктура",
-      "actor": "Инициатор",
       "actorPlaceholder": "Имя, @username, ID или email",
       "dateFrom": "С",
       "dateTo": "По"
@@ -843,41 +853,31 @@
       "OAuthLoginSucceededEvent": "Вход в панель управления (OAuth)",
       "OAuthLoginFailedEvent": "Неудачный вход в панель управления (OAuth)",
       "EmailCodeAttemptsExhaustedEvent": "Попытки ввода кода из письма исчерпаны",
-      "OAuthIdentityConnectedEvent": "OAuth-аккаунт привязан",
-      "OAuthIdentityDisconnectedEvent": "OAuth-аккаунт отвязан",
+      "OAuthIdentityLinkedEvent": "OAuth-аккаунт привязан",
+      "OAuthIdentityUnlinkedEvent": "OAuth-аккаунт отвязан",
       "SignInMethodLinkedEvent": "Способ входа привязан",
       "SignInMethodUnlinkedEvent": "Способ входа отвязан",
       "SessionRevokedEvent": "Сессия отозвана",
       "OtherSessionsRevokedEvent": "Другие сессии отозваны",
-      "SessionTheftDetectedEvent": "Кража сессии",
+      "SessionTheftDetectedEvent": "Обнаружена кража сессии",
       "UserSessionRevokedByAdminEvent": "Сессия отозвана администратором",
-      "AdminCreatedEvent": "Администратор создан",
-      "AdminPromotedEvent": "Администратор назначен",
-      "AdminPermissionsUpdatedEvent": "Права администратора изменены",
-      "AdminDemotedEvent": "Администратор понижен",
-      "AdminDeletedEvent": "Администратор удалён",
-      "TelegramIdBoundEvent": "Telegram ID привязан",
-      "TelegramIdUnboundEvent": "Telegram ID отвязан",
+      "AdminChangedEvent": "Администратор изменён",
+      "TelegramIdChangedEvent": "Telegram ID изменён",
       "UserDeletedEvent": "Пользователь удалён",
       "CabinetUserRegisteredEvent": "Регистрация в кабинете",
       "TelegramUserRegisteredEvent": "Регистрация в боте",
-      "LocaleActivatedEvent": "Язык добавлен",
-      "LocaleDeactivatedEvent": "Язык удалён",
-      "DefaultLocaleChangedEvent": "Язык по умолчанию изменён",
+      "LocaleChangedEvent": "Язык изменён",
       "AnchorSwitchedEvent": "Опорная валюта изменена",
       "UnratedAnchorAmountsRatedEvent": "Старые оплаты пересчитаны по курсу",
       "BasePricesAdjustedEvent": "Базовые цены изменены",
-      "ApiTokenCreatedEvent": "API-токен создан",
-      "ApiTokenRevokedEvent": "API-токен отозван",
-      "BlacklistEntryAddedEvent": "Запись добавлена в чёрный список",
-      "BlacklistEntryRemovedEvent": "Запись удалена из чёрного списка",
+      "ApiTokenChangedEvent": "API-токен изменён",
+      "BlacklistEntryChangedEvent": "Запись чёрного списка изменена",
       "BlacklistReconciledEvent": "Автоблокировка по чёрному списку",
       "CurrencyRateChangedEvent": "Курс валюты изменён",
       "OidcIssuerChangedEvent": "OIDC-издатель изменён",
       "PasskeyLoginFailedEvent": "Неудачный вход в панель управления (Passkey)",
       "PasskeyLoginSucceededEvent": "Вход в панель управления (Passkey)",
-      "PasskeyRegisteredEvent": "Passkey добавлен",
-      "PasskeyRemovedEvent": "Passkey удалён",
+      "PasskeyChangedEvent": "Passkey изменён",
       "PlanChangedEvent": "План изменён",
       "BonusDaysRedeemedEvent": "Бонусные дни потрачены",
       "PromocodeActivatedEvent": "Промокод активирован",
@@ -897,13 +897,12 @@
       "CabinetRegistrationBlockedEvent": "Регистрация в кабинете заблокирована",
       "CabinetNewDeviceSignInEvent": "Вход в кабинет с нового устройства",
       "AccountsMergedEvent": "Аккаунты объединены",
-      "UserBlockedEvent": "Пользователь заблокирован",
+      "UserBlockChangedEvent": "Блокировка пользователя изменена",
       "UserPointsAdjustedEvent": "Баллы изменены",
       "UserBonusDaysAdjustedEvent": "Бонусные дни изменены",
       "UserPersonalDiscountChangedEvent": "Персональная скидка изменена",
       "UserMarkupChangedEvent": "Наценка изменена",
       "UserPurchaseDiscountChangedEvent": "Скидка на покупку изменена",
-      "UserUnblockedEvent": "Пользователь разблокирован",
       "UserBotMenuResetEvent": "Меню бота клиента сброшено",
       "UserEmailUndeliverableClearedEvent": "Отметка о недоставке почты снята",
       "UserTrialAvailabilityChangedEvent": "Доступ к пробному периоду изменён",
@@ -920,12 +919,9 @@
       "BackupFailedEvent": "Ошибка резервного копирования",
       "BonusDaysRenewalStuckEvent": "Бонусные дни не применены",
       "BroadcastChangedEvent": "Рассылка изменена",
-      "BroadcastScheduledEvent": "Рассылка запланирована",
       "BroadcastStartedEvent": "Рассылка запущена",
       "BroadcastCompletedEvent": "Рассылка завершена",
       "BroadcastFailedEvent": "Ошибка рассылки",
-      "BroadcastCanceledEvent": "Рассылка отменена",
-      "BroadcastRecalledEvent": "Рассылка отозвана",
       "VapidKeysGeneratedEvent": "Ключи push-уведомлений сгенерированы",
       "GatewayChangedEvent": "Платёжный шлюз изменён",
       "PricingSettingsChangedEvent": "Настройки цен изменены",
@@ -935,6 +931,8 @@
       "SubscriptionExpiringEvent": "Подписка скоро истечёт",
       "SubscriptionExpiredEvent": "Подписка истекла",
       "SubscriptionGraceStartedEvent": "Начался грейс-период",
+      "SubscriptionExpiryDisableWarningEvent": "Клиент предупреждён об отключении истёкшей подписки",
+      "SubscriptionExpiryDisabledEvent": "Истёкшая подписка отключена",
       "SubscriptionTrafficLimitedEvent": "Лимит трафика исчерпан",
       "SubscriptionTrafficThresholdEvent": "Порог трафика достигнут",
       "SubscriptionPlanChangedByAdminEvent": "План подписки изменён администратором",
@@ -971,7 +969,7 @@
       "TorrentBlockerReportEvent": "Торрент-трафик заблокирован",
       "NodeConnectionLostEvent": "Соединение с узлом потеряно",
       "NodeConnectionRestoredEvent": "Соединение с узлом восстановлено",
-      "NodeTrafficReachedEvent": "Лимит трафика узла исчерпан",
+      "NodeTrafficReachedEvent": "Узел достиг лимита трафика",
       "NodeBillingDueEvent": "Подходит срок оплаты узла",
       "PanelStartedEvent": "Панель Remnawave запущена",
       "PanelLoginFailedEvent": "Неудачный вход в панель Remnawave",
@@ -982,6 +980,7 @@
       "RemnawaveVersionMismatchEvent": "Неподдерживаемая версия Remnawave",
       "SystemHealthDegradedEvent": "Критическое состояние системы",
       "SystemHealthRestoredEvent": "Состояние системы восстановлено",
+      "OutboxEntryPoisonedEvent": "Событие не обработано",
       "BotStartedEvent": "Бот запущен",
       "BotStoppedEvent": "Бот остановлен",
       "TelegramWebhookFailedEvent": "Ошибка вебхука Telegram",
@@ -992,7 +991,6 @@
       "TransactionExpiredEvent": "Неоплаченный заказ истёк",
       "MarketingOptOutChangedEvent": "Согласие на рекламу изменено",
       "BotBlockedByUserEvent": "Бот заблокирован пользователем",
-      "PasskeyRenamedEvent": "Passkey переименован",
       "AdLinkAttributedEvent": "Переход по рекламной ссылке",
       "BackupCompletedEvent": "Резервная копия создана",
       "DailyReportEvent": "Ежедневный отчёт",
@@ -1005,6 +1003,10 @@
     },
     "eventVariants": {
       "trialActivated": "Пробная подписка активирована",
+      "SubscriptionPurchasedEvent": {
+        "RENEW": "Подписка продлена",
+        "CHANGE": "План подписки изменён"
+      },
       "CabinetUserRegisteredEvent": {
         "EMAIL": "Регистрация в кабинете (Email)",
         "GOOGLE": "Регистрация в кабинете (Google)",
@@ -1036,11 +1038,11 @@
       "BannerChangedEvent": {
         "upload": "Баннер загружен",
         "delete": "Баннер удалён",
-        "reset_default": "Баннер сброшен"
+        "reset": "Баннер сброшен"
       },
       "BlacklistSourceChangedEvent": {
-        "add": "Источник чёрного списка добавлен",
-        "remove": "Источник чёрного списка удалён",
+        "create": "Источник чёрного списка добавлен",
+        "delete": "Источник чёрного списка удалён",
         "enable": "Источник чёрного списка включён",
         "disable": "Источник чёрного списка выключен",
         "sync": "Чёрный список синхронизирован"
@@ -1053,7 +1055,10 @@
         "set_media": "Медиа рассылки изменено",
         "delete_media": "Медиа рассылки удалено",
         "add_email_image": "Картинка письма добавлена",
-        "duplicate": "Создана копия рассылки"
+        "duplicate": "Создана копия рассылки",
+        "schedule": "Рассылка запланирована",
+        "cancel": "Рассылка отменена",
+        "recall": "Рассылка отозвана"
       },
       "ConnectGuideChangedEvent": {
         "update": "Инструкция подключения изменена",
@@ -1153,6 +1158,39 @@
         "import": "Переводы импортированы",
         "reset": "Перевод сброшен",
         "reset_all": "Все переводы сброшены"
+      },
+      "LocaleChangedEvent": {
+        "activate": "Язык добавлен",
+        "deactivate": "Язык удалён",
+        "set_default": "Язык по умолчанию изменён"
+      },
+      "BlacklistEntryChangedEvent": {
+        "create": "Запись добавлена в чёрный список",
+        "delete": "Запись удалена из чёрного списка"
+      },
+      "AdminChangedEvent": {
+        "create": "Администратор создан",
+        "promote": "Администратор назначен",
+        "demote": "Администратор понижен",
+        "delete": "Администратор удалён",
+        "permissions": "Права администратора изменены"
+      },
+      "UserBlockChangedEvent": {
+        "block": "Пользователь заблокирован",
+        "unblock": "Пользователь разблокирован"
+      },
+      "PasskeyChangedEvent": {
+        "create": "Passkey добавлен",
+        "delete": "Passkey удалён",
+        "rename": "Passkey переименован"
+      },
+      "ApiTokenChangedEvent": {
+        "create": "API-токен создан",
+        "delete": "API-токен отозван"
+      },
+      "TelegramIdChangedEvent": {
+        "link": "Telegram ID привязан",
+        "unlink": "Telegram ID отвязан"
       }
     }
   },
@@ -1233,7 +1271,6 @@
     "empty": "Нет пользователей",
     "noMatches": "Ничего не найдено",
     "filters": {
-      "search": "Поиск",
       "searchPlaceholder": "Имя, ID или email",
       "blockedByAll": "Блокировка: все",
       "blockedByManual": "Заблокирован вручную",
@@ -1722,11 +1759,21 @@
         "MB": "МБ",
         "GB": "ГБ"
       },
-      "durationLabel": "Длительность, дней",
+      "durationLabel": "Длительность",
       "internalSquadsHint": "Оставьте пустым, чтобы сохранить сквады подписки.",
       "externalSquadHint": "«Нет» сохраняет внешний сквад подписки.",
       "tagHint": "Оставьте пустым, чтобы сохранить тег подписки. Латинские заглавные буквы, цифры и «_».",
       "durationUnlimited": "Бессрочно"
+    },
+    "expiryDisable": {
+      "title": "Отключение истёкших подписок",
+      "description": "Полностью выключает доступ, если подписку долго не продлевают",
+      "enabledLabel": "Отключать истёкшие подписки",
+      "enabledHint": "Через заданное число дней после окончания подписки (если был льготный период — после его конца) профиль клиента в панели выключается. Истёкшему профилю панель может отдавать ограниченный доступ, выключенному — ничего. Ссылка и устройства сохраняются: продление или смена тарифа включают профиль обратно.\n\nДля клиента подписка остаётся истёкшей, с кнопкой продления. Подписку, которую отключил администратор, продление не включает. Если включить отключённую правилом подписку вручную, правило не тронет её до следующего истечения.",
+      "afterDaysLabel": "Отключать через",
+      "afterDaysHint": "Считается от окончания подписки, а если был льготный период — от его конца.",
+      "warnDaysLabel": "Предупредить клиента за",
+      "warnDaysHint": "Клиент получит сообщение в Telegram или на почту с датой отключения и кнопкой продления. 0 — без предупреждения. Тем, у кого срок отключения уже прошёл к моменту включения правила, предупреждение не придёт: их подписки отключатся сразу."
     },
     "shop": {
       "title": "Подписки и лимиты",
@@ -1787,7 +1834,8 @@
         "SEVERPAY": "Должна совпадать с валютой мерчанта. Если пусто — RUB.",
         "CLOUDPAYMENTS": "Если пусто — RUB.",
         "PAYPALYCH": "Должна совпадать с валютой магазина. Если пусто — RUB.",
-        "CISPAY": "USD — только оплата криптовалютой (USDT). Если пусто — RUB: покупатель сам выбирает СБП, карту или криптовалюту на странице cisPay."
+        "CISPAY": "USD — только оплата криптовалютой (USDT). Если пусто — RUB: покупатель сам выбирает СБП, карту или криптовалюту на странице cisPay.",
+        "PAY_2328": "Если пусто — RUB."
       },
       "channels": {
         "title": "Каналы доступности",
@@ -1848,6 +1896,7 @@
         "ROLLYPAY": "RollyPay",
         "ANTILOPAY": "Antilopay",
         "AURAPAY": "AuraPay",
+        "PAY_2328": "2328.io",
         "CISPAY": "cisPay",
         "CLOUDPAYMENTS": "CloudPayments",
         "LAVA": "Lava",
@@ -1871,6 +1920,7 @@
         "payment_system_id": "ID платёжной системы",
         "private_key": "Приватный ключ",
         "project_id": "ID проекта",
+        "project_uuid": "UUID проекта",
         "public_id": "Публичный ID",
         "public_key": "Публичный ключ",
         "require_paid_purchase": "Только после оплаченной покупки",
@@ -1929,11 +1979,11 @@
       "confirm": "Подписки на push будут удалены у всех: и у администраторов, и у клиентов. Отменить это нельзя. Пока человек заново не включит push на своём устройстве, уведомления на него приходить не будут. Письма и сообщения в Telegram продолжат приходить как обычно.",
       "generated": "Ключи сгенерированы."
     },
-    "dailyReport": {
-      "title": "Ежедневный отчёт",
-      "description": "Приходит администраторам, включившим «Отчёты» в профиле",
-      "timezone": "Часовой пояс",
-      "hour": "Время отправки"
+    "time": {
+      "title": "Часовой пояс и ежедневный отчёт",
+      "description": "Границы дней в обзоре, аналитике и отчёте и время отправки отчёта",
+      "timezone": "Часовой пояс магазина",
+      "reportHour": "Время отправки отчёта"
     },
     "access": {
       "title": "Доступность сервиса",
@@ -3208,8 +3258,6 @@
       "description": "Локали, уведомления, ошибки и прочие сообщения",
       "languages": "Языки · {{total}}",
       "defaultLanguageHint": "★ — язык по умолчанию: его получают пользователи, чей язык не включён.",
-      "localeSource": "исходник · {{total}}",
-      "localeTranslated": "{{translated}} из {{total}}",
       "importConfirm": "Заменить переводы значениями из файла? Строки активных локалей будут перезаписаны, остальные пропущены.",
       "imported": "Импортировано строк: {{applied}}, пропущено: {{skipped}}.",
       "importInvalid": "Этот файл — не выгрузка переводов.",
@@ -3270,9 +3318,6 @@
         "referrals": "Рефералы",
         "custom": "Свои окна"
       },
-      "seedBadge": "системное",
-      "disabledBadge": "выключено",
-      "unlinkedBadge": "не связано",
       "windows": {
         "menu": {
           "main": "Главное меню",
@@ -3368,7 +3413,6 @@
         "symbols": "Знаки",
         "flags": "Флаги"
       },
-      "dirtyTitle": "Несохранённые изменения",
       "disabledNote": "Окно выключено: в боте его не видно.",
       "unlinkedNote": "Ни одна кнопка не ведёт в это окно — пользователь до него не доберётся.",
       "bannerHintShared": "Общий баннер один на все окна, файл — для языка «{{locale}}».",
@@ -3521,7 +3565,6 @@
       "level": "Уровень {{level}}",
       "levelBadge": "Ур. {{level}}",
       "levelHint": "Пользователей на уровне {{level}}: {{count}}",
-      "search": "Пользователь",
       "searchPlaceholder": "Имя, @username, ID или email",
       "rewardStatusAll": "Все статусы",
       "rewardStatusWith": "С наградами",
@@ -3840,7 +3883,6 @@
       }
     },
     "delete": {
-      "button": "Удалить план",
       "confirmTitle": "Удалить план?",
       "confirm": "Безвозвратно удалить план «{{name}}»? Это действие нельзя отменить. Промокоды, ограниченные только этим планом, будут выключены.",
       "error": "Не удалось удалить план."
@@ -4105,6 +4147,7 @@
     "trial": "Пробная",
     "grace": "Льготный период",
     "graceUntil": "Льготный период до {{date}}",
+    "disabledByExpiry": "Отключена после истечения",
     "unlimited": "Без ограничений",
     "trafficUnlimited": "Трафик ∞",
     "devicesUnlimited": "Устройства ∞",
@@ -4114,7 +4157,6 @@
     "devicesCount_other": "{{count}} устройства",
     "until": "до {{date}}",
     "filters": {
-      "search": "Поиск",
       "searchPlaceholder": "ID подписки, ID пользователя, тег или план",
       "all": "Все статусы"
     },
@@ -4244,6 +4286,16 @@
     },
     "devices": {
       "empty": "Нет подключённых устройств",
+      "added": "Добавлено {{date}}",
+      "details": {
+        "hwid": "HWID",
+        "app": "Приложение",
+        "platform": "Платформа",
+        "model": "Модель",
+        "userAgent": "User-Agent",
+        "added": "Добавлено",
+        "lastFetched": "Последний запрос"
+      },
       "deleted": "Устройство удалено.",
       "deleteAll": "Удалить все устройства",
       "deleteAllTitle": "Удалить все устройства?",
@@ -4503,7 +4555,7 @@
         "dialogHeader": "Шапка всех glass-диалогов: иконка или glyph, подзаголовок, тон danger/warning, действия, крестик.",
         "modal": "Оболочка диалога: sm и lg.",
         "confirm": "Подтверждение: обычное и опасное.",
-        "fieldHint": "Вопросик у подписи: вверх, вниз, у правого края.",
+        "fieldHint": "Вопросик у подписи: вверх, вниз, у правого края; длинный текст — шире.",
         "tooltip": "Подпись к кнопке или бейджу при наведении, с любой стороны.",
         "actionMenu": "Меню действий в строке списка.",
         "popover": "Оболочки меню: стеклянные (отступ 1.5 и 3) и непрозрачная — эмодзи и тосты.",
@@ -4596,6 +4648,8 @@
         "error": "Не удалось загрузить планы.",
         "copy": "Копировать",
         "hintShort": "Короткая подсказка.",
+        "hintWide": "Длинная, шире",
+        "hintParagraph": "Подсказка длиннее 150 символов — абзац или два — открывается шире, до 448px: в 256px она вытянулась бы в узкую колонку.\n\nКороткие подсказки остаются по ширине текста, не больше 256px.",
         "hintLong": "Новый интервал отсчитывается от последней успешной копии. Меньше интервал — чаще копии и больше места на диске.",
         "hintTop": "Вверх (по умолчанию)",
         "hintBottom": "Вниз",
@@ -5029,6 +5083,7 @@
     "SESSION_AUDIENCE_MISMATCH": "Эту сессию здесь использовать нельзя. Войдите заново.",
     "SESSION_NOT_FOUND": "Сессия не найдена.",
     "GRACE_SETTINGS_INVALID": "Настройки грейс-периода некорректны.",
+    "EXPIRY_DISABLE_SETTINGS_INVALID": "Настройки отключения истёкших подписок некорректны.",
     "SHOP_SUBSCRIPTION_LIMIT_INVALID": "Лимит должен быть больше нуля или пустым для безлимита.",
     "SUBSCRIPTION_DELETED": "Подписка удалена.",
     "SUBSCRIPTION_DISABLED": "Подписка отключена.",
@@ -5460,7 +5515,12 @@
       "reasons": {
         "noTelegram": "Нет аккаунта Telegram",
         "optedOut": "Отписался от рекламных рассылок",
-        "blocked": "Заблокирован администратором",
+        "blocked": "Аккаунт заблокирован",
+        "noEmail": "Нет почты",
+        "undeliverable": "Почтовый ящик не принимает письма",
+        "botBlocked": "Заблокировал бота",
+        "userGone": "Аккаунт удалён",
+        "noDetails": "Без описания",
         "recallFailed": "Отозвать не удалось: {{reason}}"
       },
       "params": {

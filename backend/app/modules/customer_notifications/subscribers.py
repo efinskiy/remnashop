@@ -2,7 +2,7 @@ import math
 from datetime import datetime, timedelta
 from typing import Any, Final, Optional, Union, cast
 
-from app.core.constants import DATE_FORMAT, TTL_1D
+from app.core.constants import TTL_1D
 from app.core.event_bus import EventBus
 from app.core.events import StoredEvent
 from app.modules.account_merge import AccountsMergedEvent
@@ -33,6 +33,7 @@ from app.modules.subscriptions import (
     SubscriptionExpiredAgoEvent,
     SubscriptionExpiredEvent,
     SubscriptionExpiringEvent,
+    SubscriptionExpiryDisableWarningEvent,
     SubscriptionGraceStartedEvent,
     SubscriptionGrantedEvent,
     SubscriptionNotConnectedEvent,
@@ -104,10 +105,9 @@ async def _on_renewed(event: SubscriptionRenewedEvent, entry: StoredEvent) -> No
 
 
 async def _on_addon(event: SubscriptionAddOnGrantedEvent, entry: StoredEvent) -> None:
-    # the owner is `target`; `user` is the system actor on the promocode path
     await _notify(
         entry,
-        (event.target or event.user).id,
+        event.target.id,
         {"addon_type": event.addon_type, "amount": event.amount},
         subscription_id=event.subscription_id,
     )
@@ -173,9 +173,21 @@ async def _on_grace_started(event: SubscriptionGraceStartedEvent, entry: StoredE
         event.user.id,
         {
             # an indefinite grace has no date to name
-            "grace_until": "none" if is_unlimited_expiry(until) else until.strftime(DATE_FORMAT),
+            # a moment: the notification writes it as the shop's date
+            "grace_until": "none" if is_unlimited_expiry(until) else until.isoformat(),
             "traffic_limit_mb": event.traffic_limit_mb,
         },
+        subscription_id=event.subscription_id,
+    )
+
+
+async def _on_expiry_disable_warning(
+    event: SubscriptionExpiryDisableWarningEvent, entry: StoredEvent
+) -> None:
+    await _notify(
+        entry,
+        event.user.id,
+        {"disable_date": event.disable_at},
         subscription_id=event.subscription_id,
     )
 
@@ -306,6 +318,7 @@ def register_subscribers(bus: EventBus) -> None:
     bus.subscribe(SubscriptionExpiringEvent, _on_hours)
     bus.subscribe(SubscriptionExpiredEvent, _on_subscription)
     bus.subscribe(SubscriptionGraceStartedEvent, _on_grace_started)
+    bus.subscribe(SubscriptionExpiryDisableWarningEvent, _on_expiry_disable_warning)
     bus.subscribe(SubscriptionTrafficLimitedEvent, _on_subscription)
     bus.subscribe(SubscriptionTrafficThresholdEvent, _on_traffic_threshold)
     bus.subscribe(SubscriptionNotConnectedEvent, _on_hours)

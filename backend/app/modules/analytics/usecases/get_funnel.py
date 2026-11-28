@@ -1,3 +1,4 @@
+from datetime import tzinfo
 from functools import partial
 from typing import Final, Optional
 
@@ -19,6 +20,7 @@ from app.modules.analytics.dto import (
 from app.modules.analytics.period import resolve_period
 from app.modules.analytics.sources import SourceKind, resolve_sources
 from app.modules.referrals import ReferralRepository
+from app.modules.settings import SettingsRepository
 from app.modules.subscriptions import SubscriptionStatsRepository
 from app.modules.transactions import TransactionRepository
 from app.modules.users import UserStatsRepository
@@ -43,7 +45,9 @@ class GetFunnelUseCase(UseCase[AnalyticsPeriodQueryDto, FunnelDto]):
         referrals: ReferralRepository,
         uow: UnitOfWork,
         cache: AnalyticsCache,
+        settings_repository: SettingsRepository,
     ) -> None:
+        self._settings_repository = settings_repository
         self._user_stats = user_stats
         self._subscription_stats = subscription_stats
         self._transaction_repository = transaction_repository
@@ -53,18 +57,21 @@ class GetFunnelUseCase(UseCase[AnalyticsPeriodQueryDto, FunnelDto]):
         self._cache = cache
 
     async def _execute(self, actor: Actor, data: AnalyticsPeriodQueryDto) -> FunnelDto:
+        async with self._uow:
+            zone = (await self._settings_repository.get_shop_settings()).zone
         return await self._cache.get_or_compute(
-            "get_funnel", data, FunnelDto, partial(self._compute, data)
+            "get_funnel", data, FunnelDto, partial(self._compute, data, zone), zone=zone
         )
 
-    async def _compute(self, data: AnalyticsPeriodQueryDto) -> FunnelDto:
+    async def _compute(self, data: AnalyticsPeriodQueryDto, zone: tzinfo) -> FunnelDto:
         async with self._uow:
             now = datetime_now()
             period = resolve_period(
                 data.period_from,
                 data.period_to,
-                earliest=await self._user_stats.earliest_registration(Role.USER),
+                earliest=await self._user_stats.earliest_registration(Role.USER, zone),
                 now=now,
+                zone=zone,
             )
             previous = period.previous
             registered = [

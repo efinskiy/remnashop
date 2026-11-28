@@ -840,7 +840,7 @@ async def test_count_open_new_orders_drops_paid_orders_past_reconcile(
         (PaymentGatewayType.YOOKASSA, Decimal("100"), False, True),
     ],
 )
-async def test_has_paid_purchase(
+async def test_has_paid_order_outside_stars(
     transaction_repository: TransactionRepository,
     uow: UnitOfWork,
     user_id: int,
@@ -861,7 +861,7 @@ async def test_has_paid_purchase(
         await transaction_repository.mark_status(created.id, TransactionStatus.PAID)
 
     async with uow:
-        assert await transaction_repository.has_paid_purchase(user_id) is expected
+        assert await transaction_repository.has_paid_order_outside_stars(user_id) is expected
 
 
 async def test_has_newer_order(

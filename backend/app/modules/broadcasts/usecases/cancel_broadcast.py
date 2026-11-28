@@ -10,7 +10,7 @@ from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.core.utils.time import datetime_now
 from app.modules.broadcasts.dto import BroadcastDto
-from app.modules.broadcasts.events import BroadcastCanceledEvent
+from app.modules.broadcasts.events import BroadcastChangedEvent
 from app.modules.broadcasts.lifecycle import cancel_sending
 from app.modules.broadcasts.recipient_repository import BroadcastRecipientRepository
 from app.modules.broadcasts.repository import BroadcastRepository
@@ -46,7 +46,7 @@ class CancelBroadcastUseCase(UseCase[int, BroadcastDto]):
                     code=ErrorCode.BROADCAST_INVALID_STATUS,
                 )
             await self._event_publisher.publish(
-                BroadcastCanceledEvent(actor=actor, broadcast_id=data)
+                BroadcastChangedEvent(actor=actor, action="cancel", broadcast_id=data)
             )
             result = await self._broadcast_repository.get_by_id(data)
         logger.info(f"{actor.log} Canceled broadcast '{data}'")

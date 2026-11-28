@@ -1,6 +1,7 @@
 from calendar import monthrange
-from datetime import datetime, time, timedelta
+from datetime import datetime, time, timedelta, tzinfo
 from typing import Literal, Optional, overload
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.core.constants import TIMEZONE
 
@@ -9,34 +10,50 @@ def datetime_now() -> datetime:
     return datetime.now(tz=TIMEZONE)
 
 
+def time_zone(name: Optional[str]) -> tzinfo:
+    """An IANA zone by name; UTC when it's empty or this server doesn't know it."""
+    if not name:
+        return TIMEZONE
+    try:
+        return ZoneInfo(name)
+    except (ZoneInfoNotFoundError, ValueError):
+        # a zone newer than the image's tzdata: UTC days beat a dashboard that won't load
+        return TIMEZONE
+
+
+def day_start(moment: datetime, zone: tzinfo) -> datetime:
+    """Midnight of the day `moment` falls on in `zone`."""
+    return datetime.combine(moment.astimezone(zone).date(), time.min, tzinfo=zone)
+
+
 def truncate_to_ms(value: datetime) -> datetime:
     # Remnawave stores timestamps with millisecond precision
     return value.replace(microsecond=value.microsecond // 1000 * 1000)
 
 
 @overload
-def range_start_utc(value: datetime) -> datetime: ...
+def range_start_utc(value: datetime, zone: tzinfo = TIMEZONE) -> datetime: ...
 @overload
-def range_start_utc(value: None) -> None: ...
-def range_start_utc(value: Optional[datetime]) -> Optional[datetime]:
+def range_start_utc(value: None, zone: tzinfo = TIMEZONE) -> None: ...
+def range_start_utc(value: Optional[datetime], zone: tzinfo = TIMEZONE) -> Optional[datetime]:
     # a bare "YYYY-MM-DD" parses naive; asyncpg would read that as server
-    # local time, so it's pinned to UTC
+    # local time, so it's pinned to `zone` (UTC unless the caller passes the shop's)
     if value is None or value.tzinfo is not None:
         return value
-    return value.replace(tzinfo=TIMEZONE)
+    return value.replace(tzinfo=zone)
 
 
 @overload
-def range_end_utc(value: datetime) -> datetime: ...
+def range_end_utc(value: datetime, zone: tzinfo = TIMEZONE) -> datetime: ...
 @overload
-def range_end_utc(value: None) -> None: ...
-def range_end_utc(value: Optional[datetime]) -> Optional[datetime]:
-    # Exclusive upper bound, compared with "<". Same UTC assumption as
+def range_end_utc(value: None, zone: tzinfo = TIMEZONE) -> None: ...
+def range_end_utc(value: Optional[datetime], zone: tzinfo = TIMEZONE) -> Optional[datetime]:
+    # Exclusive upper bound, compared with "<". Same zone assumption as
     # range_start_utc(), but a bare date is the *whole* day being asked for,
     # so it becomes the next day's midnight; a naive time of day stays as given.
     if value is None or value.tzinfo is not None:
         return value
-    end = value.replace(tzinfo=TIMEZONE)
+    end = value.replace(tzinfo=zone)
     return end + timedelta(days=1) if end.time() == time(0) else end
 
 

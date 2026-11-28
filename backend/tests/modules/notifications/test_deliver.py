@@ -23,6 +23,8 @@ FTL = (
     "ntf-login-failed = Wrong password for { $login }\n    .title = Login failed\n"
     "ntf-suppressed = { $count } more not sent.\n"
     "ntf-sources-merged = Sources merged.\n"
+    "ntf-transaction-refunded = Refunded via { $gateway_type }\n    .title = Refund\n"
+    "gateway-name =\n    .YOOKASSA = YooKassa\n"
 )
 BLOCKED_CHAT: int = 403
 BROKEN_CHAT: int = 500
@@ -118,9 +120,9 @@ async def test_delivers_to_permitted_staff_except_the_actor(
 ) -> None:
     owner = await _user(user_repository, uow, "owner", Role.OWNER)
     actor = await _staff(user_repository, uow, "actor")
-    plain_admin = await _user(user_repository, uow, "plain", Role.ADMIN)
-    granted_admin = await _user(
-        user_repository, uow, "granted", Role.ADMIN, permission_grants=["NOTIFICATIONS_VIEW"]
+    admin = await _user(user_repository, uow, "admin", Role.ADMIN)
+    revoked_admin = await _user(
+        user_repository, uow, "revoked", Role.ADMIN, permission_revokes=["NOTIFICATIONS_VIEW"]
     )
     customer = await _user(user_repository, uow, "cust", Role.USER)
     push = FakePush()
@@ -130,13 +132,32 @@ async def test_delivers_to_permitted_staff_except_the_actor(
     )
 
     recipients = {user_id for user_id, _ in push.sent}
-    assert {owner.id, granted_admin.id} <= recipients
-    assert recipients.isdisjoint({actor.id, plain_admin.id, customer.id})
+    assert {owner.id, admin.id} <= recipients
+    assert recipients.isdisjoint({actor.id, revoked_admin.id, customer.id})
     message = next(m for user_id, m in push.sent if user_id == owner.id)
     assert (message.title, message.body) == ("Login failed", "Wrong password for x")
     assert message.url == "/dashboard?bell=open"
     assert message.tag == "LoginFailedEvent"
     assert push.audiences == {SessionAudience.DASHBOARD}
+
+
+async def test_push_names_the_gateway_as_the_shop_shows_it(
+    user_repository: UserRepository, uow: UnitOfWork
+) -> None:
+    owner = await _user(user_repository, uow, "owner", Role.OWNER)
+    async with uow:
+        await user_repository.set_notification_channels(owner.id, {"money": ["push"]})
+    push = FakePush()
+    refund = DeliverNotificationDto(
+        event_type="TransactionRefundedEvent",
+        payload={"gateway_type": "YOOKASSA"},
+        actor_id=None,
+        ip_address=None,
+    )
+
+    await _use_case(user_repository, uow, push, None).system(refund)
+
+    assert [m.body for user_id, m in push.sent if user_id == owner.id] == ["Refunded via YooKassa"]
 
 
 async def test_revoked_permission_and_switched_off_channel_get_nothing(

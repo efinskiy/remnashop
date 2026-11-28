@@ -1,6 +1,6 @@
 import builtins
-from datetime import datetime, timedelta
-from typing import Any, Final, Optional
+from datetime import datetime, timedelta, tzinfo
+from typing import Any, Optional
 from typing import cast as typing_cast
 
 from sqlalchemy import (
@@ -21,6 +21,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 
+from app.core.constants import TIMEZONE
 from app.core.db.filters import in_ids
 from app.core.db.models.active_locale import ActiveLocale
 from app.core.db.models.broadcast import Broadcast, BroadcastRecipient
@@ -39,25 +40,19 @@ from app.core.utils.time import datetime_now
 from app.modules.broadcasts.audience import (
     audience_predicate,
     channel_condition,
+    send_time_drops,
 )
 from app.modules.broadcasts.dto import (
     AudiencePreviewDto,
     BroadcastAudienceDto,
     BroadcastRecipientDto,
+    BroadcastRecipientError,
     ListBroadcastRecipientsDto,
     PendingEmailRecipientDto,
     PendingRecipientDto,
     RecipientContextDto,
     SentRecipientDto,
 )
-
-NO_TELEGRAM_ERROR: Final[str] = "no telegram"
-NO_EMAIL_ERROR: Final[str] = "no email"
-UNDELIVERABLE_ERROR: Final[str] = "undeliverable"
-OPTED_OUT_ERROR: Final[str] = "opted out"
-BLOCKED_ERROR: Final[str] = "blocked"
-BOT_BLOCKED_ERROR: Final[str] = "bot blocked"
-RECALL_FAILED_ERROR: Final[str] = "recall failed"
 
 
 def _channel_conditions(
@@ -81,8 +76,9 @@ class BroadcastRecipientRepository:
         delivery: BroadcastDelivery,
         email_fallback: bool,
         now: datetime,
+        zone: tzinfo = TIMEZONE,
     ) -> AudiencePreviewDto:
-        predicate = audience_predicate(audience, category, now)
+        predicate = audience_predicate(audience, category, now, zone)
         channels = _channel_conditions(delivery, email_fallback)
         by_channel: dict[BroadcastChannel, int] = {}
         for channel, condition in channels.items():
@@ -106,8 +102,9 @@ class BroadcastRecipientRepository:
         delivery: BroadcastDelivery,
         email_fallback: bool,
         now: datetime,
+        zone: tzinfo = TIMEZONE,
     ) -> int:
-        predicate = audience_predicate(audience, category, now)
+        predicate = audience_predicate(audience, category, now, zone)
         for channel, condition in _channel_conditions(delivery, email_fallback).items():
             source = (
                 select(
@@ -130,35 +127,22 @@ class BroadcastRecipientRepository:
         return int(total or 0)
 
     async def _drop_unreachable(
-        self,
-        recipient_ids: builtins.list[int],
-        marketing: bool,
-        unreachable: builtins.list[tuple[ColumnElement[bool], str]],
-        refused: builtins.list[tuple[ColumnElement[bool], str]],
+        self, recipient_ids: builtins.list[int], channel: BroadcastChannel, marketing: bool
     ) -> None:
-        # audience was built at materialization; a block or opt-out since then
-        # still wins. Only the batch about to go out is checked, so the cost per
-        # batch stays flat however large the broadcast is.
-        cancel = [(User.is_blocked.is_(True), BLOCKED_ERROR)]
-        if marketing:
-            cancel.append((User.marketing_opt_out.is_(True), OPTED_OUT_ERROR))
-        for status, conditions in (
-            (BroadcastRecipientStatus.CANCELED, cancel),
-            (BroadcastRecipientStatus.FAILED, unreachable),
-            (BroadcastRecipientStatus.BLOCKED, refused),
-        ):
-            for condition, error in conditions:
-                await self.session.execute(
-                    update(BroadcastRecipient)
-                    .where(
-                        in_ids(BroadcastRecipient.id, recipient_ids),
-                        BroadcastRecipient.status == BroadcastRecipientStatus.PENDING,
-                        BroadcastRecipient.user_id == User.id,
-                        condition,
-                    )
-                    .values(status=status, error=error)
-                    .execution_options(synchronize_session=False)
+        # only the batch about to go out is checked, so the cost per batch stays
+        # flat however large the broadcast is; the first matching drop wins
+        for status, condition, error in send_time_drops(channel, marketing):
+            await self.session.execute(
+                update(BroadcastRecipient)
+                .where(
+                    in_ids(BroadcastRecipient.id, recipient_ids),
+                    BroadcastRecipient.status == BroadcastRecipientStatus.PENDING,
+                    BroadcastRecipient.user_id == User.id,
+                    condition,
                 )
+                .values(status=status, error=error)
+                .execution_options(synchronize_session=False)
+            )
 
     def _claimable(
         self, broadcast_id: int, channel: BroadcastChannel, limit: int, now: datetime
@@ -186,8 +170,6 @@ class BroadcastRecipientRepository:
         limit: int,
         lease: timedelta,
         marketing: bool,
-        unreachable: builtins.list[tuple[ColumnElement[bool], str]],
-        refused: builtins.list[tuple[ColumnElement[bool], str]],
         contact: InstrumentedAttribute[Any],
     ) -> builtins.list[Row[Any]]:
         now = datetime_now()
@@ -199,7 +181,7 @@ class BroadcastRecipientRepository:
             )
             if not candidates:
                 return []
-            await self._drop_unreachable(candidates, marketing, unreachable, refused)
+            await self._drop_unreachable(candidates, channel, marketing)
             rows = (
                 await self.session.execute(
                     update(BroadcastRecipient)
@@ -230,9 +212,6 @@ class BroadcastRecipientRepository:
             limit,
             lease,
             marketing,
-            # a user who lost their telegram_id since materialization can never be reached
-            [(User.telegram_id.is_(None), NO_TELEGRAM_ERROR)],
-            [(User.is_bot_blocked.is_(True), BOT_BLOCKED_ERROR)],
             User.telegram_id,
         )
         return [
@@ -249,11 +228,6 @@ class BroadcastRecipientRepository:
             limit,
             lease,
             marketing,
-            [
-                (User.email.is_(None), NO_EMAIL_ERROR),
-                (User.email_undeliverable_at.is_not(None), UNDELIVERABLE_ERROR),
-            ],
-            [],
             User.email,
         )
         return [
@@ -290,7 +264,7 @@ class BroadcastRecipientRepository:
         await self.session.execute(
             update(BroadcastRecipient)
             .where(BroadcastRecipient.id == recipient_id)
-            .values(error=f"{RECALL_FAILED_ERROR}: {error}"[:255])
+            .values(error=f"{BroadcastRecipientError.RECALL_FAILED}: {error}"[:255])
         )
 
     async def count_recallable(self, broadcast_id: int) -> int:
@@ -314,7 +288,7 @@ class BroadcastRecipientRepository:
             .where(
                 BroadcastRecipient.broadcast_id == broadcast_id,
                 BroadcastRecipient.status == BroadcastRecipientStatus.SENT,
-                BroadcastRecipient.error.startswith(RECALL_FAILED_ERROR),
+                BroadcastRecipient.error.startswith(BroadcastRecipientError.RECALL_FAILED),
             )
             .values(error=None)
         )

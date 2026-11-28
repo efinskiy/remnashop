@@ -1,0 +1,101 @@
+import datetime
+from datetime import timedelta, timezone
+from typing import AsyncIterator
+
+import httpx
+import pytest
+from dishka import AsyncContainer
+from fastapi import FastAPI
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import AppConfig
+from app.core.constants import API_V1
+from app.core.db.uow import UnitOfWork
+from app.core.enums import Locale, Role, SessionAudience
+from app.core.security import create_access_token, hash_password, hash_refresh_token
+from app.modules.auth.dto import CreateSessionDto
+from app.modules.auth.repository import SessionRepository
+from app.modules.users.dto import CreateUserDto
+from app.modules.users.repository import UserRepository
+from tests.fakes.container import make_test_container
+
+
+@pytest.fixture
+async def client(
+    session: AsyncSession, config: AppConfig, api_app: FastAPI
+) -> AsyncIterator[httpx.AsyncClient]:
+    container: AsyncContainer = make_test_container(session, config)
+    app = api_app
+    app.state.dishka_container = container
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as async_client:
+        yield async_client
+    await container.close()
+
+
+async def _owner_headers(
+    user_repository: UserRepository,
+    session_repository: SessionRepository,
+    uow: UnitOfWork,
+    config: AppConfig,
+) -> dict[str, str]:
+    async with uow:
+        user = await user_repository.create(
+            CreateUserDto(
+                login="shoptimezoneowner",
+                password_hash=await hash_password("x", config.crypt_key.get_secret_value()),
+                name="shoptimezoneowner",
+                role=Role.OWNER,
+                language=Locale.EN,
+            )
+        )
+        await uow.commit()
+    session = await session_repository.create(
+        CreateSessionDto(
+            user_id=user.id,
+            refresh_token_hash=hash_refresh_token("test-refresh-token-shop-timezone"),
+            ip_address="127.0.0.1",
+            user_agent=None,
+            expires_at=datetime.datetime.now(timezone.utc) + timedelta(days=30),
+            audience=SessionAudience.DASHBOARD,
+        )
+    )
+    token = create_access_token(user.id, session.id, config.jwt_secret.get_secret_value())
+    return {"Authorization": f"Bearer {token}"}
+
+
+async def test_the_shop_time_zone_is_saved_and_read_back(
+    client: httpx.AsyncClient,
+    user_repository: UserRepository,
+    session_repository: SessionRepository,
+    uow: UnitOfWork,
+    config: AppConfig,
+) -> None:
+    headers = await _owner_headers(user_repository, session_repository, uow, config)
+
+    saved = await client.patch(
+        f"{API_V1}/settings/shop", json={"timezone": "Europe/Moscow"}, headers=headers
+    )
+    read = await client.get(f"{API_V1}/settings/timezone", headers=headers)
+
+    assert saved.status_code == 200
+    assert saved.json()["timezone"] == "Europe/Moscow"
+    assert read.json() == {"timezone": "Europe/Moscow"}
+
+
+@pytest.mark.parametrize("value", ["Mars/Olympus", None])
+async def test_an_unknown_or_empty_shop_time_zone_is_refused(
+    client: httpx.AsyncClient,
+    user_repository: UserRepository,
+    session_repository: SessionRepository,
+    uow: UnitOfWork,
+    config: AppConfig,
+    value: object,
+) -> None:
+    headers = await _owner_headers(user_repository, session_repository, uow, config)
+
+    response = await client.patch(
+        f"{API_V1}/settings/shop", json={"timezone": value}, headers=headers
+    )
+
+    assert response.status_code == 422

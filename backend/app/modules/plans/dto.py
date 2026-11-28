@@ -8,18 +8,15 @@ from pydantic import Field
 from remnapy.enums import TrafficLimitStrategy
 
 from app.core.dto import BaseDto, TimestampMixin
-from app.core.enums import (
-    AddOnType,
-    Currency,
-    Locale,
+from app.core.enums import AddOnType, Currency, Locale, PlanAvailability, PlanBadge, PlanType
+from app.modules.pricing import (
+    CurrencyRateDto,
     PinnedPriceAction,
-    PlanAvailability,
-    PlanBadge,
-    PlanType,
     PriceAdjustMode,
     PriceAdjustScope,
+    PricingSettingsDto,
+    UpdateCurrencyRateDto,
 )
-from app.modules.pricing import CurrencyRateDto, PricingSettingsDto, UpdateCurrencyRateDto
 
 # lucide_dev's "box", given to a plan created without an icon
 DEFAULT_PLAN_ICON_EMOJI_ID: Final[str] = "5429613693287578957"

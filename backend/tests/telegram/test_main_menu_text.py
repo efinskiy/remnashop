@@ -40,7 +40,8 @@ def _subscription(status: str, **overrides: Any) -> Optional[SimpleNamespace]:
         "is_unlimited": False,
         "grace_until": None,
     }
-    return SimpleNamespace(**{**values, **overrides})
+    merged = {**values, **overrides}
+    return SimpleNamespace(**merged, customer_status=merged["status"])
 
 
 def _menu(

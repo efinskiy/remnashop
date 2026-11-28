@@ -20,6 +20,7 @@ _EMPTY: Final[str] = "—"
 # an amount in the payload → the arg the templates print it as, with its currency
 _MONEY_ARGS: Final[dict[str, str]] = {"amount": "money", "revenue": "revenue_money"}
 _NON_WORD: Final[re.Pattern[str]] = re.compile(r"\W")
+_ID_SUFFIX: Final[str] = "_id"
 
 
 def message_id(event_type: str) -> str:
@@ -91,6 +92,10 @@ def notification_args(
         for key, value in payload.items()
         if isinstance(value, (str, int))
     }
+    for key, value in args.items():
+        # an id is copied and searched for: "#10293", not Fluent's grouped "#10 293"
+        if key.endswith(_ID_SUFFIX) and isinstance(value, int):
+            args[key] = str(value)
     for key in _USER_KEYS:
         snapshot = payload.get(key)
         if isinstance(snapshot, dict):

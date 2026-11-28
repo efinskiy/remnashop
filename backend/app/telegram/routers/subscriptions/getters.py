@@ -1,5 +1,4 @@
 import html
-from datetime import timezone
 from typing import Any, Awaitable, Callable, Final, Optional, TypeAlias
 
 from aiogram_dialog import DialogManager
@@ -109,7 +108,7 @@ def _subscription_label(
         # an active unlimited one has no date to read "until"
         status="UNLIMITED"
         if subscription.status is SubscriptionStatus.ACTIVE and subscription.is_unlimited
-        else subscription.status.value,
+        else subscription.customer_status.value,
         # a custom emoji goes into the button's icon; a bare glyph has nowhere else to go
         plan_name=f"{snapshot.icon_emoji_fallback} {name}"
         if snapshot.icon_emoji_fallback and not snapshot.icon_emoji_id
@@ -135,7 +134,7 @@ async def subscriptions_list_getter(
     user: UserDto = dialog_manager.middleware_data[USER_KEY]
     runner = get_translator(i18n, user)
     subscriptions = await list_own_subscriptions(user)
-    active = [s for s in subscriptions if s.status is not SubscriptionStatus.EXPIRED]
+    active = [s for s in subscriptions if s.customer_status is not SubscriptionStatus.EXPIRED]
     can_purchase, referral_enabled, single_subscription = await menu_flags(
         subscriptions, get_shop_settings, get_referral_settings
     )
@@ -220,7 +219,7 @@ def _auto_renew_block(recurring: RecurringPaymentStateDto, runner: TranslatorRun
             render_window_text(
                 runner,
                 key,
-                when=format_datetime(recurring.next_retry_at.astimezone(timezone.utc)),
+                when=format_datetime(recurring.next_retry_at),
             )
         )
     if not recurring.enabled and recurring.terms is not None:
@@ -283,7 +282,7 @@ async def subscription_card_getter(
                 subscription.plan_snapshot.icon_emoji_id,
                 subscription.plan_snapshot.icon_emoji_fallback,
             ),
-            status=subscription.status.value,
+            status=subscription.customer_status.value,
             is_trial=int(subscription.is_trial),
             expire_at=format_expiry(runner, subscription.expire_at),
             expire_at_local=format_expiry_tag(runner, subscription.expire_at),

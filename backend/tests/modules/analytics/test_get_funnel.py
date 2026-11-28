@@ -29,6 +29,7 @@ from app.modules.analytics.dto import AnalyticsPeriodQueryDto
 from app.modules.analytics.sources import SourceKind
 from app.modules.analytics.usecases import GetFunnelUseCase
 from app.modules.referrals.repository import ReferralRepository
+from app.modules.settings.repository import SettingsRepository
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.stats_repository import SubscriptionStatsRepository
 from app.modules.transactions.dto import CreateTransactionDto
@@ -79,6 +80,7 @@ def _use_case(
         ReferralRepository(user_repository.session),
         uow,
         PassThroughAnalyticsCache(),
+        SettingsRepository(user_repository.session),
     )
 
 

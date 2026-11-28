@@ -1,17 +1,14 @@
 import { apiGet, apiPut } from "@shared/api/http";
+import type { ApiSchema } from "@shared/api/schemas";
 
-export interface SecuritySettings {
-  ip_allowlist: string[];
-  /** this request's address, as the allowlist check sees it */
-  client_ip: string;
-}
+export type SecuritySettings = ApiSchema<"SecurityResponse">;
 
 export function getOwnSecurity(signal?: AbortSignal): Promise<SecuritySettings> {
   return apiGet<SecuritySettings>("/users/me/security", signal);
 }
 
 export function updateOwnSecurity(ipAllowlist: string[]): Promise<SecuritySettings> {
-  return apiPut<SecuritySettings, { ip_allowlist: string[] }>("/users/me/security", {
+  return apiPut<SecuritySettings, ApiSchema<"UpdateSecurityRequest">>("/users/me/security", {
     ip_allowlist: ipAllowlist,
   });
 }

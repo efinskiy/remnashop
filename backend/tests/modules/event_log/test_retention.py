@@ -16,6 +16,7 @@ from app.modules.event_log.retention import SHORT_RETENTION, SHORT_RETENTION_EVE
 from app.modules.event_log.usecases import ProcessOutboxEntryUseCase, PruneEventLogUseCase
 from app.modules.users.dto import CreateUserDto
 from app.modules.users.repository import UserRepository
+from tests.fakes.events import RecordingEventPublisher
 
 # subscription events kept for good: money and access
 _KEPT_SUBSCRIPTION_EVENTS = {
@@ -137,7 +138,11 @@ async def test_deleting_a_customer_anonymizes_their_log_entries(
     await session.flush()
 
     await ProcessOutboxEntryUseCase(
-        EventOutboxRepository(session), event_log_repository, EventBus(), uow
+        EventOutboxRepository(session),
+        event_log_repository,
+        EventBus(),
+        uow,
+        RecordingEventPublisher(),
     ).system(deletion.id)
 
     mine = await event_log_repository.get_by_id(own)

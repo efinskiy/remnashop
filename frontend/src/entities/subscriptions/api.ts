@@ -2,96 +2,26 @@ import type { AddOnType } from "@entities/addons/api";
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "@shared/api/http";
 import { DAY_MS } from "@shared/lib/period";
 import type { BadgeTone } from "@shared/ui/Badge";
+import type { ApiSchema } from "@shared/api/schemas";
+import { allValues } from "@shared/lib/all-values";
 
-export type SubscriptionStatus = "ACTIVE" | "LIMITED" | "EXPIRED" | "DISABLED" | "DELETED";
-export type TrafficLimitStrategy = "NO_RESET" | "DAY" | "WEEK" | "MONTH" | "MONTH_ROLLING";
+export type SubscriptionStatus = ApiSchema<"SubscriptionStatus">;
+export type TrafficLimitStrategy = ApiSchema<"TrafficLimitStrategy">;
 
-export interface PlanSnapshot {
-  plan_id: number;
-  public_code: string;
-  name: string;
-  price_paid: string;
-  currency: string;
-  duration_days: number;
-  traffic_limit: number;
-  device_limit: number;
-  traffic_limit_strategy: TrafficLimitStrategy;
-  is_trial: boolean;
-  internal_squads: string[];
-  external_squad: string | null;
-  tag?: string | null;
-}
-
-export type CreditSegmentKind = "PURCHASE" | "CARRIED" | "BONUS" | "LEGACY";
+export const TRAFFIC_LIMIT_STRATEGIES = allValues<TrafficLimitStrategy>()(["NO_RESET", "DAY", "WEEK", "MONTH", "MONTH_ROLLING"]);
 
 /** a stretch of the term and what was paid for it; a plan change credits what's left of each */
-export interface CreditSegment {
-  id: number;
-  kind: CreditSegmentKind;
-  paid: string;
-  currency: string;
-  seconds: number;
-  /** null: an unlimited term */
-  ends_at: string | null;
-  replaced_expire_at: string | null;
-  /** replaced by an unlimited term: credits nothing until that term is refunded */
-  superseded_by_id: number | null;
-  created_at: string;
-}
+export type CreditSegment = ApiSchema<"CreditSegmentResponse">;
 
-export interface AddOnEntitlement {
-  addon_id: number | null;
-  type: AddOnType;
-  /** GB or devices on top of the subscription's own limit */
-  amount: number;
-  granted_at: string;
-}
-
-export interface SubscriptionListItem {
-  id: number;
-  user_id: number;
-  remnawave_user_id: number;
-  status: SubscriptionStatus;
-  is_trial: boolean;
-  tag: string | null;
-  traffic_limit: number;
-  device_limit: number;
-  effective_traffic_limit: number;
-  effective_device_limit: number;
-  traffic_limit_strategy: TrafficLimitStrategy;
-  internal_squads: string[];
-  external_squad: string | null;
-  expire_at: string;
-  /** end of the grace period the subscription is in; null outside one */
-  grace_until: string | null;
-  created_at: string | null;
-  first_connected_at: string | null;
-  /** the client's own last device removal, removal of all devices and link reissue */
-  device_single_reset_at: string | null;
-  device_all_reset_at: string | null;
-  link_reset_at: string | null;
-  url: string;
-  plan_snapshot: PlanSnapshot;
-  addon_entitlements: AddOnEntitlement[];
-}
+export type SubscriptionListItem = ApiSchema<"SubscriptionResponse">;
 
 export function addonTotal(subscription: Pick<SubscriptionListItem, "addon_entitlements">, type: AddOnType): number {
   return subscription.addon_entitlements.reduce((sum, item) => sum + (item.type === type ? item.amount : 0), 0);
 }
 
-export interface SubscriptionRow extends SubscriptionListItem {
-  /** null once the account is deleted */
-  user_name: string | null;
-}
+export type SubscriptionRow = ApiSchema<"SubscriptionListItemResponse">;
 
-export interface SubscriptionDetail extends SubscriptionListItem {
-  /** from the panel; null when it is unreachable or hasn't seen the client */
-  used_traffic: number | null; // bytes
-  online_at: string | null;
-  sub_last_opened_at: string | null;
-  sub_last_user_agent: string | null;
-  credit_segments: CreditSegment[];
-}
+export type SubscriptionDetail = ApiSchema<"SubscriptionDetailResponse">;
 
 export const SUBSCRIPTION_STATUS_BADGE_TONE: Record<SubscriptionStatus, BadgeTone> = {
   ACTIVE: "success",
@@ -122,15 +52,16 @@ export function formatLimit(value: number, unlimitedLabel: string): string {
 
 export const DEFAULT_PAGE_SIZE = 50;
 
-export interface SubscriptionListPage {
-  items: SubscriptionRow[];
-  total: number;
-}
+export type SubscriptionListPage = ApiSchema<"SubscriptionPageResponse">;
+
+export type SubscriptionSort = ApiSchema<"SubscriptionSort">;
 
 export interface SubscriptionListFilters {
   status?: SubscriptionStatus;
   search?: string;
   userId?: number;
+  sort?: SubscriptionSort;
+  descending?: boolean;
   page?: number;
   pageSize?: number;
 }
@@ -143,19 +74,15 @@ export function listSubscriptions(
   if (filters.status) params.set("status", filters.status);
   if (filters.search) params.set("search", filters.search);
   if (filters.userId !== undefined) params.set("user_id", String(filters.userId));
+  if (filters.sort) params.set("sort", filters.sort);
+  if (filters.descending !== undefined) params.set("descending", String(filters.descending));
   params.set("page", String(filters.page ?? 1));
   params.set("page_size", String(filters.pageSize ?? DEFAULT_PAGE_SIZE));
 
   return apiGet<SubscriptionListPage>(`/subscriptions?${params.toString()}`, signal);
 }
 
-export interface UpdateSubscriptionRequest {
-  tag?: string | null;
-  traffic_limit?: number;
-  device_limit?: number;
-  traffic_limit_strategy?: TrafficLimitStrategy;
-  expire_at?: string;
-}
+export type UpdateSubscriptionRequest = ApiSchema<"UpdateSubscriptionRequest">;
 
 export function updateSubscription(
   subscriptionId: number,
@@ -164,10 +91,7 @@ export function updateSubscription(
   return apiPatch<SubscriptionListItem, UpdateSubscriptionRequest>(`/subscriptions/${subscriptionId}`, payload);
 }
 
-export interface SubscriptionSquads {
-  internal_squads: string[];
-  external_squad: string | null;
-}
+export type SubscriptionSquads = Required<ApiSchema<"UpdateSubscriptionSquadsRequest">>;
 
 export function updateSubscriptionSquads(
   subscriptionId: number,
@@ -180,39 +104,27 @@ export function getSubscription(subscriptionId: number, signal?: AbortSignal): P
   return apiGet<SubscriptionDetail>(`/subscriptions/${subscriptionId}`, signal);
 }
 
-export interface PanelSquad {
-  uuid: string;
-  name: string;
-  kind: "internal" | "external";
-}
+export type PanelSquad = ApiSchema<"PanelSquadResponse">;
 
-export function listPanelSquads(signal?: AbortSignal): Promise<{ items: PanelSquad[]; total: number }> {
-  return apiGet<{ items: PanelSquad[]; total: number }>("/subscriptions/squads", signal);
+export function listPanelSquads(signal?: AbortSignal): Promise<ApiSchema<"PanelSquadListResponse">> {
+  return apiGet<ApiSchema<"PanelSquadListResponse">>("/subscriptions/squads", signal);
 }
 
 export function deleteSubscription(subscriptionId: number): Promise<void> {
   return apiDelete<void>(`/subscriptions/${subscriptionId}`);
 }
 
-export function deleteUserSubscriptions(userId: number): Promise<{ deleted: number }> {
-  return apiPost<{ deleted: number }, Record<string, never>>(`/users/${userId}/subscriptions/bulk/delete`, {});
+export function deleteUserSubscriptions(userId: number): Promise<ApiSchema<"DeletedSubscriptionsResponse">> {
+  return apiPost<ApiSchema<"DeletedSubscriptionsResponse">, Record<string, never>>(`/users/${userId}/subscriptions/bulk/delete`, {});
 }
 
-export interface GrantSubscriptionRequest {
-  user_id: number;
-  plan_id: number;
-  duration_days: number;
-}
+export type GrantSubscriptionRequest = ApiSchema<"GrantSubscriptionRequest">;
 
 export function grantSubscription(payload: GrantSubscriptionRequest): Promise<SubscriptionListItem> {
   return apiPost<SubscriptionListItem, GrantSubscriptionRequest>("/subscriptions", payload);
 }
 
-export interface ChangeSubscriptionPlanRequest {
-  plan_id: number;
-  /** null keeps the current expiry */
-  duration_days: number | null;
-}
+export type ChangeSubscriptionPlanRequest = ApiSchema<"ChangeSubscriptionPlanRequest">;
 
 export function changeSubscriptionPlan(
   subscriptionId: number,
@@ -233,22 +145,7 @@ export const disableSubscription = (subscriptionId: number) => subscriptionActio
 export const resetSubscriptionTraffic = (subscriptionId: number) => subscriptionAction(subscriptionId, "reset-traffic");
 export const reissueSubscriptionLink = (subscriptionId: number) => subscriptionAction(subscriptionId, "reissue");
 
-export interface SubscriptionDevice {
-  hwid: string;
-  // the customer's own name for it
-  name: string | null;
-  platform: string | null;
-  os_version: string | null;
-  device_model: string | null;
-  app: string | null;
-  user_agent: string | null;
-  created_at: string;
-}
-
-export interface SubscriptionDeviceList {
-  items: SubscriptionDevice[];
-  total: number;
-}
+export type SubscriptionDeviceList = ApiSchema<"DeviceListResponse">;
 
 export function listSubscriptionDevices(subscriptionId: number, signal?: AbortSignal): Promise<SubscriptionDeviceList> {
   return apiGet<SubscriptionDeviceList>(`/subscriptions/${subscriptionId}/devices`, signal);
@@ -262,73 +159,28 @@ export function deleteAllSubscriptionDevices(subscriptionId: number): Promise<Su
   return apiPost<SubscriptionListItem, Record<string, never>>(`/subscriptions/${subscriptionId}/devices/bulk/delete`, {});
 }
 
-export type PanelSyncDirection = "FROM_PANEL" | "TO_PANEL";
+export type PanelSyncDirection = ApiSchema<"PanelSyncDirection">;
 
-export interface PanelSyncResult {
-  direction: PanelSyncDirection;
-  checked: number;
-  updated: number;
-  failed: number;
-  missing: number;
-  recreated: number;
-  imported: number;
-  users_created: number;
-  deleted: number;
-  over_limit: number;
-  finished_at: string;
-}
+export type PanelSyncResult = ApiSchema<"PanelSyncResultResponse">;
 
-export interface PanelSyncDirectionStatus {
-  direction: PanelSyncDirection;
-  running: boolean;
-  last: PanelSyncResult | null;
-}
+export type PanelSyncDirectionStatus = ApiSchema<"PanelSyncDirectionStatusResponse">;
 
-export interface PanelSyncStatus {
-  from_panel: PanelSyncDirectionStatus;
-  to_panel: PanelSyncDirectionStatus;
-}
+export type PanelSyncStatus = ApiSchema<"PanelSyncStatusResponse">;
 
-export interface PanelFieldDiff {
-  field: string;
-  shop: string;
-  panel: string;
-}
+export type PanelFieldDiff = ApiSchema<"PanelFieldDiffResponse">;
 
-export interface MissingSquad {
-  uuid: string;
-  kind: "internal" | "external";
-  /** how many of the checked subscriptions hold it */
-  subscriptions: number;
-}
+export type MissingSquad = ApiSchema<"MissingSquadResponse">;
 
 /** a squad gone from the panel -> its replacement, null drops it */
 export type SquadReplacements = Record<string, string | null>;
 
-export interface SubscriptionPanelDiff {
-  subscription_id: number;
-  missing_in_panel: boolean;
-  fields: PanelFieldDiff[];
-  missing_squads: MissingSquad[];
+export type SubscriptionPanelDiff = ApiSchema<"SubscriptionPanelDiffResponse">;
+
+export function listMissingPanelSquads(signal?: AbortSignal): Promise<ApiSchema<"MissingSquadListResponse">> {
+  return apiGet<ApiSchema<"MissingSquadListResponse">>("/subscriptions/panel-sync/missing-squads", signal);
 }
 
-export function listMissingPanelSquads(signal?: AbortSignal): Promise<{ items: MissingSquad[]; total: number }> {
-  return apiGet<{ items: MissingSquad[]; total: number }>("/subscriptions/panel-sync/missing-squads", signal);
-}
-
-export interface SubscriptionListStats {
-  paid_active: number;
-  active_trials: number;
-  /** paid, expiring within 7 days */
-  expiring: number;
-  /** of them within 24 hours */
-  expiring_urgent: number;
-  limited: number;
-  disabled: number;
-  /** paid, active or limited */
-  paying: number;
-  paying_never_connected: number;
-}
+export type SubscriptionListStats = ApiSchema<"SubscriptionListStatsResponse">;
 
 export function getSubscriptionListStats(signal?: AbortSignal): Promise<SubscriptionListStats> {
   return apiGet<SubscriptionListStats>("/subscriptions/summary", signal);
@@ -350,7 +202,7 @@ export async function startPanelSync(
   squadReplacements: SquadReplacements = {},
 ): Promise<PanelSyncDirectionStatus> {
   const action = direction === "FROM_PANEL" ? "pull" : "push";
-  return apiPost<PanelSyncDirectionStatus, PanelSyncOptions & { squad_replacements: SquadReplacements }>(
+  return apiPost<PanelSyncDirectionStatus, ApiSchema<"PanelSyncPullRequest"> | ApiSchema<"PanelSyncPushRequest">>(
     `/subscriptions/panel-sync/actions/${action}`,
     { ...options, squad_replacements: squadReplacements },
   );
@@ -366,7 +218,7 @@ export async function getSubscriptionPanelDiff(
 export const pullSubscriptionFromPanel = (subscriptionId: number) =>
   subscriptionAction(subscriptionId, "pull-from-panel");
 export const pushSubscriptionToPanel = (subscriptionId: number, squadReplacements: SquadReplacements = {}) =>
-  apiPost<SubscriptionListItem, { squad_replacements: SquadReplacements }>(
+  apiPost<SubscriptionListItem, ApiSchema<"PushToPanelRequest">>(
     `/subscriptions/${subscriptionId}/actions/push-to-panel`,
     { squad_replacements: squadReplacements },
   );

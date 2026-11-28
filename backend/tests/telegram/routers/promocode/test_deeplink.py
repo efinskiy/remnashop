@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from aiogram_dialog import ShowMode, StartMode
 
-from app.core.enums import AdLinkChannel, PromocodeLinkOutcome, PromocodeRewardType
+from app.core.enums import AdLinkChannel, PromocodeRewardType
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ValidationError
 from app.modules.advertising import ActivateAdLinkPromocodeDto
@@ -13,6 +13,7 @@ from app.modules.promocodes import (
     PromocodeDto,
     PromocodeLinkResultDto,
 )
+from app.modules.promocodes.dto import PromocodeLinkOutcome
 from app.telegram.routers.promocode import deeplink
 from app.telegram.states import MainMenu, Promocode
 

@@ -1,9 +1,10 @@
 import html
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, tzinfo
 from typing import Optional
 
+from app.core.constants import TIMEZONE
 from app.core.enums import BroadcastCategory, Locale
 from app.core.utils.telegram_text import PREMIUM_EMOJI_RE
 from app.modules.broadcasts.content import EMPTY_VALUE, VARIABLE_RE, render_text
@@ -46,7 +47,9 @@ class BroadcastEmailRenderer:
         unsubscribe_labels: dict[Locale, str],
         image_src: Callable[[int], str],
         referral_bases: ReferralLinkBasesDto = NO_REFERRAL_LINKS,
+        zone: tzinfo = TIMEZONE,
     ) -> None:
+        self._zone = zone
         self._broadcast = broadcast
         self._promocode_code = promocode_code
         self._brand = brand
@@ -70,6 +73,7 @@ class BroadcastEmailRenderer:
             self._promocode_code,
             # the bot's link when the cabinet can't take a sign-up
             self._referral_bases.cabinet or self._referral_bases.bot,
+            self._zone,
         )
         # a header is plain text: no HTML escaping, but no line breaks either
         subject = VARIABLE_RE.sub(

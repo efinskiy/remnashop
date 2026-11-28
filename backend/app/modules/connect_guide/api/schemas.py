@@ -1,5 +1,6 @@
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.core.dto import ResponseModel
 from app.modules.connect_guide.catalog import ConnectCatalog, ConnectPlatform
 
 
@@ -8,13 +9,13 @@ class ConnectGuideRequest(BaseModel):
     catalog: ConnectCatalog
 
 
-class ConnectGuideResponse(BaseModel):
+class ConnectGuideResponse(ResponseModel):
     enabled: bool
     catalog: ConnectCatalog
     is_default: bool
 
 
-class PublicConnectGuideResponse(BaseModel):
+class PublicConnectGuideResponse(ResponseModel):
     # empty while the guide is switched off: the cabinet falls back to its plain link page
     platforms: list[ConnectPlatform]
 
@@ -27,5 +28,5 @@ class ConnectHandoffVerifyRequest(BaseModel):
     signature: str = Field(min_length=43, max_length=43)
 
 
-class ConnectHandoffVerifyResponse(BaseModel):
+class ConnectHandoffVerifyResponse(ResponseModel):
     valid: bool

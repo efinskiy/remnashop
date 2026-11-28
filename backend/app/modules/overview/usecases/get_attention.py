@@ -11,7 +11,7 @@ from remnapy.exceptions import ApiError
 
 from app.core.actor import Actor
 from app.core.db.uow import UnitOfWork
-from app.core.enums import BackupKind, BackupRunStatus, PanelSyncDirection
+from app.core.enums import BackupKind, BackupRunStatus
 from app.core.exceptions import RemnawavePanelUnavailableError
 from app.core.security.permissions import Permission, PermissionPolicy
 from app.core.usecase import UseCase
@@ -36,6 +36,7 @@ from app.modules.settings import (
 )
 from app.modules.subscriptions import (
     PanelSquadCatalog,
+    PanelSyncDirection,
     SubscriptionStatsRepository,
     missing_squads,
     read_panel_sync_status,
@@ -107,6 +108,7 @@ class GetAttentionUseCase(UseCase[None, AttentionDto]):
         items += await self._panel_users_missing(perms)
         async with self._uow:
             items += await self._outbox_stuck()
+            items += await self._outbox_poisoned()
             items += await self._gateway_failures(perms)
             items += await self._backup_failed(perms)
             items += await self._backup_overdue(perms)
@@ -316,6 +318,17 @@ class GetAttentionUseCase(UseCase[None, AttentionDto]):
         return [
             AttentionItemDto(
                 kind=AttentionKind.OUTBOX_STUCK,
+                severity="critical",
+                count=stats.unprocessed_count,
+                since=stats.oldest_occurred_at,
+            )
+        ]
+
+    async def _outbox_poisoned(self) -> list[AttentionItemDto]:
+        stats = await self._outbox_repository.get_poisoned_stats()
+        return [
+            AttentionItemDto(
+                kind=AttentionKind.OUTBOX_POISONED,
                 severity="critical",
                 count=stats.unprocessed_count,
                 since=stats.oldest_occurred_at,

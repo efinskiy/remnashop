@@ -34,22 +34,21 @@ case "$TARGET" in
         exec python -m app.telegram
         ;;
     worker)
-        # A new tasks.py isn't picked up until it's listed here;
-        # tests/worker/test_container.py checks every one is.
+        # every app/modules/*/tasks.py is imported; the pattern is quoted so
+        # taskiq globs it from WORKDIR, not the shell
         # With metrics on, only the first worker process serves the metrics port
         # and polls the queue gauges (app/worker/lifespan.py); the task counters
         # of the other processes aren't exported.
-        exec taskiq worker -w "${WORKER_PROCESSES:-1}" --max-async-tasks "${WORKER_MAX_ASYNC_TASKS:-25}" app.core.broker:broker app.worker.lifespan app.modules.event_log.tasks app.modules.subscriptions.tasks app.modules.transactions.tasks app.modules.recurring_payments.tasks app.modules.auth.tasks app.modules.referrals.tasks app.modules.backups.tasks app.modules.blacklist.tasks app.modules.users.tasks app.modules.advertising.tasks app.modules.overview.tasks app.modules.announcements.tasks app.modules.loyalty.tasks app.modules.notifications.tasks app.modules.broadcasts.tasks app.modules.email.tasks app.modules.customer_notifications.tasks app.modules.promocodes.tasks
+        exec taskiq worker -w "${WORKER_PROCESSES:-1}" --max-async-tasks "${WORKER_MAX_ASYNC_TASKS:-25}" app.core.broker:broker app.worker.lifespan --fs-discover --tasks-pattern "app/modules/*/tasks.py"
         ;;
     scheduler)
-        # Only includes modules with a schedule-labeled task -- not a full
-        # mirror of worker's module list, since taskiq scheduler only reads
-        # schedule labels off these modules, it never executes their tasks.
+        # imports the same tasks modules as the worker to read their schedule
+        # labels; it never executes a task.
         # It also dispatches every delayed task retry via retry_schedule_source,
         # so it's an operational dependency for retry timing: a scheduler outage
         # stalls (does not lose -- ListRedisScheduleSource recovers past
         # buckets) all pending retries.
-        exec taskiq scheduler app.worker.scheduler:scheduler app.modules.event_log.tasks app.modules.subscriptions.tasks app.modules.transactions.tasks app.modules.recurring_payments.tasks app.modules.auth.tasks app.modules.backups.tasks app.modules.blacklist.tasks app.modules.users.tasks app.modules.overview.tasks app.modules.announcements.tasks app.modules.loyalty.tasks app.modules.notifications.tasks app.modules.broadcasts.tasks app.modules.customer_notifications.tasks app.modules.promocodes.tasks
+        exec taskiq scheduler app.worker.scheduler:scheduler --fs-discover --tasks-pattern "app/modules/*/tasks.py"
         ;;
     cli)
         exec python -m app.cli

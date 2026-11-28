@@ -38,6 +38,7 @@ from app.modules.subscriptions.usecases import (
     DeleteDeviceUseCase,
     DeleteSubscriptionUseCase,
     DeleteUserSubscriptionsUseCase,
+    DisableExpiredSubscriptionUseCase,
     EndGraceUseCase,
     EnterGraceUseCase,
     FulfillPurchaseUseCase,
@@ -71,12 +72,14 @@ from app.modules.subscriptions.usecases import (
     SetSubscriptionEnabledUseCase,
     StartPanelSyncFromUseCase,
     StartPanelSyncToUseCase,
+    SweepExpiryDisableUseCase,
     SweepGraceUseCase,
     SyncAllFromPanelUseCase,
     SyncAllToPanelUseCase,
     SyncSubscriptionStatusUseCase,
     UpdateSubscriptionSquadsUseCase,
     UpdateSubscriptionUseCase,
+    WarnOfExpiryDisableUseCase,
 )
 from app.modules.users import SubscriptionRevoker
 
@@ -149,6 +152,9 @@ class SubscriptionsProvider(Provider):
         EndGraceUseCase,
         RestoreDuePanelConfigsUseCase,
         SweepGraceUseCase,
+        WarnOfExpiryDisableUseCase,
+        DisableExpiredSubscriptionUseCase,
+        SweepExpiryDisableUseCase,
     )
     subscription_revoker = alias(source=PanelSubscriptionRevoker, provides=SubscriptionRevoker)
 

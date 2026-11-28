@@ -25,7 +25,7 @@ async def test_create_and_read_event_log_entry(
 
     entry = EventLogEntry(
         category=EventCategory.ADMIN_MANAGEMENT,
-        event_type="AdminCreatedEvent",
+        event_type="AdminChangedEvent",
         occurred_at=datetime.now(timezone.utc),
         actor_id=owner.id,
         actor_login="owner",
